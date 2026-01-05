@@ -20,7 +20,9 @@ def create_app():
     from .routes.wabas import bp as wabas_bp
     from .routes.jobs import bp as jobs_bp
     from .routes.admin import bp as admin_bp
+    from .routes.billing import bp as billing_bp
 
+    app.register_blueprint(billing_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(wabas_bp)

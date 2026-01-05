@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-xl mx-auto">
+  <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6">
+    <h1 class="text-2xl font-semibold mb-2">Recarregar saldo</h1>
+    <p class="text-sm text-zinc-400 mb-5">
+      No momento a recarga ainda não está automatizada.
+      Peça para o admin adicionar saldo na sua conta.
+    </p>
+
+    <div class="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4">
+      <div class="text-sm text-zinc-300 mb-1">O que enviar para o admin</div>
+      <ul class="text-xs text-zinc-500 list-disc ml-4 space-y-1">
+        <li>Seu username</li>
+        <li>Valor desejado (ex: R$ 50)</li>
+        <li>Comprovante (se aplicável)</li>
+      </ul>
+    </div>
+
+    <div class="mt-6">
+      <a href="{{ url_for('dashboard.dashboard') }}"
+         class="inline-block px-4 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm font-semibold">
+        Voltar ao Dashboard
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
