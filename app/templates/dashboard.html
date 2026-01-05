@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- Ações -->
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-4">
+  <div class="flex items-center justify-between gap-3">
+    <div>
+      <div class="text-sm text-zinc-300">Ações</div>
+      <div class="text-xs text-zinc-500">
+        Clique no ícone de recarregar para buscar dados no Meta. Não atualiza automaticamente ao abrir a página.
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <!-- Refresh button -->
+      <form method="POST" action="{{ url_for('dashboard.sync_now') }}">
+        <button type="submit"
+                title="Recarregar dados do Meta"
+                class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700">
+          <!-- reload icon -->
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12a9 9 0 1 1-3-6.7"/>
+            <path d="M21 3v6h-6"/>
+          </svg>
+        </button>
+      </form>
+
+      <button type="button" onclick="openModal()"
+              class="px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">
+        + Adicionar WABA
+      </button>
+    </div>
+  </div>
+
+  <!-- Snippet saldo insuficiente (global) -->
+  {% if current_user.balance_cents is not none and current_user.balance_cents < 800 %}
+  <div class="mt-4 rounded-xl border border-red-700 bg-red-950/40 px-4 py-3">
+    <div class="flex items-center justify-between gap-4">
+      <div class="text-sm text-red-300">
+        <b>Saldo insuficiente</b><br>
+        Para adicionar número, você precisa de pelo menos <b>R$ 8,00</b> de saldo.
+      </div>
+      <a href="{{ url_for('billing.recharge') }}"
+         class="px-4 py-2 rounded-lg bg-red-700 hover:bg-red-600 text-sm font-semibold">
+        Recarregar
+      </a>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Ação principal: adicionar número nos selecionados -->
+  <form method="POST" action="{{ url_for('jobs.start_add_phone') }}" class="mt-4">
+    <div class="flex items-center gap-3">
+      {% if current_user.balance_cents is not none and current_user.balance_cents < 800 %}
+        <button disabled
+                class="px-4 py-2 rounded-xl bg-zinc-800 text-zinc-500 cursor-not-allowed text-sm font-semibold">
+          Saldo insuficiente
+        </button>
+      {% else %}
+        <button class="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-semibold">
+          Adicionar número nos selecionados
+        </button>
+      {% endif %}
+      <span class="text-xs text-zinc-400">Processo sequencial com job + acompanhamento abaixo.</span>
+    </div>
+
+    <!-- Tabela -->
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="text-zinc-400">
+          <tr class="border-b border-zinc-800">
+            <th class="text-left py-2 pr-3">Sel</th>
+            <th class="text-left py-2">WABA</th>
+            <th class="text-left py-2">Telefone</th>
+            <th class="text-left py-2">Templates</th>
+            <th class="text-left py-2">Última sync</th>
+            <th class="text-left py-2">Status</th>
+          </tr>
+        </thead>
+
+        <tbody class="text-zinc-200">
+          {% for row in rows %}
+          <tr class="border-b border-zinc-900">
+            <!-- checkbox -->
+            <td class="py-3 pr-3">
+              <input type="checkbox" name="waba_ids" value="{{ row.waba_id }}"
+                     class="w-4 h-4 accent-emerald-600">
+            </td>
+
+            <!-- WABA -->
+            <td class="py-3">
+              <div class="font-semibold">{{ row.waba_name }}</div>
+              <div class="text-xs text-zinc-500">{{ row.waba_id }}</div>
+
+              {% if row.last_error %}
+                <div class="text-xs text-red-400 mt-1">Erro sync: {{ row.last_error }}</div>
+              {% endif %}
+
+              {% if row.last_add_phone_error %}
+                <div class="text-xs text-red-400 mt-1">Erro add-phone: {{ row.last_add_phone_error }}</div>
+              {% endif %}
+            </td>
+
+            <!-- Telefone -->
+            <td class="py-3">
+              {% if row.phone_numbers %}
+                {% for p in row.phone_numbers %}
+                  <div class="mb-1">
+                    <span class="px-2 py-1 rounded-lg bg-emerald-950/40 border border-emerald-800 text-emerald-200 text-xs">
+                      {{ p.display_phone_number }}
+                    </span>
+                  </div>
+                {% endfor %}
+              {% else %}
+                <span class="text-zinc-500">—</span>
+              {% endif %}
+            </td>
+
+            <!-- Templates -->
+            <td class="py-3">
+              <span class="text-emerald-400">{{ row.t.APPROVED }}</span> /
+              <span class="text-yellow-400">{{ row.t.PAUSED }}</span> /
+              <span class="text-red-400">{{ row.t.DISABLED }}</span>
+              {% if row.t.OTHER %}
+                <span class="text-zinc-400"> / {{ row.t.OTHER }}</span>
+              {% endif %}
+            </td>
+
+            <!-- Última sync -->
+            <td class="py-3 text-xs text-zinc-400">
+              {% if row.last_sync_at and row.last_sync_at > 0 %}
+                {{ row.last_sync_at | int }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+
+            <!-- Status -->
+            <td class="py-3">
+              {% if row.status_label == "Developers Travado" %}
+                <span class="text-yellow-400">Developers Travado</span>
+              {% elif row.status_label == "Erro" %}
+                <span class="text-red-400">Erro</span>
+              {% else %}
+                <span class="text-emerald-400">OK</span>
+              {% endif %}
+            </td>
+
+          </tr>
+          {% endfor %}
+
+          {% if not rows %}
+          <tr class="border-b border-zinc-900">
+            <td class="py-6 text-zinc-500" colspan="6">Nenhum WABA cadastrado ainda.</td>
+          </tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+</div>
+
+<!-- Job progress box -->
+<div id="jobBox" class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 hidden">
+  <div class="flex items-center justify-between">
+    <div>
+      <div class="text-sm font-semibold">Progresso do Job</div>
+      <div class="text-xs text-zinc-500" id="jobMsg">—</div>
+    </div>
+    <div class="text-xs text-zinc-400" id="jobStatus">—</div>
+  </div>
+  <div class="mt-3 w-full h-2 bg-zinc-800 rounded-full overflow-hidden">
+    <div id="jobBar" class="h-2 bg-emerald-600 w-0"></div>
+  </div>
+</div>
+
+<!-- Modal: Add WABA -->
+<div id="modalBg" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
+  <div class="w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <div class="text-lg font-semibold">Adicionar WABA</div>
+        <div class="text-xs text-zinc-500">Informe somente WABA ID e Token.</div>
+      </div>
+      <button onclick="closeModal()" class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">Fechar</button>
+    </div>
+
+    <form method="POST" action="{{ url_for('wabas.add') }}" class="space-y-3">
+      <div>
+        <label class="text-xs text-zinc-400">WABA ID</label>
+        <input name="waba_id"
+               class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm"
+               required />
+      </div>
+
+      <div>
+        <label class="text-xs text-zinc-400">Token</label>
+        <textarea name="token" rows="4"
+                  class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm"
+                  required></textarea>
+      </div>
+
+      <button class="w-full px-4 py-3 rounded-xl bg-indigo-700 hover:bg-indigo-600 font-semibold">
+        Salvar
+      </button>
+    </form>
+  </div>
+</div>
+
+<script>
+function openModal() {
+  const bg = document.getElementById("modalBg");
+  bg.classList.remove("hidden");
+  bg.classList.add("flex");
+}
+function closeModal() {
+  const bg = document.getElementById("modalBg");
+  bg.classList.add("hidden");
+  bg.classList.remove("flex");
+}
+document.getElementById("modalBg")?.addEventListener("click", (e) => {
+  if (e.target.id === "modalBg") closeModal();
+});
+
+// Job polling
+(function(){
+  const jobId = "{{ job_id|default('') }}";
+  if (!jobId) return;
+
+  const box = document.getElementById("jobBox");
+  const msg = document.getElementById("jobMsg");
+  const st = document.getElementById("jobStatus");
+  const bar = document.getElementById("jobBar");
+  box.classList.remove("hidden");
+
+  async function poll(){
+    const r = await fetch(`/jobs/${jobId}/status`);
+    if (!r.ok) return;
+    const j = await r.json();
+
+    const pct = j.total ? Math.round((j.done / j.total) * 100) : 0;
+    msg.textContent = `${j.last_message || "—"} ${j.current_label ? "• Atual: " + j.current_label : ""}`;
+    st.textContent = `${j.status} • ${j.done}/${j.total} • ${pct}%`;
+    bar.style.width = `${pct}%`;
+
+    if (j.status === "running" || j.status === "queued") {
+      setTimeout(poll, 1500);
+    }
+  }
+  poll();
+})();
+</script>
+
+{% endblock %}

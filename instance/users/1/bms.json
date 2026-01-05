@@ -1,0 +1,71 @@
+{
+    "1788903168479207": {
+        "waba_id": "1788903168479207",
+        "token": "EAARuUAU0hVEBQVU24DVuVrwt7cWfik02BnD2TGMb9ainyV8sKTyRlopBSoKoWPDTbgMR26oZC7a4beuQ7ZB4N0AykbkSbkSK0ZAMDsHKlm3uMA8YOHfZCi90WARDemDtIDcaqmnG5g9k7pRaOeqZAGhtPjlfwp8cZAtuDGrlYqYH4MRwfU1zS3yFPwKygo6jZA5cAZDZD",
+        "phone_number_id": "",
+        "templates": [],
+        "snapshot": {
+            "waba_name": "Lima Aguia Ofiice LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Lima Aguia Ofiice LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 31 92004-3764",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "999442539909271"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 3,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_sync_at": 1767596511,
+            "last_error": "",
+            "status_label": "OK"
+        },
+        "last_add_phone_error": "",
+        "last_add_phone_debug": [
+            "START user_id=1 waba_id=1788903168479207 job_id=9",
+            "balance_check ok=True msg=OK",
+            "get_waba_name tuple err=None name=Lima Aguia Ofiice LTDA",
+            "verified_name normalized='Lima Aguia Ofiice LTDA'",
+            "sms24h_get_number -> activation_id=14659106 full_phone=5531920043764",
+            "add_phone_number status=200 body={\"id\":\"999442539909271\"}",
+            "request_code status=200 body={\"success\":true}",
+            "sms24h STATUS_OK raw='852-993' normalized='852993'",
+            "DEBIT otp -> ok=True msg=OTP debitado",
+            "verify_code status=200 body={\"success\":true}",
+            "register status=500 body={\"error\":{\"message\":\"(#131000) Something went wrong\",\"type\":\"OAuthException\",\"code\":131000,\"error_data\":{\"messaging_product\":\"whatsapp\",\"details\":\"Something went wrong\"},\"fbtrace_id\":\"AdMLGcDrUE0FAHAs90JJPhl\"}}"
+        ],
+        "pending_phone_number_id": "999442539909271",
+        "sms24h_activation_id": "14659106",
+        "sms24h_full_phone": "5531920043764",
+        "otp_received": true,
+        "otp_received_at": 1767595986
+    },
+    "1236729544943557": {
+        "waba_id": "1236729544943557",
+        "token": "EAATNtn12zgwBQYHWEpTUSGCDFXg5FlETAguao7fNd84CL5XHctOiwbIvJKpDltwR3K7umqsFkkBKIEKcxZAOwd0CTs4QvhlCPjgFmo4LNYt8ZAJzX7sPRt9kZCZAfuyYFzykL7CFhwZCZBLHhrdJ9vOEsqnjCtBFPVNrCHEZAIJki3rk7P4xFsaji48Fy6ZCIAnYSwZDZD",
+        "phone_number_id": "",
+        "templates": [],
+        "snapshot": {
+            "waba_name": "—",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_sync_at": 1767596512,
+            "last_error": "",
+            "status_label": "Developers Travado"
+        }
+    }
+}

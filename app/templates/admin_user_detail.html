@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-4">
+  <a class="text-sm text-zinc-400 hover:text-zinc-200" href="{{ url_for('admin.admin_users') }}">← Admin</a>
+</div>
+
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-6">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <div class="text-sm text-zinc-400">Usuário</div>
+      <div class="text-xl font-semibold">{{ u.username }}</div>
+      <div class="text-sm mt-2">
+        Status:
+        {% if u.is_banned %}<span class="text-red-400">BANIDO</span>
+        {% else %}<span class="text-emerald-400">OK</span>{% endif %}
+      </div>
+      <div class="text-sm mt-2">
+        Saldo: <b>R$ {{ "%.2f"|format(u.balance_cents/100) }}</b>
+      </div>
+    </div>
+
+    <div class="w-full max-w-md">
+      <div class="text-sm text-zinc-400 mb-2">Ajustar saldo</div>
+      <form method="post" action="{{ url_for('admin.admin_adjust_balance', user_id=u.id) }}" class="flex gap-2">
+        <input name="amount" placeholder="ex: 50.00" class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800" />
+        <select name="op" class="px-3 py-3 rounded-xl bg-zinc-950 border border-zinc-800">
+          <option value="add">Adicionar</option>
+          <option value="remove">Remover</option>
+        </select>
+        <button class="px-4 py-3 rounded-xl bg-indigo-700 hover:bg-indigo-600 font-semibold">Aplicar</button>
+      </form>
+      <div class="text-xs text-zinc-500 mt-2">Custo por OTP = R$8 (debitado quando o OTP chega).</div>
+    </div>
+  </div>
+
+  <div class="mt-8">
+    <h2 class="font-semibold mb-3">Transações (últimas 50)</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="text-zinc-400">
+          <tr class="border-b border-zinc-800">
+            <th class="text-left py-2">Data</th>
+            <th class="text-left py-2">Valor</th>
+            <th class="text-left py-2">Motivo</th>
+            <th class="text-left py-2">WABA</th>
+            <th class="text-left py-2">Phone</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in txs %}
+          <tr class="border-b border-zinc-900">
+            <td class="py-3 text-zinc-300">{{ t.created_at }}</td>
+            <td class="py-3 {% if t.amount_cents < 0 %}text-red-400{% else %}text-emerald-400{% endif %}">
+              {% if t.amount_cents < 0 %}-{% endif %}R$ {{ "%.2f"|format((t.amount_cents|abs)/100) }}
+            </td>
+            <td class="py-3">{{ t.reason }}</td>
+            <td class="py-3 text-zinc-400">{{ t.waba_id }}</td>
+            <td class="py-3 text-zinc-400">{{ t.phone_number_id }}</td>
+          </tr>
+          {% endfor %}
+          {% if not txs %}
+          <tr><td class="py-3 text-zinc-500" colspan="5">Nenhuma transação.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="mt-8">
+    <h2 class="font-semibold mb-3">WABAs do usuário</h2>
+    <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {% for w in wabas %}
+      <div class="block rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4">
+        <div class="text-xs text-zinc-500">{{ w.name_label }}</div>
+        <div class="text-sm text-zinc-400">{{ w.waba_id }}</div>
+        <div class="mt-2 text-sm">
+          Phone:
+          {% if w.phone_number_id %}
+            <span class="text-emerald-400">OK</span>
+            <div class="text-xs text-zinc-500">{{ w.phone_number_id }}</div>
+          {% else %}
+            <span class="text-zinc-400">Sem</span>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+      {% if not wabas %}
+        <div class="text-zinc-500">Nenhum WABA.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
