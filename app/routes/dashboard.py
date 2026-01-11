@@ -7,6 +7,7 @@ from flask import (
     url_for,
     flash,
     request,
+    jsonify,
 )
 from flask_login import login_required, current_user
 
@@ -14,7 +15,6 @@ from ..json_store import (
     ensure_user_bms_file,
     load_user_bms,
     update_snapshot,
-    bms_path,
 )
 from ..services.meta import (
     get_waba_name,
@@ -65,7 +65,6 @@ def dashboard():
         job_id=job_id,
     )
 
-
 @bp.route("/sync", methods=["POST"])
 @login_required
 def sync_now():
@@ -90,26 +89,19 @@ def sync_now():
         if not waba_id or not token:
             continue
 
-        # --- META CALLS ---
         waba_name, err_name = get_waba_name(api_version, token, waba_id)
         phones, err_phones = get_phone_numbers(api_version, token, waba_id)
         templates, err_tpl = get_templates(api_version, token, waba_id)
 
         all_errors = " ".join(e for e in (err_name, err_phones, err_tpl) if e)
 
-        # 🟡 CASE: Developers app blocked
         if API_BLOCKED_MARK in all_errors:
             update_snapshot(
                 current_user.id,
                 waba_id,
                 waba_name="—",
                 phone_numbers=[],
-                template_counts={
-                    "APPROVED": 0,
-                    "PAUSED": 0,
-                    "DISABLED": 0,
-                    "OTHER": 0,
-                },
+                template_counts={"APPROVED": 0, "PAUSED": 0, "DISABLED": 0, "OTHER": 0},
                 last_error="",
                 status_label="Developers Travado",
                 last_sync_at=int(time.time()),
@@ -117,7 +109,6 @@ def sync_now():
             blocked += 1
             continue
 
-        # 🔴 Other errors
         if all_errors:
             update_snapshot(
                 current_user.id,
@@ -132,7 +123,6 @@ def sync_now():
             errors += 1
             continue
 
-        # 🟢 OK
         update_snapshot(
             current_user.id,
             waba_id,
@@ -150,3 +140,61 @@ def sync_now():
         "success" if synced else "error",
     )
     return redirect(url_for("dashboard.dashboard"))
+
+@bp.route("/export-selected", methods=["POST"])
+@login_required
+def export_selected():
+    """
+    Recebe JSON: { "waba_ids": ["123", "456"] }
+    Retorna um dict no formato pedido (chaves com label):
+    {
+      "123 (bm_export)": {"waba_id":"123", "phone_number_id":"...", "token":"...", "templates":[""]},
+      ...
+    }
+    """
+    ensure_user_bms_file(current_user.id)
+    bms = load_user_bms(current_user.id)
+
+    payload = request.get_json(silent=True) or {}
+    waba_ids = payload.get("waba_ids") or []
+    if not isinstance(waba_ids, list):
+        return jsonify({"error": "invalid_payload"}), 400
+
+    # Map waba_id -> original key (if your bms.json keys include "(bm_aula_..)")
+    key_by_waba_id = {}
+    for k, v in (bms or {}).items():
+        if isinstance(v, dict):
+            wid = str(v.get("waba_id") or k).strip()
+            if wid:
+                key_by_waba_id[wid] = str(k)
+
+    out = {}
+
+    for wid in [str(x).strip() for x in waba_ids if str(x).strip()]:
+        entry = bms.get(wid)
+
+        # If your json key isn't the waba_id, try to find by mapping
+        if not isinstance(entry, dict):
+            original_key = key_by_waba_id.get(wid)
+            if original_key and isinstance(bms.get(original_key), dict):
+                entry = bms.get(original_key)
+            else:
+                continue
+
+        token = entry.get("token", "") or ""
+        phone_number_id = entry.get("phone_number_id", "") or ""
+
+        original_key = key_by_waba_id.get(wid)
+        if original_key and " (" in original_key and original_key.endswith(")"):
+            export_key = original_key
+        else:
+            export_key = f"{wid} (bm_export)"
+
+        out[export_key] = {
+            "waba_id": wid,
+            "phone_number_id": str(phone_number_id),
+            "token": str(token),
+            "templates": [""],  # always blank as requested
+        }
+
+    return jsonify(out)
