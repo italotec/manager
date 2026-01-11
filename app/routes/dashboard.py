@@ -38,7 +38,7 @@ def dashboard():
         if not isinstance(data, dict):
             continue
 
-        waba_id = str(data.get("waba_id") or key).strip()
+        waba_id = str(data.get("waba_id") or "").strip()
         snap = data.get("snapshot", {}) or {}
 
         rows.append({
@@ -84,7 +84,7 @@ def sync_now():
         if not isinstance(data, dict):
             continue
 
-        waba_id = str(data.get("waba_id") or key).strip()
+        waba_id = str(data.get("waba_id") or "").strip()
         token = (data.get("token") or "").strip()
         if not waba_id or not token:
             continue
@@ -145,12 +145,21 @@ def sync_now():
 @login_required
 def export_selected():
     """
-    Recebe JSON: { "waba_ids": ["123", "456"] }
-    Retorna um dict no formato pedido (chaves com label):
+    GERA EXATAMENTE NO FORMATO:
+
     {
-      "123 (bm_export)": {"waba_id":"123", "phone_number_id":"...", "token":"...", "templates":[""]},
-      ...
+        "<KEY ORIGINAL DO bms.json>": {
+            "waba_id": "...",
+            "phone_number_id": "...",
+            "token": "...",
+            "templates": [""]
+        }
     }
+
+    - templates SEMPRE em branco
+    - não cria label
+    - não reaproveita templates reais
+    - ordem dos campos respeitada
     """
     ensure_user_bms_file(current_user.id)
     bms = load_user_bms(current_user.id)
@@ -160,41 +169,31 @@ def export_selected():
     if not isinstance(waba_ids, list):
         return jsonify({"error": "invalid_payload"}), 400
 
-    # Map waba_id -> original key (if your bms.json keys include "(bm_aula_..)")
+    # Mapeia waba_id -> chave original
     key_by_waba_id = {}
-    for k, v in (bms or {}).items():
-        if isinstance(v, dict):
-            wid = str(v.get("waba_id") or k).strip()
-            if wid:
-                key_by_waba_id[wid] = str(k)
+    for original_key, entry in (bms or {}).items():
+        if not isinstance(entry, dict):
+            continue
+        wid = str(entry.get("waba_id") or "").strip()
+        if wid:
+            key_by_waba_id[wid] = str(original_key)
 
     out = {}
 
     for wid in [str(x).strip() for x in waba_ids if str(x).strip()]:
-        entry = bms.get(wid)
-
-        # If your json key isn't the waba_id, try to find by mapping
-        if not isinstance(entry, dict):
-            original_key = key_by_waba_id.get(wid)
-            if original_key and isinstance(bms.get(original_key), dict):
-                entry = bms.get(original_key)
-            else:
-                continue
-
-        token = entry.get("token", "") or ""
-        phone_number_id = entry.get("phone_number_id", "") or ""
-
         original_key = key_by_waba_id.get(wid)
-        if original_key and " (" in original_key and original_key.endswith(")"):
-            export_key = original_key
-        else:
-            export_key = f"{wid} (bm_export)"
+        if not original_key:
+            continue
 
-        out[export_key] = {
+        entry = bms.get(original_key)
+        if not isinstance(entry, dict):
+            continue
+
+        out[original_key] = {
             "waba_id": wid,
-            "phone_number_id": str(phone_number_id),
-            "token": str(token),
-            "templates": [""],  # always blank as requested
+            "phone_number_id": str(entry.get("phone_number_id") or ""),
+            "token": str(entry.get("token") or ""),
+            "templates": [""],  # <-- SEMPRE EM BRANCO
         }
 
     return jsonify(out)
