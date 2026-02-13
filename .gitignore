@@ -1,0 +1,10 @@
+
+nul
+__pycache__/
+*.pyc
+instance/app.db
+instance/users/
+*.jsonl
+*.log
+sent_log.txt
+
