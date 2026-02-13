@@ -49,6 +49,29 @@ def get_templates(api_version: str, token: str, waba_id: str):
         return [], f"Meta error: {str(j.get('error'))[:800]}"
     return (j.get("data") or []), None
 
+def create_template(api_version: str, token: str, waba_id: str, payload: dict):
+    url = f"https://graph.facebook.com/{api_version}/{waba_id}/message_templates"
+    try:
+        r = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=30,
+        )
+        try:
+            j = r.json()
+        except Exception:
+            j = None
+        if r.status_code not in (200, 201) or not isinstance(j, dict):
+            snippet = (r.text or "")[:800]
+            return None, f"HTTP {r.status_code}: {snippet}"
+        if "error" in j:
+            return None, f"Meta error: {str(j.get('error'))[:800]}"
+        return j, None
+    except Exception as e:
+        return None, str(e)[:800]
+
+
 def templates_status_summary(templates: list[dict]) -> dict:
     out = {"APPROVED": 0, "PAUSED": 0, "DISABLED": 0, "OTHER": 0}
     for t in templates:

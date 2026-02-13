@@ -1,0 +1,662 @@
+{% extends "base.html" %}
+{% block content %}
+
+{# ── page title ── #}
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h1 class="text-xl font-bold">Disparar mensagens</h1>
+    <p class="text-xs text-zinc-500 mt-0.5">Envio em massa via WhatsApp · Meta Graph API</p>
+  </div>
+  <div class="flex items-center gap-2 text-xs text-zinc-400">
+    <span>Já enviados:</span>
+    <span id="sentCountBadge"
+          class="px-2 py-1 rounded-lg bg-zinc-800 font-mono font-semibold text-zinc-200">
+      {{ sent_count }}
+    </span>
+    <form method="POST" action="{{ url_for('disparar.clear_sent_log') }}"
+          onsubmit="return confirm('Limpar a lista de já-enviados? Próximo disparo pode re-enviar para esses números.')">
+      <button type="submit"
+              class="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-red-900/60 border border-zinc-700 text-zinc-400 hover:text-red-300 transition-colors">
+        Limpar lista
+      </button>
+    </form>
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   STEP 1 · CSV
+═══════════════════════════════════════════════════════════════════════════ #}
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="text-sm font-semibold">1 · Base de leads (CSV)</div>
+      <div class="text-xs text-zinc-500">Carregue ou selecione um CSV. Ele deve ter uma coluna com o número de telefone.</div>
+    </div>
+
+    {# upload form #}
+    <form method="POST" action="{{ url_for('disparar.upload_csv') }}"
+          enctype="multipart/form-data"
+          class="flex items-center gap-2">
+      <label class="cursor-pointer px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">
+        + Upload CSV
+        <input type="file" name="csv_file" accept=".csv" class="hidden"
+               onchange="this.closest('form').submit()">
+      </label>
+    </form>
+  </div>
+
+  {% if not csv_files %}
+    <div class="text-sm text-zinc-500 py-4 text-center border border-dashed border-zinc-800 rounded-xl">
+      Nenhum CSV enviado ainda.
+    </div>
+  {% else %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="text-zinc-400">
+          <tr class="border-b border-zinc-800">
+            <th class="text-left py-2 pr-4">Sel</th>
+            <th class="text-left py-2">Arquivo</th>
+            <th class="text-left py-2">Linhas</th>
+            <th class="text-left py-2">Tamanho</th>
+            <th class="text-left py-2">Colunas</th>
+            <th class="text-left py-2"></th>
+          </tr>
+        </thead>
+        <tbody class="text-zinc-200">
+          {% for csv in csv_files %}
+          <tr class="border-b border-zinc-900 hover:bg-zinc-900/50">
+            <td class="py-3 pr-4">
+              <input type="radio" name="csv_select" value="{{ csv.name }}"
+                     onchange="onCsvSelect(this.value)"
+                     class="w-4 h-4 accent-indigo-500">
+            </td>
+            <td class="py-3 font-mono text-xs">{{ csv.name }}</td>
+            <td class="py-3 text-zinc-400 text-xs">{{ csv.row_count }}</td>
+            <td class="py-3 text-zinc-400 text-xs">{{ csv.size_kb }} KB</td>
+            <td class="py-3 text-zinc-500 text-xs max-w-xs truncate">
+              {{ csv.columns | join(", ") }}
+            </td>
+            <td class="py-3 text-right">
+              <form method="POST"
+                    action="{{ url_for('disparar.delete_csv', filename=csv.name) }}"
+                    onsubmit="return confirm('Remover {{ csv.name }}?')">
+                <button type="submit"
+                        class="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-red-900/60 text-zinc-500 hover:text-red-300 text-xs">
+                  Remover
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  {# ── CSV preview (shown after selection) ── #}
+  <div id="csvPreview" class="hidden mt-3 rounded-xl border border-zinc-700 bg-zinc-950 overflow-x-auto">
+    <div class="px-3 py-2 border-b border-zinc-800 text-xs text-zinc-500 flex items-center gap-2">
+      <span>Prévia</span>
+      <span id="csvPreviewName" class="font-mono text-zinc-400"></span>
+    </div>
+    <table class="min-w-full text-xs font-mono">
+      <thead id="csvPreviewHead" class="text-zinc-500 border-b border-zinc-800"></thead>
+      <tbody id="csvPreviewBody" class="text-zinc-300"></tbody>
+    </table>
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   STEP 2 · CONFIGURAÇÃO
+═══════════════════════════════════════════════════════════════════════════ #}
+<div id="configSection" class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-4 opacity-40 pointer-events-none transition-opacity duration-200">
+  <div class="text-sm font-semibold mb-3">2 · Configuração de envio</div>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    {# ── WABA + phone_number_id ── #}
+    <div class="space-y-3">
+      <div>
+        <label class="text-xs text-zinc-400">WABA / remetente</label>
+        <select id="wabaSelect" onchange="onWabaSelect()"
+                class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm">
+          <option value="">— selecione —</option>
+          {% for w in wabas %}
+            {% for ph in w.phones %}
+            <option value="{{ w.waba_id }}"
+                    data-phone-number-id="{{ ph.phone_number_id }}"
+                    data-token="{{ w.token }}"
+                    data-name="{{ w.name }}">
+              {{ w.name }} · {{ ph.display }}
+            </option>
+            {% endfor %}
+            {% if not w.phones %}
+            <option value="{{ w.waba_id }}"
+                    data-phone-number-id=""
+                    data-token="{{ w.token }}"
+                    data-name="{{ w.name }}"
+                    class="text-zinc-500">
+              {{ w.name }} (sem telefone cadastrado — sincronize o dashboard)
+            </option>
+            {% endif %}
+          {% endfor %}
+        </select>
+        {% if not wabas %}
+          <p class="text-xs text-yellow-400 mt-1">Nenhum WABA encontrado. Adicione no Dashboard.</p>
+        {% endif %}
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between">
+          <label class="text-xs text-zinc-400">Template</label>
+          <button type="button" id="btnFetchTemplates" onclick="fetchTemplates()"
+                  class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold">
+            Buscar templates
+          </button>
+        </div>
+
+        {# selected template display #}
+        <div id="selectedTemplateBox"
+             class="mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm text-zinc-500 cursor-pointer"
+             onclick="toggleTemplatePicker()">
+          — selecione um template —
+        </div>
+        <input type="hidden" id="templateName">
+
+        {# template picker panel (hidden until templates loaded) #}
+        <div id="templatePickerPanel" class="hidden mt-2 rounded-xl border border-zinc-700 bg-zinc-950 overflow-hidden">
+          <div id="templatePickerList" class="max-h-64 overflow-y-auto divide-y divide-zinc-800">
+            {# filled by JS #}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <label class="text-xs text-zinc-400">Coluna do telefone no CSV</label>
+        <select id="phoneColSelect"
+                class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm">
+          <option value="">— selecione o CSV primeiro —</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="text-xs text-zinc-400">Threads simultâneas</label>
+        <div class="mt-1 flex items-center gap-2 flex-wrap">
+          {% for n in [1, 2, 3, 5, 10, 20] %}
+          <button type="button"
+                  onclick="setWorkers({{ n }})"
+                  data-workers="{{ n }}"
+                  class="workers-btn px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs font-mono transition-colors">
+            {{ n }}
+          </button>
+          {% endfor %}
+          <div class="flex items-center gap-1">
+            <input id="workersCustom" type="number" min="1" max="20" step="1"
+                   placeholder="custom"
+                   oninput="setWorkers(parseInt(this.value))"
+                   class="w-20 px-2 py-2 rounded-xl bg-zinc-950 border border-zinc-700 outline-none focus:border-zinc-500 text-xs font-mono text-center" />
+          </div>
+        </div>
+        <p class="text-xs text-zinc-600 mt-1">Número de envios simultâneos (como o <code>max_workers</code> do ThreadPoolExecutor).</p>
+        <input type="hidden" id="workersValue" value="1">
+      </div>
+    </div>
+
+    {# ── parâmetros do template ── #}
+    <div>
+      <div class="flex items-center justify-between mb-2">
+        <label class="text-xs text-zinc-400">Parâmetros do corpo do template</label>
+        <button type="button" onclick="addParamRow()"
+                class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold">
+          + Adicionar
+        </button>
+      </div>
+
+      <div id="paramRows" class="space-y-2">
+        {# dynamic rows injected by JS #}
+      </div>
+
+      <p class="text-xs text-zinc-600 mt-2">
+        Cada linha define um parâmetro enviado no body do template.<br>
+        <b class="text-zinc-500">Nome do param</b> = campo <code>parameter_name</code> na API do Meta.<br>
+        <b class="text-zinc-500">Coluna CSV</b> = de onde o valor é lido.
+      </p>
+    </div>
+  </div>
+
+  {# ── start button ── #}
+  <div class="mt-5 flex items-center gap-4">
+    <button type="button" id="btnStart" onclick="startDisparo()"
+            class="px-6 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-semibold text-sm">
+      Disparar agora
+    </button>
+    <span class="text-xs text-zinc-500">O envio roda em background — você pode acompanhar o log abaixo.</span>
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   STEP 3 · LOG EM TEMPO REAL
+═══════════════════════════════════════════════════════════════════════════ #}
+<div id="logSection" class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 hidden">
+
+  {# counters #}
+  <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+    <div class="text-sm font-semibold">3 · Log em tempo real</div>
+    <div class="flex items-center gap-2 flex-wrap text-xs">
+      <span class="px-3 py-1 rounded-lg bg-zinc-800">
+        Total: <b id="statTotal">0</b>
+      </span>
+      <span class="px-3 py-1 rounded-lg bg-emerald-950/50 border border-emerald-800/50 text-emerald-300">
+        Enviados: <b id="statSent">0</b>
+      </span>
+      <span class="px-3 py-1 rounded-lg bg-red-950/50 border border-red-800/50 text-red-300">
+        Falhas: <b id="statFailed">0</b>
+      </span>
+      <span class="px-3 py-1 rounded-lg bg-zinc-800 text-zinc-400">
+        Pulados: <b id="statSkipped">0</b>
+      </span>
+      <span class="px-3 py-1 rounded-lg bg-zinc-800 text-zinc-400">
+        Restantes: <b id="statRemaining">0</b>
+      </span>
+      <span id="statStatus" class="px-3 py-1 rounded-lg bg-zinc-800 text-zinc-300 font-semibold">—</span>
+    </div>
+  </div>
+
+  {# progress bar #}
+  <div class="w-full h-2 bg-zinc-800 rounded-full overflow-hidden mb-2">
+    <div id="progressBar" class="h-2 bg-emerald-600 transition-all duration-500 w-0"></div>
+  </div>
+  <div class="text-xs text-zinc-500 mb-3" id="lastMsg">—</div>
+
+  {# stop button #}
+  <div class="flex items-center gap-3 mb-3">
+    <button type="button" id="btnStop" onclick="stopDisparo()"
+            class="px-4 py-2 rounded-xl bg-red-900 hover:bg-red-800 text-sm font-semibold hidden">
+      Parar envio
+    </button>
+  </div>
+
+  {# log table #}
+  <div class="overflow-y-auto max-h-96 rounded-xl border border-zinc-800 bg-zinc-950">
+    <table class="min-w-full text-xs font-mono">
+      <thead class="text-zinc-500 sticky top-0 bg-zinc-950 border-b border-zinc-800">
+        <tr>
+          <th class="text-left px-3 py-2 w-16">Hora</th>
+          <th class="text-left px-3 py-2 w-8">St</th>
+          <th class="text-left px-3 py-2">Telefone</th>
+          <th class="text-left px-3 py-2">Resposta</th>
+        </tr>
+      </thead>
+      <tbody id="logBody" class="text-zinc-300">
+        {# rows inserted by JS #}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   JAVASCRIPT
+═══════════════════════════════════════════════════════════════════════════ #}
+<script>
+// ── state ──────────────────────────────────────────────────────────────────
+let selectedCsv     = null;
+let csvColumns      = [];
+let activeJobId     = null;
+let pollTimer       = null;
+let logOffset       = 0;
+
+// ── CSV select ─────────────────────────────────────────────────────────────
+async function onCsvSelect(filename) {
+  selectedCsv = filename;
+  csvColumns  = [];
+
+  // fetch columns + preview from server
+  let preview = [];
+  try {
+    const res = await fetch(`/disparar/csv/${encodeURIComponent(filename)}/columns`);
+    if (res.ok) {
+      const data = await res.json();
+      csvColumns = data.columns || [];
+      preview    = data.preview  || [];
+    }
+  } catch(e) { /* silently fail */ }
+
+  // populate phone col dropdown
+  const sel = document.getElementById("phoneColSelect");
+  sel.innerHTML = csvColumns.map(c =>
+    `<option value="${escHtml(c)}">${escHtml(c)}</option>`
+  ).join("");
+
+  // refresh param row dropdowns
+  document.querySelectorAll(".param-col-select").forEach(s => {
+    const cur = s.value;
+    s.innerHTML = '<option value="">— coluna —</option>' +
+      csvColumns.map(c => `<option value="${escHtml(c)}"${c===cur?' selected':''}>${escHtml(c)}</option>`).join("");
+  });
+
+  // render preview table
+  renderCsvPreview(filename, csvColumns, preview);
+
+  // enable config section
+  const cfg = document.getElementById("configSection");
+  cfg.classList.remove("opacity-40", "pointer-events-none");
+}
+
+// ── WABA select ────────────────────────────────────────────────────────────
+function onWabaSelect() {
+  // clear template picker whenever WABA changes
+  document.getElementById("templateName").value = "";
+  document.getElementById("selectedTemplateBox").textContent = "— selecione um template —";
+  document.getElementById("selectedTemplateBox").className =
+    "mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm text-zinc-500 cursor-pointer";
+  document.getElementById("templatePickerPanel").classList.add("hidden");
+  document.getElementById("templatePickerList").innerHTML = "";
+}
+
+// ── template picker ─────────────────────────────────────────────────────────
+let _templatePickerOpen = false;
+
+function toggleTemplatePicker() {
+  const panel = document.getElementById("templatePickerPanel");
+  if (panel.classList.contains("hidden") || panel.innerHTML.trim() === "") return;
+  _templatePickerOpen = !_templatePickerOpen;
+  panel.classList.toggle("hidden", !_templatePickerOpen);
+}
+
+async function fetchTemplates() {
+  const wabaOpt = document.getElementById("wabaSelect").selectedOptions[0];
+  if (!wabaOpt || !wabaOpt.value) {
+    alert("Selecione um WABA primeiro.");
+    return;
+  }
+  const wabaId = wabaOpt.value;
+  const btn = document.getElementById("btnFetchTemplates");
+  btn.textContent = "Buscando…";
+  btn.disabled = true;
+
+  try {
+    const res = await fetch(`/disparar/waba/${encodeURIComponent(wabaId)}/templates`);
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      alert("Erro ao buscar templates: " + (data.error || res.status));
+      return;
+    }
+    renderTemplatePicker(data.templates || []);
+  } catch(e) {
+    alert("Erro de rede: " + e);
+  } finally {
+    btn.textContent = "Buscar templates";
+    btn.disabled = false;
+  }
+}
+
+function renderTemplatePicker(templates) {
+  const list = document.getElementById("templatePickerList");
+
+  if (!templates.length) {
+    list.innerHTML = '<div class="px-4 py-3 text-xs text-zinc-500">Nenhum template encontrado.</div>';
+  } else {
+    list.innerHTML = templates.map(t => {
+      const approved = t.status === "APPROVED";
+      const catColor  = t.category === "MARKETING" ? "text-purple-400 bg-purple-950/40 border-purple-800/50"
+                      : t.category === "UTILITY"   ? "text-blue-400 bg-blue-950/40 border-blue-800/50"
+                      :                              "text-zinc-400 bg-zinc-800 border-zinc-700";
+      const stColor   = t.status === "APPROVED"  ? "text-emerald-400 bg-emerald-950/40 border-emerald-800/50"
+                      : t.status === "PAUSED"    ? "text-yellow-400 bg-yellow-950/40 border-yellow-800/50"
+                      :                            "text-red-400 bg-red-950/40 border-red-800/50";
+      const rowCls = approved
+        ? "px-4 py-3 flex items-start gap-3 cursor-pointer hover:bg-zinc-900 transition-colors template-row"
+        : "px-4 py-3 flex items-start gap-3 opacity-40 cursor-not-allowed select-none";
+
+      return `
+        <div class="${rowCls}" data-name="${escHtml(t.name)}" data-approved="${approved}"
+             ${approved ? `onclick="selectTemplate('${escHtml(t.name)}', this)"` : ''}>
+          <div class="flex-1 min-w-0">
+            <div class="font-mono text-xs text-zinc-200 font-semibold truncate">${escHtml(t.name)}</div>
+            ${t.body ? `<div class="text-xs text-zinc-500 mt-0.5 truncate">${escHtml(t.body)}</div>` : ''}
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0 mt-0.5">
+            <span class="px-2 py-0.5 rounded-md border text-xs font-semibold ${catColor}">${escHtml(t.category)}</span>
+            <span class="px-2 py-0.5 rounded-md border text-xs font-semibold ${stColor}">${escHtml(t.status)}</span>
+          </div>
+        </div>`;
+    }).join("");
+  }
+
+  document.getElementById("templatePickerPanel").classList.remove("hidden");
+  _templatePickerOpen = true;
+}
+
+function selectTemplate(name, rowEl) {
+  document.getElementById("templateName").value = name;
+
+  // update display box
+  const box = document.getElementById("selectedTemplateBox");
+  box.textContent = name;
+  box.className = "mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-indigo-600 text-sm text-zinc-200 font-mono cursor-pointer";
+
+  // highlight selected row
+  document.querySelectorAll(".template-row").forEach(r =>
+    r.classList.toggle("bg-indigo-950/30", r === rowEl)
+  );
+
+  // close picker
+  document.getElementById("templatePickerPanel").classList.add("hidden");
+  _templatePickerOpen = false;
+}
+
+// ── workers picker ─────────────────────────────────────────────────────────
+function setWorkers(val) {
+  const v = parseInt(val);
+  if (isNaN(v) || v < 1) return;
+  document.getElementById("workersValue").value = v;
+  document.querySelectorAll(".workers-btn").forEach(btn => {
+    const active = parseInt(btn.dataset.workers) === v;
+    btn.classList.toggle("bg-indigo-700",    active);
+    btn.classList.toggle("border-indigo-500",active);
+    btn.classList.toggle("text-white",       active);
+    btn.classList.toggle("bg-zinc-900",      !active);
+    btn.classList.toggle("border-zinc-700",  !active);
+  });
+}
+document.addEventListener("DOMContentLoaded", () => setWorkers(1));
+
+// ── param rows ─────────────────────────────────────────────────────────────
+let paramRowId = 0;
+function addParamRow(name="", col="") {
+  paramRowId++;
+  const id = paramRowId;
+  const colOptions = '<option value="">— coluna —</option>' +
+    csvColumns.map(c => `<option value="${escHtml(c)}"${c===col?' selected':''}>${escHtml(c)}</option>`).join("");
+
+  const div = document.createElement("div");
+  div.id = `paramRow${id}`;
+  div.className = "flex items-center gap-2";
+  div.innerHTML = `
+    <input type="text" placeholder="parameter_name"
+           class="flex-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-xs font-mono param-name-input"
+           value="${escHtml(name)}">
+    <span class="text-zinc-600 text-xs">→</span>
+    <select class="flex-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-xs param-col-select">
+      ${colOptions}
+    </select>
+    <button type="button" onclick="document.getElementById('paramRow${id}').remove()"
+            class="px-2 py-2 rounded-lg bg-zinc-800 hover:bg-red-900/50 text-zinc-500 hover:text-red-300 text-xs">✕</button>
+  `;
+  document.getElementById("paramRows").appendChild(div);
+}
+
+// ── collect form data ──────────────────────────────────────────────────────
+function collectFormData() {
+  const wabaOpt = document.getElementById("wabaSelect").selectedOptions[0];
+  if (!wabaOpt || !wabaOpt.value) return null;
+
+  const phone_number_id = wabaOpt.dataset.phoneNumberId || "";
+  const token           = wabaOpt.dataset.token || "";
+  const template_name   = document.getElementById("templateName").value.trim();
+  const phone_col       = document.getElementById("phoneColSelect").value;
+
+  if (!selectedCsv)       { alert("Selecione um CSV primeiro."); return null; }
+  if (!phone_number_id)   { alert("O WABA selecionado não tem um Phone Number ID. Sincronize no Dashboard."); return null; }
+  if (!template_name)     { alert("Informe o nome do template."); return null; }
+  if (!phone_col)         { alert("Selecione a coluna de telefone."); return null; }
+
+  const param_map = [];
+  document.querySelectorAll("#paramRows > div").forEach(row => {
+    const nm  = row.querySelector(".param-name-input").value.trim();
+    const col = row.querySelector(".param-col-select").value;
+    if (nm) param_map.push({ name: nm, column: col });
+  });
+
+  const max_workers = parseInt(document.getElementById("workersValue").value) || 1;
+
+  return { csv_filename: selectedCsv, phone_col, phone_number_id, token, template_name, param_map, max_workers };
+}
+
+// ── start disparo ──────────────────────────────────────────────────────────
+async function startDisparo() {
+  const body = collectFormData();
+  if (!body) return;
+
+  document.getElementById("btnStart").disabled = true;
+  document.getElementById("btnStart").textContent = "Iniciando…";
+
+  const res = await fetch("{{ url_for('disparar.start_disparo') }}", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  const json = await res.json();
+  if (!res.ok || json.error) {
+    alert("Erro: " + (json.error || res.status));
+    document.getElementById("btnStart").disabled = false;
+    document.getElementById("btnStart").textContent = "Disparar agora";
+    return;
+  }
+
+  activeJobId = json.job_id;
+  logOffset   = 0;
+
+  document.getElementById("logSection").classList.remove("hidden");
+  document.getElementById("btnStop").classList.remove("hidden");
+  document.getElementById("btnStart").textContent = "Em andamento…";
+  startPolling();
+}
+
+// ── stop disparo ───────────────────────────────────────────────────────────
+async function stopDisparo() {
+  if (!activeJobId) return;
+  await fetch(`/disparar/job/${activeJobId}/stop`, { method: "POST" });
+  document.getElementById("btnStop").disabled = true;
+  document.getElementById("btnStop").textContent = "Parando…";
+}
+
+// ── polling ────────────────────────────────────────────────────────────────
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollJob, 1500);
+  pollJob();
+}
+
+async function pollJob() {
+  if (!activeJobId) return;
+
+  // status
+  const sRes = await fetch(`/disparar/job/${activeJobId}/status`);
+  if (!sRes.ok) return;
+  const s = await sRes.json();
+
+  document.getElementById("statTotal").textContent     = s.total;
+  document.getElementById("statSent").textContent      = s.sent;
+  document.getElementById("statFailed").textContent    = s.failed;
+  document.getElementById("statSkipped").textContent   = s.skipped;
+  document.getElementById("statRemaining").textContent = s.remaining;
+  document.getElementById("lastMsg").textContent       = s.last_message || "—";
+  document.getElementById("progressBar").style.width   = s.pct + "%";
+
+  const statusEl = document.getElementById("statStatus");
+  statusEl.textContent = s.status;
+  statusEl.className = "px-3 py-1 rounded-lg font-semibold text-xs " + statusColor(s.status);
+
+  // fetch new log lines
+  const lRes = await fetch(`/disparar/job/${activeJobId}/logs?offset=${logOffset}`);
+  if (lRes.ok) {
+    const l = await lRes.json();
+    logOffset = l.new_offset;
+    appendLogEntries(l.entries);
+  }
+
+  if (s.status === "done" || s.status === "error" || s.status === "stopped") {
+    clearInterval(pollTimer);
+    pollTimer = null;
+    document.getElementById("btnStop").classList.add("hidden");
+    document.getElementById("btnStart").disabled = false;
+    document.getElementById("btnStart").textContent = "Disparar novamente";
+    document.getElementById("progressBar").style.width = "100%";
+    if (s.status === "error") {
+      document.getElementById("progressBar").classList.replace("bg-emerald-600", "bg-red-600");
+    }
+  }
+}
+
+function statusColor(s) {
+  if (s === "running")  return "bg-indigo-900/60 text-indigo-300";
+  if (s === "done")     return "bg-emerald-900/60 text-emerald-300";
+  if (s === "error")    return "bg-red-900/60 text-red-300";
+  if (s === "stopped")  return "bg-yellow-900/60 text-yellow-300";
+  return "bg-zinc-800 text-zinc-300";
+}
+
+// ── log rows ───────────────────────────────────────────────────────────────
+function appendLogEntries(entries) {
+  const tbody = document.getElementById("logBody");
+  entries.forEach(e => {
+    const tr = document.createElement("tr");
+    const ok = e.status === "sent";
+    tr.className = "border-b border-zinc-900 " + (ok ? "hover:bg-emerald-950/20" : "hover:bg-red-950/20");
+    tr.innerHTML = `
+      <td class="px-3 py-1.5 text-zinc-500">${escHtml(e.ts || "")}</td>
+      <td class="px-3 py-1.5 ${ok ? 'text-emerald-400' : 'text-red-400'}">${ok ? '✓' : '✗'}</td>
+      <td class="px-3 py-1.5">${escHtml(e.phone || "")}</td>
+      <td class="px-3 py-1.5 text-zinc-400">${escHtml(e.message || "")}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  // auto-scroll
+  const container = tbody.closest(".overflow-y-auto");
+  if (container) container.scrollTop = container.scrollHeight;
+}
+
+// ── CSV preview ────────────────────────────────────────────────────────────
+function renderCsvPreview(filename, columns, rows) {
+  const box  = document.getElementById("csvPreview");
+  const head = document.getElementById("csvPreviewHead");
+  const body = document.getElementById("csvPreviewBody");
+
+  document.getElementById("csvPreviewName").textContent = filename;
+
+  head.innerHTML = "<tr>" +
+    columns.map(c => `<th class="px-3 py-2 text-left text-zinc-400 font-normal border-r border-zinc-800 last:border-0 whitespace-nowrap">${escHtml(c)}</th>`).join("") +
+    "</tr>";
+
+  body.innerHTML = rows.map(row =>
+    "<tr class='border-t border-zinc-900'>" +
+    columns.map(c => `<td class="px-3 py-2 text-zinc-300 border-r border-zinc-800 last:border-0 whitespace-nowrap max-w-xs truncate">${escHtml(String(row[c] ?? ""))}</td>`).join("") +
+    "</tr>"
+  ).join("");
+
+  box.classList.remove("hidden");
+}
+
+// ── util ───────────────────────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+</script>
+
+{% endblock %}

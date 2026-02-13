@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="mb-4 flex items-center gap-2 text-sm text-zinc-500">
+  <a href="{{ url_for('dashboard.dashboard') }}" class="hover:text-zinc-200 transition-colors">Dashboard</a>
+  <span>/</span>
+  <span class="text-zinc-200">{{ waba_name }}</span>
+</div>
+
+<div class="mb-6">
+  <div class="text-xl font-bold">{{ waba_name }}</div>
+  <div class="text-xs text-zinc-500">WABA ID: {{ waba_id }}</div>
+</div>
+
+{% if tpl_error %}
+<div class="mb-4 rounded-xl border border-red-700 bg-red-950/40 px-4 py-3 text-sm text-red-300">
+  Erro ao carregar templates: {{ tpl_error }}
+</div>
+{% endif %}
+
+<!-- ── LAYOUT: templates list (left) + create form (right) ─────────────── -->
+<div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+  <!-- ── Template List ────────────────────────────────────────────────────── -->
+  <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4">
+    <div class="flex items-center justify-between mb-3">
+      <div class="text-sm font-semibold text-zinc-300">Templates ({{ templates | length }})</div>
+    </div>
+
+    {% if templates %}
+    <div class="space-y-2 max-h-[70vh] overflow-y-auto pr-1" id="tpl-list">
+      {% for t in templates %}
+      {% set status = t.get('status', '') | upper %}
+      {% set category = t.get('category', '') | upper %}
+      <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-3 hover:border-zinc-700 transition-colors">
+        <div class="flex items-start justify-between gap-2">
+          <div class="flex-1 min-w-0">
+            <div class="font-semibold text-sm truncate">{{ t.get('name', '') }}</div>
+            <div class="text-xs text-zinc-500 mt-0.5">{{ t.get('language', '') }}</div>
+          </div>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <!-- category badge -->
+            {% if category == 'MARKETING' %}
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-900/60 text-purple-300">MKT</span>
+            {% elif category == 'UTILITY' %}
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-900/60 text-blue-300">UTIL</span>
+            {% elif category == 'AUTHENTICATION' %}
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-900/60 text-yellow-300">AUTH</span>
+            {% else %}
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-700 text-zinc-300">{{ category }}</span>
+            {% endif %}
+            <!-- status badge -->
+            {% if status == 'APPROVED' %}
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-900/60 text-emerald-300">APPROVED</span>
+            {% elif status == 'PAUSED' %}
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-yellow-900/60 text-yellow-300">PAUSED</span>
+            {% elif status == 'DISABLED' %}
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-900/60 text-red-300">DISABLED</span>
+            {% else %}
+              <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-700 text-zinc-400">{{ status }}</span>
+            {% endif %}
+            <!-- duplicate button -->
+            <button type="button"
+                    onclick="openDuplicateModal({{ loop.index0 }})"
+                    class="ml-1 px-2 py-1 rounded-lg bg-zinc-800 hover:bg-indigo-800 text-xs transition-colors">
+              Duplicar
+            </button>
+          </div>
+        </div>
+        {% set body_text = namespace(text='') %}
+        {% for comp in (t.get('components') or []) %}
+          {% if comp.get('type') == 'BODY' %}
+            {% set body_text.text = comp.get('text', '') %}
+          {% endif %}
+        {% endfor %}
+        {% if body_text.text %}
+          <div class="mt-2 text-xs text-zinc-400 line-clamp-2">{{ body_text.text[:180] }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="text-sm text-zinc-500 text-center py-8">Nenhum template encontrado.</div>
+    {% endif %}
+  </div>
+
+  <!-- ── Create Template Form ──────────────────────────────────────────────── -->
+  <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4">
+    <div class="text-sm font-semibold text-zinc-300 mb-4">Criar novo template</div>
+
+    <div class="space-y-4">
+
+      <!-- Name -->
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Nome <span class="text-red-400">*</span></label>
+        <input id="tpl-name" type="text" placeholder="ex: meu_template_promo"
+               class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500"
+               oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'_')">
+        <div class="text-[10px] text-zinc-600 mt-0.5">Apenas letras minúsculas, números e underscore.</div>
+      </div>
+
+      <!-- Category + Language -->
+      <div class="grid grid-cols-2 gap-3">
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">Categoria <span class="text-red-400">*</span></label>
+          <select id="tpl-category" class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500">
+            <option value="UTILITY">UTILITY</option>
+            <option value="MARKETING">MARKETING</option>
+            <option value="AUTHENTICATION">AUTHENTICATION</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs text-zinc-400 mb-1">Idioma <span class="text-red-400">*</span></label>
+          <select id="tpl-language" class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500">
+            <option value="pt_BR">pt_BR</option>
+            <option value="en">en</option>
+            <option value="es">es</option>
+            <option value="es_AR">es_AR</option>
+            <option value="fr">fr</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- HEADER (optional toggle) -->
+      <div>
+        <label class="flex items-center gap-2 cursor-pointer text-xs text-zinc-400 mb-1">
+          <input type="checkbox" id="use-header" class="accent-indigo-500" onchange="document.getElementById('header-fields').classList.toggle('hidden', !this.checked)">
+          Incluir HEADER (texto)
+        </label>
+        <div id="header-fields" class="hidden">
+          <input id="tpl-header" type="text" placeholder="Texto do cabeçalho"
+                 class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+
+      <!-- BODY -->
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">BODY <span class="text-red-400">*</span></label>
+        <textarea id="tpl-body" rows="4" placeholder="Texto da mensagem. Use {{1}}, {{2}} para variáveis."
+                  oninput="detectBodyVars()"
+                  class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm font-mono focus:outline-none focus:border-indigo-500 resize-y"></textarea>
+      </div>
+
+      <!-- Body variable examples (auto-generated) -->
+      <div id="body-examples-section" class="hidden space-y-2">
+        <div class="text-xs text-zinc-400">Exemplos das variáveis (obrigatório quando há <code class="text-indigo-300">{{N}}</code>)</div>
+        <div id="body-example-fields" class="space-y-1.5"></div>
+      </div>
+
+      <!-- FOOTER (optional) -->
+      <div>
+        <label class="flex items-center gap-2 cursor-pointer text-xs text-zinc-400 mb-1">
+          <input type="checkbox" id="use-footer" class="accent-indigo-500" onchange="document.getElementById('footer-fields').classList.toggle('hidden', !this.checked)">
+          Incluir FOOTER
+        </label>
+        <div id="footer-fields" class="hidden">
+          <input id="tpl-footer" type="text" placeholder="Texto do rodapé"
+                 class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500">
+        </div>
+      </div>
+
+      <!-- BUTTONS (optional) -->
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-xs text-zinc-400">Botões (opcional)</label>
+          <button type="button" onclick="addButton()" class="text-xs px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700">+ Adicionar</button>
+        </div>
+        <div id="btn-list" class="space-y-2"></div>
+      </div>
+
+      <!-- Submit -->
+      <div id="create-result"></div>
+      <button type="button" onclick="submitCreate()"
+              class="w-full py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold transition-colors">
+        Criar Template
+      </button>
+
+    </div>
+  </div>
+</div>
+
+<!-- ── Duplicate Modal ───────────────────────────────────────────────────────── -->
+<div id="dup-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+  <div class="w-full max-w-lg rounded-2xl border border-zinc-700 bg-zinc-900 p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <div class="font-semibold">Duplicar template</div>
+      <button onclick="closeDuplicateModal()" class="text-zinc-400 hover:text-zinc-100 text-xl leading-none">&times;</button>
+    </div>
+
+    <div class="rounded-xl bg-zinc-800 px-3 py-2 text-sm">
+      Template: <span id="dup-src-name" class="font-semibold text-indigo-300"></span>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Nome base das cópias <span class="text-red-400">*</span></label>
+        <input id="dup-base-name" type="text" placeholder="ex: meu_template"
+               class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500"
+               oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'_')">
+        <div class="text-[10px] text-zinc-600 mt-0.5">O número é detectado automaticamente (ex: nome02, nome03…). A contagem começa após o maior número existente na WABA de destino.</div>
+      </div>
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Número de cópias</label>
+        <input id="dup-copies" type="number" value="1" min="1" max="20"
+               class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500">
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-xs text-zinc-400 mb-2">WABAs de destino <span class="text-red-400">*</span></label>
+      <div class="space-y-1.5 max-h-48 overflow-y-auto">
+        {% for w in all_wabas %}
+        <label class="flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-750 cursor-pointer text-sm">
+          <input type="checkbox" class="dup-target-cb accent-indigo-500" value="{{ w.waba_id }}">
+          <span class="font-semibold truncate">{{ w.name }}</span>
+          <span class="text-xs text-zinc-500 ml-auto shrink-0">{{ w.waba_id }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div id="dup-result" class="hidden rounded-xl bg-zinc-800 p-3 max-h-48 overflow-y-auto text-xs space-y-1"></div>
+
+    <div class="flex gap-3 pt-1">
+      <button onclick="closeDuplicateModal()" class="flex-1 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">Cancelar</button>
+      <button onclick="submitDuplicate()" id="dup-btn"
+              class="flex-1 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold transition-colors">
+        Duplicar
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+const WABA_ID = {{ waba_id | tojson }};
+const _templates = {{ templates | tojson }};
+let _dupTemplateName = "";
+
+// ── body variable detection ───────────────────────────────────────────────────
+function detectBodyVars() {
+  const body = document.getElementById("tpl-body").value;
+  const matches = [...new Set([...body.matchAll(/\{\{(\d+)\}\}/g)].map(m => parseInt(m[1])))].sort((a,b)=>a-b);
+  const sec = document.getElementById("body-examples-section");
+  const container = document.getElementById("body-example-fields");
+  if (!matches.length) { sec.classList.add("hidden"); return; }
+  sec.classList.remove("hidden");
+  // rebuild only if count changed
+  const existing = container.querySelectorAll("input").length;
+  if (existing !== matches.length) {
+    container.innerHTML = matches.map(n => `
+      <input data-var="${n}" type="text" placeholder="Exemplo para {{ '{{' }}${n}{{ '}}' }}"
+             class="w-full px-3 py-1.5 rounded-xl bg-zinc-800 border border-zinc-700 text-xs focus:outline-none focus:border-indigo-500">
+    `).join("");
+  }
+}
+
+// ── buttons ───────────────────────────────────────────────────────────────────
+let _btnCount = 0;
+function addButton() {
+  const id = ++_btnCount;
+  const el = document.createElement("div");
+  el.id = `btn-row-${id}`;
+  el.className = "flex gap-2 items-start";
+  el.innerHTML = `
+    <select onchange="toggleBtnUrl(${id}, this.value)"
+            class="px-2 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-xs focus:outline-none" data-btn-type>
+      <option value="QUICK_REPLY">QUICK_REPLY</option>
+      <option value="URL">URL</option>
+    </select>
+    <input type="text" placeholder="Texto do botão"
+           class="flex-1 px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-xs focus:outline-none focus:border-indigo-500" data-btn-text>
+    <input type="text" placeholder="URL (para URL)" data-btn-url
+           class="flex-1 px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-xs focus:outline-none focus:border-indigo-500 hidden">
+    <button onclick="document.getElementById('btn-row-${id}').remove()" class="px-2 py-2 rounded-xl bg-zinc-800 hover:bg-red-900/60 text-zinc-400 hover:text-red-300 text-xs">✕</button>
+  `;
+  document.getElementById("btn-list").appendChild(el);
+}
+function toggleBtnUrl(id, type) {
+  const row = document.getElementById(`btn-row-${id}`);
+  row.querySelector("[data-btn-url]").classList.toggle("hidden", type !== "URL");
+}
+
+// ── collect & submit create ───────────────────────────────────────────────────
+function submitCreate() {
+  const name     = document.getElementById("tpl-name").value.trim();
+  const category = document.getElementById("tpl-category").value;
+  const language = document.getElementById("tpl-language").value;
+  const bodyText = document.getElementById("tpl-body").value.trim();
+
+  if (!name || !bodyText) {
+    showCreateResult("error", "Nome e BODY são obrigatórios.");
+    return;
+  }
+
+  const useHeader = document.getElementById("use-header").checked;
+  const headerText = useHeader ? document.getElementById("tpl-header").value.trim() : "";
+  const useFooter = document.getElementById("use-footer").checked;
+  const footerText = useFooter ? document.getElementById("tpl-footer").value.trim() : "";
+
+  const exampleInputs = document.querySelectorAll("#body-example-fields input");
+  const bodyExamples = [...exampleInputs].map(i => i.value.trim());
+
+  const buttons = [];
+  document.querySelectorAll("#btn-list > div").forEach(row => {
+    const type = row.querySelector("[data-btn-type]").value;
+    const text = row.querySelector("[data-btn-text]").value.trim();
+    const url  = row.querySelector("[data-btn-url]").value.trim();
+    if (text) buttons.push({type, text, url});
+  });
+
+  const payload = { name, category, language, body_text: bodyText, body_examples: bodyExamples,
+                    header_type: "TEXT", header_text: headerText, footer_text: footerText, buttons };
+
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = "Criando…";
+
+  fetch(`/waba/${WABA_ID}/templates/create`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(payload),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.error) { showCreateResult("error", d.error); }
+    else { showCreateResult("ok", "Template criado com sucesso! Recarregue a página para ver na lista."); }
+  })
+  .catch(e => showCreateResult("error", String(e)))
+  .finally(() => { btn.disabled = false; btn.textContent = "Criar Template"; });
+}
+
+function showCreateResult(type, msg) {
+  const el = document.getElementById("create-result");
+  el.className = `rounded-xl px-3 py-2 text-sm ${type === "ok" ? "bg-emerald-900/40 text-emerald-300" : "bg-red-900/40 text-red-300"}`;
+  el.textContent = msg;
+}
+
+// ── duplicate modal ───────────────────────────────────────────────────────────
+function openDuplicateModal(idx) {
+  const tpl = _templates[idx] || {};
+  _dupTemplateName = tpl.name || "";
+  document.getElementById("dup-src-name").textContent = _dupTemplateName;
+  document.getElementById("dup-base-name").value = _dupTemplateName;
+  document.getElementById("dup-copies").value = 1;
+  document.getElementById("dup-result").classList.add("hidden");
+  document.getElementById("dup-result").innerHTML = "";
+  document.getElementById("dup-btn").disabled = false;
+  document.getElementById("dup-btn").textContent = "Duplicar";
+  // uncheck all
+  document.querySelectorAll(".dup-target-cb").forEach(cb => cb.checked = false);
+  // pre-check current waba
+  document.querySelectorAll(".dup-target-cb").forEach(cb => { if (cb.value === WABA_ID) cb.checked = true; });
+  document.getElementById("dup-modal").classList.remove("hidden");
+}
+function closeDuplicateModal() {
+  document.getElementById("dup-modal").classList.add("hidden");
+}
+
+function submitDuplicate() {
+  const baseName = document.getElementById("dup-base-name").value.trim();
+  const copies   = parseInt(document.getElementById("dup-copies").value) || 1;
+  const targets  = [...document.querySelectorAll(".dup-target-cb:checked")].map(cb => cb.value);
+
+  if (!baseName) { alert("Informe o nome base."); return; }
+  if (!targets.length) { alert("Selecione ao menos uma WABA de destino."); return; }
+
+  const btn = document.getElementById("dup-btn");
+  btn.disabled = true;
+  btn.textContent = "Duplicando…";
+
+  fetch(`/waba/${WABA_ID}/templates/duplicate`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ template_name: _dupTemplateName, base_name: baseName, copies, target_waba_ids: targets }),
+  })
+  .then(r => r.json())
+  .then(d => {
+    if (d.error) { alert("Erro: " + d.error); return; }
+    const resEl = document.getElementById("dup-result");
+    resEl.classList.remove("hidden");
+    resEl.innerHTML = "";
+    for (const wRes of (d.results || [])) {
+      const wabaLine = document.createElement("div");
+      wabaLine.className = "font-semibold text-zinc-300 mt-1";
+      wabaLine.textContent = `WABA: ${wRes.waba_id}` + (wRes.error ? ` — ❌ ${wRes.error}` : "");
+      resEl.appendChild(wabaLine);
+      for (const c of (wRes.copies || [])) {
+        const line = document.createElement("div");
+        line.className = `ml-3 ${c.ok ? "text-emerald-400" : "text-red-400"}`;
+        line.textContent = (c.ok ? "✓ " : "✗ ") + c.name + (c.error ? `: ${c.error}` : "");
+        resEl.appendChild(line);
+      }
+    }
+    btn.textContent = "Concluído";
+  })
+  .catch(e => { alert("Erro: " + e); btn.disabled = false; btn.textContent = "Duplicar"; });
+}
+</script>
+
+{% endblock %}

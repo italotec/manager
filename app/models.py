@@ -72,3 +72,20 @@ class Job(db.Model):
     last_message = db.Column(db.Text, default="", nullable=False)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DisparoJob(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    status = db.Column(db.String(32), default="queued", nullable=False)  # queued/running/done/error/stopped
+
+    total = db.Column(db.Integer, default=0, nullable=False)
+    sent = db.Column(db.Integer, default=0, nullable=False)
+    failed = db.Column(db.Integer, default=0, nullable=False)
+    skipped = db.Column(db.Integer, default=0, nullable=False)
+
+    last_message = db.Column(db.Text, default="", nullable=False)
+    stop_requested = db.Column(db.Boolean, default=False, nullable=False)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
