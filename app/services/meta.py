@@ -40,6 +40,136 @@ def get_phone_numbers(api_version: str, token: str, waba_id: str):
         return [], f"Meta error: {str(j.get('error'))[:800]}"
     return (j.get("data") or []), None
 
+
+def get_phone_numbers_health(api_version: str, token: str, waba_id: str):
+    """Fetch phone numbers with health_status fields."""
+    url = (
+        f"https://graph.facebook.com/{api_version}/{waba_id}/phone_numbers"
+        f"?fields=id,is_official_business_account,display_phone_number,verified_name,status,health_status"
+    )
+    status, j, snippet = _get(url, token)
+    if status != 200 or not isinstance(j, dict):
+        return [], f"HTTP {status}: {snippet}"
+    if "error" in j:
+        return [], f"Meta error: {str(j.get('error'))[:800]}"
+    return (j.get("data") or []), None
+
+
+def evaluate_health(phones_data: list) -> str:
+    """
+    Analyze health_status from phone_numbers response.
+
+    Hierarchy (first match wins):
+        Payment method error  → "PROBLEMA CARTÃO"
+        WABA blocked/banned   → "DESATIVADA"
+        Phone/business limit  → "LIMITADA"
+        Otherwise             → "OK"
+    """
+    waba_blocked = False
+    payment_error = False
+    phone_limited = False
+
+    for phone in phones_data:
+        hs = phone.get("health_status") or {}
+        for entity in (hs.get("entities") or []):
+            etype = (entity.get("entity_type") or "").upper()
+            can_send = (entity.get("can_send_message") or "").upper()
+            errors = entity.get("errors") or []
+            error_descs = [e.get("error_description", "") for e in errors]
+
+            if etype == "WABA":
+                for desc in error_descs:
+                    if "payment method" in desc.lower():
+                        payment_error = True
+                    if "WABA is banned" in desc:
+                        waba_blocked = True
+                if can_send == "BLOCKED" and not payment_error:
+                    waba_blocked = True
+
+            if etype == "PHONE_NUMBER":
+                for desc in error_descs:
+                    if "reached the limit" in desc:
+                        phone_limited = True
+
+            if etype == "BUSINESS":
+                for desc in error_descs:
+                    if "reached the limit" in desc:
+                        phone_limited = True
+
+    if payment_error:
+        return "PROBLEMA CARTÃO"
+    if waba_blocked:
+        return "DESATIVADA"
+    if phone_limited:
+        return "LIMITADA"
+    return "OK"
+
+def pick_test_template(templates: list) -> dict | None:
+    """Pick an APPROVED UTILITY template for testing. Returns the template dict or None."""
+    for t in templates:
+        if (t.get("status") or "").upper() == "APPROVED" and (t.get("category") or "").upper() == "UTILITY":
+            return t
+    # Fallback: any APPROVED template
+    for t in templates:
+        if (t.get("status") or "").upper() == "APPROVED":
+            return t
+    return None
+
+
+def _count_body_vars(template: dict) -> int:
+    """Count the number of {{N}} variables in the template BODY component."""
+    import re
+    for comp in (template.get("components") or []):
+        if (comp.get("type") or "").upper() == "BODY":
+            text = comp.get("text") or ""
+            matches = re.findall(r"\{\{(\d+)\}\}", text)
+            return len(set(matches))
+    return 0
+
+
+def send_test_message(token: str, phone_number_id: str, template: dict) -> tuple[bool, str]:
+    """
+    Send a test message to 5599999999 using the given template.
+    Returns (success: bool, raw_response_text: str).
+    """
+    tpl_name = template.get("name", "")
+    tpl_lang = template.get("language", "en")
+    var_count = _count_body_vars(template)
+
+    components = []
+    if var_count > 0:
+        components.append({
+            "type": "body",
+            "parameters": [
+                {"type": "text", "text": "teste"}
+                for _ in range(var_count)
+            ],
+        })
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "type": "template",
+        "to": "5599999999",
+        "template": {
+            "name": tpl_name,
+            "language": {"code": tpl_lang},
+            "components": components,
+        },
+    }
+
+    url = f"https://graph.facebook.com/v23.0/{phone_number_id}/messages"
+    try:
+        r = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=30,
+        )
+        return r.status_code == 200, (r.text or "")[:800]
+    except Exception as e:
+        return False, str(e)[:800]
+
+
 def get_templates(api_version: str, token: str, waba_id: str):
     url = f"https://graph.facebook.com/{api_version}/{waba_id}/message_templates"
     status, j, snippet = _get(url, token)

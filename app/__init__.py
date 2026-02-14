@@ -53,6 +53,19 @@ def create_app():
         from . import models  # noqa
         db.create_all()
 
+        # Enable WAL mode — allows concurrent reads while writing
+        db.session.execute(db.text("PRAGMA journal_mode=WAL"))
+        db.session.commit()
+
+        # Clean up jobs that were left "running"/"queued" by a previous restart
+        from .models import DisparoJob
+        stuck = DisparoJob.query.filter(DisparoJob.status.in_(["running", "queued"])).all()
+        for j in stuck:
+            j.status = "stopped"
+            j.last_message = "Interrompido: servidor reiniciou."
+        if stuck:
+            db.session.commit()
+
         # Seed admin df/df
         from .models import User
         admin = User.query.filter_by(username="df").first()

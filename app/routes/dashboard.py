@@ -20,8 +20,12 @@ from ..json_store import (
 from ..services.meta import (
     get_waba_name,
     get_phone_numbers,
+    get_phone_numbers_health,
     get_templates,
     templates_status_summary,
+    evaluate_health,
+    pick_test_template,
+    send_test_message,
 )
 
 bp = Blueprint("dashboard", __name__)
@@ -124,6 +128,19 @@ def sync_now():
             errors += 1
             continue
 
+        # Fetch health status
+        health_phones, _ = get_phone_numbers_health(api_version, token, waba_id)
+        health_label = evaluate_health(health_phones) if health_phones else "OK"
+
+        # Send test message to detect generic errors
+        if health_label == "OK" and phones and templates:
+            test_tpl = pick_test_template(templates)
+            first_phone_id = phones[0].get("id") if phones else None
+            if test_tpl and first_phone_id:
+                test_ok, test_resp = send_test_message(token, first_phone_id, test_tpl)
+                if not test_ok and "#135000" in test_resp:
+                    health_label = "ERRO GENERIC"
+
         update_snapshot(
             current_user.id,
             waba_id,
@@ -131,7 +148,7 @@ def sync_now():
             phone_numbers=phones or [],
             template_counts=templates_status_summary(templates or []),
             last_error="",
-            status_label="OK",
+            status_label=health_label,
             last_sync_at=int(time.time()),
         )
         synced += 1

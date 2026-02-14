@@ -156,12 +156,20 @@
             </td>
 
             <td class="py-3">
-              {% if row.status_label == "Developers Travado" %}
-                <span class="text-yellow-400">Developers Travado</span>
+              {% if row.status_label == "DESATIVADA" %}
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/60 text-red-300">DESATIVADA</span>
+              {% elif row.status_label == "LIMITADA" %}
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-yellow-900/60 text-yellow-300">LIMITADA</span>
+              {% elif row.status_label == "PROBLEMA CARTÃO" %}
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-orange-900/60 text-orange-300">PROBLEMA CARTÃO</span>
+              {% elif row.status_label == "ERRO GENERIC" %}
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-blue-900/60 text-blue-300">ERRO GENERIC</span>
+              {% elif row.status_label == "Developers Travado" %}
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-yellow-900/60 text-yellow-400">Developers Travado</span>
               {% elif row.status_label == "Erro" %}
-                <span class="text-red-400">Erro</span>
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/60 text-red-400">Erro</span>
               {% else %}
-                <span class="text-emerald-400">OK</span>
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-900/60 text-emerald-300">OK</span>
               {% endif %}
             </td>
 

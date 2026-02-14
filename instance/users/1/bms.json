@@ -2,20 +2,206 @@
     "1821525895901369": {
         "waba_id": "1821525895901369",
         "token": "EAALfeKBSdccBQuZAkuxZBRox8OWGpHK2JCg6BJFQ45XRAAgwomq4mi2QUcV1EbUqUKepeOGmJBZBw1SN2HCPEf6YSppEAuLKdZCEIdnana80cjDYdOJBoAuTJRUYUYXGNWF0qpVi1V9z6Cu8ZBZCYJltZAOSKQdMCYY2t0bnxYkp9kjZCShQQItfO4ob9yqNyZB3KbytAM7tV4VNxhMYL3cQsxChVvTHtkzNpKilC",
-        "phone_number_id": "",
+        "phone_number_id": "954739947727592",
         "templates": [],
         "snapshot": {
             "waba_name": "Real Servicos e Negocios LTDA",
-            "phone_numbers": [],
+            "phone_numbers": [
+                {
+                    "verified_name": "Real Servicos e Negocios LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 24 92004-9853",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "954739947727592"
+                }
+            ],
             "template_counts": {
-                "APPROVED": 0,
+                "APPROVED": 3,
                 "PAUSED": 0,
                 "DISABLED": 0,
-                "OTHER": 3
+                "OTHER": 0
             },
-            "last_sync_at": 1770956163,
+            "last_sync_at": 1771046135,
+            "last_error": "",
+            "status_label": "OK"
+        },
+        "last_add_phone_error": "",
+        "last_add_phone_debug": [
+            "START user_id=1 waba_id=1821525895901369 job_id=1",
+            "balance_check ok=True msg=OK",
+            "get_waba_name tuple err=None name=Real Servicos e Negocios LTDA",
+            "verified_name normalized='Real Servicos e Negocios LTDA'",
+            "sms24h_get_number -> activation_id=31036183 full_phone=5524920049853",
+            "add_phone_number status=200 body={\"id\":\"954739947727592\"}",
+            "request_code status=200 body={\"success\":true}",
+            "sms24h STATUS_OK raw='916-694' normalized='916694'",
+            "DEBIT otp -> ok=True msg=OTP debitado",
+            "verify_code status=200 body={\"success\":true}",
+            "register status=200 body={\"success\":true}"
+        ],
+        "pending_phone_number_id": "",
+        "sms24h_activation_id": "",
+        "sms24h_full_phone": "",
+        "otp_received": false,
+        "otp_received_at": 0
+    },
+    "1295037012437791": {
+        "waba_id": "1295037012437791",
+        "token": "EAANDD3OmItkBQiT9rnugv24P4WB91So4sidGu0PzwanW9r6P2tO2rlfto6HbC2kVLZBPOMH5GajIlhd0k0BG80Cjo5OvOUMBxDM8TrOAn3ZB7BbI766fGUPsu2tNkdZAZB962JbzDtZCOzMqcxFnTWuMkQ6f2wsBLZBZBYsPqiGpvgzZAzLErSSXdLOTekDQijKtQEj6LbdYeGtdUKwvBniyQxQQIMUcXJoLZCG1ZC",
+        "phone_number_id": "",
+        "templates": [],
+        "snapshot": {
+            "waba_name": "Grm Assessoria Ambiental LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Grm Assessoria Ambiental LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 11 5104-0546",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "938143436054655"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 1,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_sync_at": 1771046138,
             "last_error": "",
             "status_label": "OK"
         }
+    },
+    "3856957411276058": {
+        "waba_id": "3856957411276058",
+        "token": "EAAVlWeQZCbMYBQkMU453sBq0BxTm7nZBwWUKDtBaAnKTj7p1E9uZAEsMTyE9JgXaZAiQBmzlXCrD2tzWdXsq7zrfZAyUU3C7PaRpDToufyQeZAJwWLcBTpCDRzZAWqdhrOLbXY0VDUcipJNW3c04Kmaev2BXs08Ud2MpLpTqDcqWjCZC3MIp604enljdqJn0aGloyEfmeZCopzJn1WwJIIDchS804PJO27MiJOUUCsLEJ",
+        "phone_number_id": "",
+        "templates": [],
+        "snapshot": {
+            "waba_name": "Greco Solucoes Financeiras LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Greco Solucoes Financeiras LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 11 5104-1610",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1034201313102812"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 3,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_sync_at": 1771046141,
+            "last_error": "",
+            "status_label": "DESATIVADA"
+        }
+    },
+    "708504032113630": {
+        "waba_id": "708504032113630",
+        "token": "EAANMfhNDGIgBQggvIJrpONfWuT6uPHph6OSbxrdg8SNiZA3o4ecEx6ZCdWTLZBYCXoiGMQVhWbXmZBfELXVhtxKqpKccTF467E6vCuwoWtgfdG4zAsDFdaDh3ugpj3CeF1f3ZCiGwpFEWpkMGN6aEfmMQoERBAe1XmILsFQTDoK148hzwp6usKbYrHFuZBaksSspBuGRaoRVbtfvILiD8BOAjsST5DldLSuXsP",
+        "phone_number_id": "",
+        "templates": [],
+        "snapshot": {
+            "waba_name": "Dancont Consultoria LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Dancont Consultoria LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 11 5104-1620",
+                    "quality_rating": "GREEN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "920498744490247"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 2,
+                "PAUSED": 1,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_sync_at": 1771046144,
+            "last_error": "",
+            "status_label": "LIMITADA"
+        }
+    },
+    "891946733535120": {
+        "waba_id": "891946733535120",
+        "token": "EAAbaT9kruW0BQtzexkOZBE7tFvbnLa87nfRFuJ9FKXdYYsP86z845LXxj7PgUd8Rh1ZBEHaorYuOWV4S9EyDyYJrP4GpBCQJjC7Ibbc91Kdf7VUASqs7PZAlf8KI8TvlCyaBnVy9mpTpdaRR4ZCRLCivopZAyMLzK4fx8xeVWnxr2h4r1vfo4hxAusRpLC2eYVVclnHybxo2ZBDFTg7vddSrd1IEEYn9sw7ZCCA",
+        "phone_number_id": "1036590186193831",
+        "templates": [],
+        "snapshot": {
+            "waba_name": "Rafaela Carvalho",
+            "phone_numbers": [
+                {
+                    "verified_name": "Rafaela Carvalho",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15558429277",
+                    "quality_rating": "GREEN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "last_onboarded_time": "2026-02-13T21:37:20+0000",
+                    "id": "966145206586618"
+                },
+                {
+                    "verified_name": "Rafaela Carvalho",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 77 92007-8373",
+                    "quality_rating": "GREEN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1036590186193831"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 1,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_sync_at": 1771046148,
+            "last_error": "",
+            "status_label": "ERRO GENERIC"
+        },
+        "last_add_phone_error": "",
+        "last_add_phone_debug": [
+            "START user_id=1 waba_id=891946733535120 job_id=1",
+            "balance_check ok=True msg=OK",
+            "get_waba_name tuple err=None name=Rafaela Carvalho",
+            "verified_name normalized='Rafaela Carvalho'",
+            "sms24h_get_number -> activation_id=30946838 full_phone=5577920078373",
+            "add_phone_number status=200 body={\"id\":\"1036590186193831\"}",
+            "request_code status=200 body={\"success\":true}",
+            "sms24h STATUS_OK raw='711-543' normalized='711543'",
+            "DEBIT otp -> ok=True msg=OTP debitado",
+            "verify_code status=200 body={\"success\":true}",
+            "register status=200 body={\"success\":true}"
+        ],
+        "pending_phone_number_id": "",
+        "sms24h_activation_id": "",
+        "sms24h_full_phone": "",
+        "otp_received": false,
+        "otp_received_at": 0
     }
 }
