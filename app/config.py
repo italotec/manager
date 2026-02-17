@@ -11,6 +11,7 @@ class Config:
 
     # META
     META_API_VERSION = os.getenv("META_API_VERSION", "v18.0")
+    WEBHOOK_VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN", "my-webhook-verify-token-change-me")
 
     # Flow defaults (same as your script)
     SERVICE = "wa"

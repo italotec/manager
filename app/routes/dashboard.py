@@ -100,11 +100,15 @@ def sync_now():
 
         all_errors = " ".join(e for e in (err_name, err_phones, err_tpl) if e)
 
+        # Keep previously saved name when API is blocked
+        prev_snap = data.get("snapshot", {}) or {}
+        prev_name = prev_snap.get("waba_name") or "—"
+
         if API_BLOCKED_MARK in all_errors:
             update_snapshot(
                 current_user.id,
                 waba_id,
-                waba_name="—",
+                waba_name=waba_name or prev_name,
                 phone_numbers=[],
                 template_counts={"APPROVED": 0, "PAUSED": 0, "DISABLED": 0, "OTHER": 0},
                 last_error="",

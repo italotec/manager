@@ -140,3 +140,57 @@ def admin_adjust_balance(user_id: int):
 
     flash("Saldo atualizado.", "success")
     return redirect(url_for("admin.admin_user_detail", user_id=user_id))
+
+
+# ── Webhook logs ──────────────────────────────────────────────────────────────
+
+@bp.route("/webhook-logs")
+@login_required
+def webhook_logs():
+    from ..models import WebhookLog, AppSetting
+    per_page = 50
+    page = request.args.get("page", 1, type=int)
+    total = WebhookLog.query.count()
+    logs = (
+        WebhookLog.query
+        .order_by(WebhookLog.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+    setting = db.session.get(AppSetting, "webhook_logging_enabled")
+    enabled = setting is not None and setting.value == "1"
+    return render_template(
+        "admin_webhook_logs.html",
+        title="Admin • Webhook Logs",
+        logs=logs,
+        enabled=enabled,
+        page=page,
+        total=total,
+        per_page=per_page,
+    )
+
+
+@bp.route("/webhook-toggle", methods=["POST"])
+@login_required
+def webhook_toggle():
+    from ..models import AppSetting
+    setting = db.session.get(AppSetting, "webhook_logging_enabled")
+    if not setting:
+        setting = AppSetting(key="webhook_logging_enabled", value="1")
+        db.session.add(setting)
+    else:
+        setting.value = "1" if setting.value != "1" else "0"
+    db.session.commit()
+    flash(f"Webhook logging {'ativado' if setting.value == '1' else 'desativado'}.", "success")
+    return redirect(url_for("admin.webhook_logs"))
+
+
+@bp.route("/webhook-logs/clear", methods=["POST"])
+@login_required
+def webhook_logs_clear():
+    from ..models import WebhookLog
+    WebhookLog.query.delete()
+    db.session.commit()
+    flash("Logs limpos.", "success")
+    return redirect(url_for("admin.webhook_logs"))

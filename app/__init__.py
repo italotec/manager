@@ -23,6 +23,7 @@ def create_app():
     from .routes.billing import bp as billing_bp
     from .routes.disparar import bp as disparar_bp
     from .routes.waba_detail import bp as waba_detail_bp
+    from .routes.webhook import bp as webhook_bp
 
     app.register_blueprint(billing_bp)
     app.register_blueprint(auth_bp)
@@ -32,6 +33,7 @@ def create_app():
     app.register_blueprint(admin_bp)
     app.register_blueprint(disparar_bp)
     app.register_blueprint(waba_detail_bp)
+    app.register_blueprint(webhook_bp)
 
     # Make balance available to all templates
     @app.context_processor

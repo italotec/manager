@@ -89,3 +89,32 @@ class DisparoJob(db.Model):
     stop_requested = db.Column(db.Boolean, default=False, nullable=False)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ChatMessage(db.Model):
+    id              = db.Column(db.Integer,     primary_key=True)
+    waba_id         = db.Column(db.String(64),  nullable=False, index=True)
+    phone_number_id = db.Column(db.String(64),  nullable=False, index=True)
+    contact_wa_id   = db.Column(db.String(32),  nullable=False, index=True)
+    contact_name    = db.Column(db.String(255), default="", nullable=False)
+    direction       = db.Column(db.String(4),   nullable=False)            # "in" or "out"
+    msg_type        = db.Column(db.String(32),  default="text", nullable=False)
+    body            = db.Column(db.Text,        default="", nullable=False)
+    media_url       = db.Column(db.Text,        default="", nullable=False)
+    wamid           = db.Column(db.String(128), default="", nullable=False, index=True)
+    status          = db.Column(db.String(16),  default="sent", nullable=False)
+    timestamp       = db.Column(db.DateTime,    default=datetime.utcnow,   nullable=False)
+    __table_args__  = (db.Index("ix_chat_conv", "waba_id", "phone_number_id", "contact_wa_id"),)
+
+
+class WebhookLog(db.Model):
+    id           = db.Column(db.Integer,    primary_key=True)
+    waba_id      = db.Column(db.String(64), default="", nullable=False)
+    payload_json = db.Column(db.Text,       nullable=False)
+    created_at   = db.Column(db.DateTime,   default=datetime.utcnow, nullable=False)
+
+
+class AppSetting(db.Model):
+    """Generic key-value store for persistent admin settings."""
+    key   = db.Column(db.String(64),  primary_key=True)
+    value = db.Column(db.String(255), default="", nullable=False)

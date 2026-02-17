@@ -12,13 +12,188 @@
   <div class="text-xs text-zinc-500">WABA ID: {{ waba_id }}</div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  ANALYTICS SECTION                                                       -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <div class="text-sm font-semibold text-zinc-300">Analytics</div>
+  </div>
+
+  <!-- Date range picker -->
+  <div class="flex flex-wrap items-end gap-3 mb-4">
+    <div>
+      <label class="block text-xs text-zinc-400 mb-1">Data início</label>
+      <input type="date" id="analytics-start"
+             class="px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500">
+    </div>
+    <div>
+      <label class="block text-xs text-zinc-400 mb-1">Data fim</label>
+      <input type="date" id="analytics-end"
+             class="px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500">
+    </div>
+    <button type="button" onclick="fetchAnalytics()"
+            class="px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold transition-colors">
+      Buscar
+    </button>
+    <!-- quick presets -->
+    <div class="flex gap-1.5">
+      <button type="button" onclick="setPreset(1)"  class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs">Hoje</button>
+      <button type="button" onclick="setPreset(7)"  class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs">7d</button>
+      <button type="button" onclick="setPreset(30)" class="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs">30d</button>
+    </div>
+  </div>
+
+  <!-- Summary cards -->
+  <div id="analytics-cards" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4 hidden">
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-center">
+      <div class="text-[10px] text-zinc-500 uppercase tracking-wide">Enviados</div>
+      <div id="stat-sent" class="text-lg font-bold text-emerald-400 mt-1">0</div>
+    </div>
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-center">
+      <div class="text-[10px] text-zinc-500 uppercase tracking-wide">Entregues</div>
+      <div id="stat-delivered" class="text-lg font-bold text-blue-400 mt-1">0</div>
+    </div>
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-center">
+      <div class="text-[10px] text-zinc-500 uppercase tracking-wide">Taxa entrega</div>
+      <div id="stat-rate" class="text-lg font-bold text-indigo-400 mt-1">—</div>
+    </div>
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-center">
+      <div class="text-[10px] text-zinc-500 uppercase tracking-wide">Dias</div>
+      <div id="stat-days" class="text-lg font-bold text-zinc-300 mt-1">0</div>
+    </div>
+  </div>
+
+  <!-- Daily breakdown table -->
+  <div id="analytics-table-wrap" class="hidden overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead class="text-zinc-400 border-b border-zinc-800">
+        <tr>
+          <th class="text-left py-2 pr-4">Data</th>
+          <th class="text-right py-2 px-4">Enviados</th>
+          <th class="text-right py-2 px-4">Entregues</th>
+          <th class="text-right py-2 px-4">Taxa</th>
+        </tr>
+      </thead>
+      <tbody id="analytics-tbody" class="text-zinc-200"></tbody>
+    </table>
+  </div>
+
+  <!-- loading / error / empty states -->
+  <div id="analytics-loading" class="hidden text-center py-6 text-sm text-zinc-500">Carregando...</div>
+  <div id="analytics-error" class="hidden rounded-xl border border-red-700 bg-red-950/40 px-4 py-3 text-sm text-red-300"></div>
+  <div id="analytics-empty" class="text-center py-6 text-sm text-zinc-500">
+    Selecione um período e clique em <b>Buscar</b> para ver as métricas.
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  CHAT SECTION                                                            -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-6">
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+    <div class="text-sm font-semibold text-zinc-300">Chat</div>
+    <!-- Phone number selector -->
+    {% if phone_numbers %}
+    <select id="chat-phone-select" onchange="chatPhoneChanged()"
+            class="px-3 py-1.5 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500">
+      {% for p in phone_numbers %}
+        <option value="{{ p.id }}">{{ p.display_phone_number }}{% if p.verified_name %} — {{ p.verified_name }}{% endif %}</option>
+      {% endfor %}
+    </select>
+    {% else %}
+    <span class="text-xs text-zinc-500">Nenhum telefone sincronizado. Faça o sync no dashboard primeiro.</span>
+    {% endif %}
+  </div>
+
+  <div class="flex border border-zinc-800 rounded-xl overflow-hidden" style="height:520px;">
+
+    <!-- ── Conversation list (left panel) ──────────────────────────────── -->
+    <div class="w-72 shrink-0 border-r border-zinc-800 flex flex-col bg-zinc-950/60">
+      <div class="px-3 py-2 border-b border-zinc-800">
+        <input type="text" id="chat-search" placeholder="Buscar contato…"
+               oninput="filterConversations()"
+               class="w-full px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-xs focus:outline-none focus:border-indigo-500">
+      </div>
+      <div id="chat-convo-list" class="flex-1 overflow-y-auto">
+        <div class="text-center text-zinc-600 text-xs py-8 px-3">
+          {% if phone_numbers %}Carregando conversas…{% else %}Sem telefones.{% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Messages panel (right) ────────────────────────────────────── -->
+    <div class="flex-1 flex flex-col min-w-0">
+      <!-- Header -->
+      <div id="chat-panel-header" class="px-4 py-2.5 border-b border-zinc-800 hidden">
+        <div class="font-semibold text-sm" id="chat-header-name"></div>
+        <div class="text-xs text-zinc-500" id="chat-header-waid"></div>
+      </div>
+
+      <!-- Messages area -->
+      <div id="chat-messages" class="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        <div class="text-center text-zinc-600 text-sm mt-16 select-none">
+          Selecione uma conversa para ver as mensagens.
+        </div>
+      </div>
+
+      <!-- Input bar -->
+      <div id="chat-input-bar" class="hidden border-t border-zinc-800 px-3 py-2 flex items-center gap-2 bg-zinc-900/40">
+        <!-- Image button -->
+        <button type="button" onclick="openImageModal()" title="Enviar imagem"
+                class="p-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 transition-colors shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+        </button>
+        <input type="text" id="chat-input" placeholder="Digite uma mensagem…"
+               class="flex-1 min-w-0 px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500"
+               onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage();}">
+        <button type="button" onclick="sendChatMessage()"
+                class="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-semibold shrink-0">
+          Enviar
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Image send modal ──────────────────────────────────────────────────── -->
+<div id="img-modal" class="hidden fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+  <div class="w-full max-w-md rounded-2xl border border-zinc-700 bg-zinc-900 p-6 space-y-4">
+    <div class="flex items-center justify-between">
+      <div class="font-semibold">Enviar imagem</div>
+      <button onclick="closeImageModal()" class="text-zinc-400 hover:text-zinc-100 text-2xl leading-none">&times;</button>
+    </div>
+    <div>
+      <label class="block text-xs text-zinc-400 mb-1">URL pública da imagem <span class="text-red-400">*</span></label>
+      <input id="img-url" type="url" placeholder="https://exemplo.com/imagem.jpg"
+             class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500">
+    </div>
+    <div>
+      <label class="block text-xs text-zinc-400 mb-1">Legenda (opcional)</label>
+      <input id="img-caption" type="text" placeholder="Legenda da imagem"
+             class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-indigo-500">
+    </div>
+    <button type="button" onclick="sendImageMessage()"
+            class="w-full py-2.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-semibold">
+      Enviar imagem
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  TEMPLATES SECTION                                                       -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+
 {% if tpl_error %}
 <div class="mb-4 rounded-xl border border-red-700 bg-red-950/40 px-4 py-3 text-sm text-red-300">
   Erro ao carregar templates: {{ tpl_error }}
 </div>
 {% endif %}
 
-<!-- ── LAYOUT: templates list (left) + create form (right) ─────────────── -->
 <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
 
   <!-- ── Template List ────────────────────────────────────────────────────── -->
@@ -39,7 +214,6 @@
             <div class="text-xs text-zinc-500 mt-0.5">{{ t.get('language', '') }}</div>
           </div>
           <div class="flex items-center gap-1.5 shrink-0">
-            <!-- category badge -->
             {% if category == 'MARKETING' %}
               <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-purple-900/60 text-purple-300">MKT</span>
             {% elif category == 'UTILITY' %}
@@ -49,7 +223,6 @@
             {% else %}
               <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-700 text-zinc-300">{{ category }}</span>
             {% endif %}
-            <!-- status badge -->
             {% if status == 'APPROVED' %}
               <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-900/60 text-emerald-300">APPROVED</span>
             {% elif status == 'PAUSED' %}
@@ -59,7 +232,6 @@
             {% else %}
               <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-zinc-700 text-zinc-400">{{ status }}</span>
             {% endif %}
-            <!-- duplicate button -->
             <button type="button"
                     onclick="openDuplicateModal({{ loop.index0 }})"
                     class="ml-1 px-2 py-1 rounded-lg bg-zinc-800 hover:bg-indigo-800 text-xs transition-colors">
@@ -90,7 +262,6 @@
 
     <div class="space-y-4">
 
-      <!-- Name -->
       <div>
         <label class="block text-xs text-zinc-400 mb-1">Nome <span class="text-red-400">*</span></label>
         <input id="tpl-name" type="text" placeholder="ex: meu_template_promo"
@@ -99,7 +270,6 @@
         <div class="text-[10px] text-zinc-600 mt-0.5">Apenas letras minúsculas, números e underscore.</div>
       </div>
 
-      <!-- Category + Language -->
       <div class="grid grid-cols-2 gap-3">
         <div>
           <label class="block text-xs text-zinc-400 mb-1">Categoria <span class="text-red-400">*</span></label>
@@ -121,7 +291,6 @@
         </div>
       </div>
 
-      <!-- HEADER (optional toggle) -->
       <div>
         <label class="flex items-center gap-2 cursor-pointer text-xs text-zinc-400 mb-1">
           <input type="checkbox" id="use-header" class="accent-indigo-500" onchange="document.getElementById('header-fields').classList.toggle('hidden', !this.checked)">
@@ -133,7 +302,6 @@
         </div>
       </div>
 
-      <!-- BODY -->
       <div>
         <label class="block text-xs text-zinc-400 mb-1">BODY <span class="text-red-400">*</span></label>
         <textarea id="tpl-body" rows="4" placeholder="Texto da mensagem. Use {{1}}, {{2}} para variáveis."
@@ -141,13 +309,11 @@
                   class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm font-mono focus:outline-none focus:border-indigo-500 resize-y"></textarea>
       </div>
 
-      <!-- Body variable examples (auto-generated) -->
       <div id="body-examples-section" class="hidden space-y-2">
         <div class="text-xs text-zinc-400">Exemplos das variáveis (obrigatório quando há <code class="text-indigo-300">{{N}}</code>)</div>
         <div id="body-example-fields" class="space-y-1.5"></div>
       </div>
 
-      <!-- FOOTER (optional) -->
       <div>
         <label class="flex items-center gap-2 cursor-pointer text-xs text-zinc-400 mb-1">
           <input type="checkbox" id="use-footer" class="accent-indigo-500" onchange="document.getElementById('footer-fields').classList.toggle('hidden', !this.checked)">
@@ -159,7 +325,6 @@
         </div>
       </div>
 
-      <!-- BUTTONS (optional) -->
       <div>
         <div class="flex items-center justify-between mb-1">
           <label class="text-xs text-zinc-400">Botões (opcional)</label>
@@ -168,7 +333,6 @@
         <div id="btn-list" class="space-y-2"></div>
       </div>
 
-      <!-- Submit -->
       <div id="create-result"></div>
       <button type="button" onclick="submitCreate()"
               class="w-full py-2.5 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold transition-colors">
@@ -234,7 +398,314 @@
 <script>
 const WABA_ID = {{ waba_id | tojson }};
 const _templates = {{ templates | tojson }};
+const PHONE_NUMBERS = {{ phone_numbers | tojson }};
 let _dupTemplateName = "";
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  CHAT
+// ══════════════════════════════════════════════════════════════════════════════
+
+let _chatPhoneId        = (PHONE_NUMBERS[0] || {}).id || "";
+let _chatContactWaId    = "";
+let _chatContactName    = "";
+let _chatPollTimer      = null;
+let _convoPollTimer     = null;
+
+function chatPhoneChanged() {
+  _chatPhoneId     = document.getElementById("chat-phone-select").value;
+  _chatContactWaId = "";
+  clearChatView();
+  loadConversations();
+}
+
+// ── Conversations ─────────────────────────────────────────────────────────────
+async function loadConversations() {
+  if (!_chatPhoneId) return;
+  try {
+    const r = await fetch(`/waba/${WABA_ID}/conversations?phone_number_id=${encodeURIComponent(_chatPhoneId)}`);
+    if (!r.ok) return;
+    const j = await r.json();
+    renderConversationList(j.conversations || []);
+  } catch (_) {}
+}
+
+function renderConversationList(convos) {
+  const list = document.getElementById("chat-convo-list");
+  if (!convos.length) {
+    list.innerHTML = '<div class="text-center text-zinc-600 text-xs py-8 px-3">Nenhuma conversa ainda.</div>';
+    return;
+  }
+  list.innerHTML = convos.map(c => {
+    const active  = c.contact_wa_id === _chatContactWaId ? "bg-zinc-800/70" : "";
+    const arrow   = c.direction === "out" ? "→ " : "";
+    const preview = c.msg_type === "image" ? "[imagem]" : escHtml(c.last_body);
+    const time    = new Date(c.last_timestamp).toLocaleTimeString("pt-BR", {hour:"2-digit",minute:"2-digit"});
+    return `
+      <div onclick="selectConversation('${escHtml(c.contact_wa_id)}','${escHtml(c.contact_name)}')"
+           class="px-3 py-2.5 cursor-pointer border-b border-zinc-900 hover:bg-zinc-800/40 transition-colors ${active}">
+        <div class="flex justify-between items-start gap-1">
+          <div class="font-semibold text-sm truncate">${escHtml(c.contact_name)}</div>
+          <div class="text-[10px] text-zinc-600 shrink-0 mt-0.5">${time}</div>
+        </div>
+        <div class="text-xs text-zinc-500 truncate mt-0.5">${arrow}${preview}</div>
+      </div>`;
+  }).join("");
+}
+
+function filterConversations() {
+  const term = document.getElementById("chat-search").value.toLowerCase();
+  document.querySelectorAll("#chat-convo-list > div").forEach(el => {
+    el.style.display = el.textContent.toLowerCase().includes(term) ? "" : "none";
+  });
+}
+
+// ── Selecting / loading messages ──────────────────────────────────────────────
+function selectConversation(waId, name) {
+  _chatContactWaId = waId;
+  _chatContactName = name;
+
+  document.getElementById("chat-panel-header").classList.remove("hidden");
+  document.getElementById("chat-header-name").textContent  = name;
+  document.getElementById("chat-header-waid").textContent  = waId;
+  document.getElementById("chat-input-bar").classList.remove("hidden");
+
+  loadMessages();
+  loadConversations();   // refresh active highlight
+  clearInterval(_chatPollTimer);
+  _chatPollTimer = setInterval(loadMessages, 4000);
+}
+
+async function loadMessages() {
+  if (!_chatPhoneId || !_chatContactWaId) return;
+  try {
+    const r = await fetch(
+      `/waba/${WABA_ID}/messages/${encodeURIComponent(_chatContactWaId)}?phone_number_id=${encodeURIComponent(_chatPhoneId)}`
+    );
+    if (!r.ok) return;
+    const j = await r.json();
+    renderMessages(j.messages || []);
+  } catch (_) {}
+}
+
+function renderMessages(msgs) {
+  const container = document.getElementById("chat-messages");
+  const wasAtBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 60;
+
+  if (!msgs.length) {
+    container.innerHTML = '<div class="text-center text-zinc-600 text-xs mt-10">Nenhuma mensagem.</div>';
+    return;
+  }
+
+  container.innerHTML = msgs.map(m => {
+    const isOut   = m.direction === "out";
+    const rowAlign = isOut ? "justify-end"  : "justify-start";
+    const bubbleBg = isOut ? "bg-emerald-900/50 border-emerald-800/40" : "bg-zinc-800 border-zinc-700/40";
+    const time    = new Date(m.timestamp).toLocaleTimeString("pt-BR", {hour:"2-digit",minute:"2-digit"});
+
+    let content = `<div class="text-sm break-words whitespace-pre-wrap">${escHtml(m.body)}</div>`;
+    if (m.msg_type === "image" && m.media_url) {
+      content = `<img src="${escHtml(m.media_url)}" class="max-w-[180px] rounded-lg mb-1" loading="lazy"
+                      onerror="this.style.display='none'">` + content;
+    }
+
+    let statusIcon = "";
+    if (isOut) {
+      if (m.status === "read")      statusIcon = '<span class="text-blue-400 text-[10px] ml-1">✓✓</span>';
+      else if (m.status === "delivered") statusIcon = '<span class="text-zinc-400 text-[10px] ml-1">✓✓</span>';
+      else statusIcon = '<span class="text-zinc-600 text-[10px] ml-1">✓</span>';
+    }
+
+    return `
+      <div class="flex ${rowAlign}">
+        <div class="max-w-[70%] rounded-2xl border ${bubbleBg} px-3 py-2 shadow-sm">
+          ${content}
+          <div class="flex items-center ${isOut ? "justify-end" : "justify-start"} gap-1 mt-1">
+            <span class="text-[10px] text-zinc-600">${time}</span>
+            ${statusIcon}
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  if (wasAtBottom || msgs.length <= 20) {
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+function clearChatView() {
+  document.getElementById("chat-messages").innerHTML =
+    '<div class="text-center text-zinc-600 text-sm mt-16 select-none">Selecione uma conversa para ver as mensagens.</div>';
+  document.getElementById("chat-panel-header").classList.add("hidden");
+  document.getElementById("chat-input-bar").classList.add("hidden");
+  clearInterval(_chatPollTimer);
+}
+
+// ── Send text ─────────────────────────────────────────────────────────────────
+async function sendChatMessage() {
+  const input = document.getElementById("chat-input");
+  const body = input.value.trim();
+  if (!body || !_chatContactWaId || !_chatPhoneId) return;
+  input.value = "";
+
+  try {
+    const r = await fetch(`/waba/${WABA_ID}/messages/send`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({phone_number_id: _chatPhoneId, to: _chatContactWaId, type: "text", body}),
+    });
+    const j = await r.json();
+    if (j.error) { alert("Erro: " + j.error); input.value = body; return; }
+    loadMessages();
+    loadConversations();
+  } catch (e) { alert("Erro: " + e); input.value = body; }
+}
+
+// ── Send image ────────────────────────────────────────────────────────────────
+function openImageModal()  { document.getElementById("img-modal").classList.remove("hidden"); }
+function closeImageModal() { document.getElementById("img-modal").classList.add("hidden"); }
+
+async function sendImageMessage() {
+  const url     = document.getElementById("img-url").value.trim();
+  const caption = document.getElementById("img-caption").value.trim();
+  if (!url) { alert("Informe a URL da imagem."); return; }
+  if (!_chatContactWaId || !_chatPhoneId) { alert("Selecione uma conversa primeiro."); return; }
+  closeImageModal();
+
+  try {
+    const r = await fetch(`/waba/${WABA_ID}/messages/send`, {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({phone_number_id: _chatPhoneId, to: _chatContactWaId, type: "image", image_url: url, caption}),
+    });
+    const j = await r.json();
+    if (j.error) { alert("Erro: " + j.error); return; }
+    document.getElementById("img-url").value = "";
+    document.getElementById("img-caption").value = "";
+    loadMessages();
+    loadConversations();
+  } catch (e) { alert("Erro: " + e); }
+}
+
+// ── Bootstrap on page load ────────────────────────────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+if (_chatPhoneId) {
+  loadConversations();
+  _convoPollTimer = setInterval(loadConversations, 5000);
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  ANALYTICS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function _dateToUnix(dateStr) {
+  // dateStr = "YYYY-MM-DD" → start of that day UTC
+  const d = new Date(dateStr + "T00:00:00Z");
+  return Math.floor(d.getTime() / 1000);
+}
+
+function _fmtDate(ts) {
+  const d = new Date(ts * 1000);
+  return d.toLocaleDateString("pt-BR", { timeZone: "UTC" });
+}
+
+function _fmtNum(n) {
+  return (n || 0).toLocaleString("pt-BR");
+}
+
+function setPreset(days) {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const start = new Date(end);
+  start.setDate(start.getDate() - days + 1);
+  document.getElementById("analytics-start").value = start.toISOString().slice(0, 10);
+  document.getElementById("analytics-end").value   = end.toISOString().slice(0, 10);
+  fetchAnalytics();
+}
+
+async function fetchAnalytics() {
+  const startVal = document.getElementById("analytics-start").value;
+  const endVal   = document.getElementById("analytics-end").value;
+  if (!startVal || !endVal) { alert("Selecione data início e fim."); return; }
+
+  const startTs = _dateToUnix(startVal);
+  // end = end of the selected day
+  const endTs   = _dateToUnix(endVal) + 86399;
+
+  // UI states
+  document.getElementById("analytics-empty").classList.add("hidden");
+  document.getElementById("analytics-error").classList.add("hidden");
+  document.getElementById("analytics-cards").classList.add("hidden");
+  document.getElementById("analytics-table-wrap").classList.add("hidden");
+  document.getElementById("analytics-loading").classList.remove("hidden");
+
+  try {
+    const r = await fetch(`/waba/${WABA_ID}/analytics?start=${startTs}&end=${endTs}`);
+    const j = await r.json();
+
+    document.getElementById("analytics-loading").classList.add("hidden");
+
+    if (!r.ok || j.error) {
+      const errEl = document.getElementById("analytics-error");
+      errEl.textContent = j.error || `Erro HTTP ${r.status}`;
+      errEl.classList.remove("hidden");
+      return;
+    }
+
+    const analytics = j.analytics || {};
+    const points = analytics.data_points || [];
+
+    if (!points.length) {
+      document.getElementById("analytics-empty").textContent = "Nenhum dado encontrado para o período selecionado.";
+      document.getElementById("analytics-empty").classList.remove("hidden");
+      return;
+    }
+
+    // Totals
+    let totalSent = 0, totalDelivered = 0;
+    for (const p of points) {
+      totalSent      += p.sent || 0;
+      totalDelivered += p.delivered || 0;
+    }
+    const rate = totalSent > 0 ? ((totalDelivered / totalSent) * 100).toFixed(1) + "%" : "—";
+
+    document.getElementById("stat-sent").textContent      = _fmtNum(totalSent);
+    document.getElementById("stat-delivered").textContent  = _fmtNum(totalDelivered);
+    document.getElementById("stat-rate").textContent       = rate;
+    document.getElementById("stat-days").textContent       = points.length;
+    document.getElementById("analytics-cards").classList.remove("hidden");
+
+    // Table
+    const tbody = document.getElementById("analytics-tbody");
+    tbody.innerHTML = "";
+    for (const p of points) {
+      const dayRate = p.sent > 0 ? ((p.delivered / p.sent) * 100).toFixed(1) + "%" : "—";
+      const tr = document.createElement("tr");
+      tr.className = "border-b border-zinc-900";
+      tr.innerHTML = `
+        <td class="py-2 pr-4 text-zinc-400">${_fmtDate(p.start)}</td>
+        <td class="py-2 px-4 text-right text-emerald-400">${_fmtNum(p.sent)}</td>
+        <td class="py-2 px-4 text-right text-blue-400">${_fmtNum(p.delivered)}</td>
+        <td class="py-2 px-4 text-right text-indigo-400">${dayRate}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+    document.getElementById("analytics-table-wrap").classList.remove("hidden");
+
+  } catch (e) {
+    document.getElementById("analytics-loading").classList.add("hidden");
+    const errEl = document.getElementById("analytics-error");
+    errEl.textContent = "Erro de rede: " + String(e);
+    errEl.classList.remove("hidden");
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  TEMPLATES
+// ══════════════════════════════════════════════════════════════════════════════
 
 // ── body variable detection ───────────────────────────────────────────────────
 function detectBodyVars() {
@@ -244,7 +715,6 @@ function detectBodyVars() {
   const container = document.getElementById("body-example-fields");
   if (!matches.length) { sec.classList.add("hidden"); return; }
   sec.classList.remove("hidden");
-  // rebuild only if count changed
   const existing = container.querySelectorAll("input").length;
   if (existing !== matches.length) {
     container.innerHTML = matches.map(n => `
@@ -346,9 +816,7 @@ function openDuplicateModal(idx) {
   document.getElementById("dup-result").innerHTML = "";
   document.getElementById("dup-btn").disabled = false;
   document.getElementById("dup-btn").textContent = "Duplicar";
-  // uncheck all
   document.querySelectorAll(".dup-target-cb").forEach(cb => cb.checked = false);
-  // pre-check current waba
   document.querySelectorAll(".dup-target-cb").forEach(cb => { if (cb.value === WABA_ID) cb.checked = true; });
   document.getElementById("dup-modal").classList.remove("hidden");
 }

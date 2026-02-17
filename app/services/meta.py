@@ -31,6 +31,21 @@ def get_waba_name(api_version: str, token: str, waba_id: str):
     name = info.get("name")
     return name, None
 
+def get_waba_analytics(api_version: str, token: str, waba_id: str,
+                       start_ts: int, end_ts: int, granularity: str = "DAY"):
+    """Fetch WABA analytics between two unix timestamps."""
+    url = (
+        f"https://graph.facebook.com/{api_version}/{waba_id}"
+        f"?fields=analytics.start({start_ts}).end({end_ts}).granularity({granularity})"
+    )
+    status, j, snippet = _get(url, token)
+    if status != 200 or not isinstance(j, dict):
+        return None, f"HTTP {status}: {snippet}"
+    if "error" in j:
+        return None, f"Meta error: {str(j.get('error'))[:800]}"
+    return j.get("analytics"), None
+
+
 def get_phone_numbers(api_version: str, token: str, waba_id: str):
     url = f"https://graph.facebook.com/{api_version}/{waba_id}/phone_numbers"
     status, j, snippet = _get(url, token)

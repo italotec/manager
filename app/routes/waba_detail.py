@@ -3,7 +3,7 @@ from flask_login import login_required, current_user
 
 from ..json_store import load_user_bms
 from ..config import Config
-from ..services.meta import get_templates, create_template
+from ..services.meta import get_templates, create_template, get_waba_analytics
 
 bp = Blueprint("waba_detail", __name__)
 
@@ -22,6 +22,7 @@ def detail(waba_id):
     entry, bms = _get_waba_or_404(current_user.id, waba_id)
     snap = entry.get("snapshot", {}) or {}
     waba_name = snap.get("waba_name") or waba_id
+    phone_numbers = snap.get("phone_numbers") or []
 
     token = entry.get("token", "")
     templates = []
@@ -48,7 +49,115 @@ def detail(waba_id):
         templates=templates,
         tpl_error=tpl_error,
         all_wabas=all_wabas,
+        phone_numbers=phone_numbers,
     )
+
+
+@bp.route("/waba/<waba_id>/analytics", methods=["GET"])
+@login_required
+def analytics(waba_id):
+    """Return analytics JSON for a date range (unix timestamps via query params)."""
+    entry, _ = _get_waba_or_404(current_user.id, waba_id)
+    token = entry.get("token", "")
+    if not token:
+        return jsonify({"error": "Token não encontrado."}), 400
+
+    start_ts = request.args.get("start", type=int)
+    end_ts = request.args.get("end", type=int)
+    if not start_ts or not end_ts:
+        return jsonify({"error": "Parâmetros start e end são obrigatórios."}), 400
+
+    data, err = get_waba_analytics(Config.META_API_VERSION, token, waba_id, start_ts, end_ts)
+    if err:
+        return jsonify({"error": err}), 502
+    return jsonify({"analytics": data})
+
+
+@bp.route("/waba/<waba_id>/conversations")
+@login_required
+def conversations(waba_id):
+    """Return list of conversations (contacts) for a phone number."""
+    _get_waba_or_404(current_user.id, waba_id)
+    phone_number_id = request.args.get("phone_number_id", "").strip()
+    if not phone_number_id:
+        return jsonify({"error": "phone_number_id required"}), 400
+
+    from ..services.chat_service import get_conversations
+    return jsonify({"conversations": get_conversations(waba_id, phone_number_id)})
+
+
+@bp.route("/waba/<waba_id>/messages/<contact_wa_id>")
+@login_required
+def message_history(waba_id, contact_wa_id):
+    """Return message history for a specific conversation."""
+    _get_waba_or_404(current_user.id, waba_id)
+    phone_number_id = request.args.get("phone_number_id", "").strip()
+    if not phone_number_id:
+        return jsonify({"error": "phone_number_id required"}), 400
+
+    before_id = request.args.get("before_id", type=int)
+    from ..services.chat_service import get_message_history
+    return jsonify({"messages": get_message_history(
+        waba_id, phone_number_id, contact_wa_id, before_id=before_id
+    )})
+
+
+@bp.route("/waba/<waba_id>/messages/send", methods=["POST"])
+@login_required
+def send_message(waba_id):
+    """Send a text or image message to a contact."""
+    entry, _ = _get_waba_or_404(current_user.id, waba_id)
+    token = entry.get("token", "")
+    if not token:
+        return jsonify({"error": "Token não encontrado."}), 400
+
+    data            = request.get_json(silent=True) or {}
+    phone_number_id = (data.get("phone_number_id") or "").strip()
+    to_wa_id        = (data.get("to") or "").strip()
+    msg_type        = (data.get("type") or "text").strip()
+    body            = (data.get("body") or "").strip()
+    image_url       = (data.get("image_url") or "").strip()
+    caption         = (data.get("caption") or "").strip()
+
+    if not phone_number_id or not to_wa_id:
+        return jsonify({"error": "phone_number_id e to são obrigatórios."}), 400
+
+    from ..services.chat_service import send_text_message, send_image_message, save_message
+    from ..models import ChatMessage
+
+    if msg_type == "image":
+        if not image_url:
+            return jsonify({"error": "image_url obrigatória para tipo image."}), 400
+        success, result = send_image_message(token, phone_number_id, to_wa_id, image_url, caption)
+        save_body = caption or "[imagem]"
+    else:
+        if not body:
+            return jsonify({"error": "body obrigatório para tipo text."}), 400
+        success, result = send_text_message(token, phone_number_id, to_wa_id, body)
+        save_body = body
+
+    if not success:
+        return jsonify({"error": result}), 502
+
+    # Look up existing contact name from DB
+    existing = ChatMessage.query.filter_by(
+        waba_id=waba_id, phone_number_id=phone_number_id, contact_wa_id=to_wa_id,
+    ).first()
+    contact_name = existing.contact_name if existing else to_wa_id
+
+    save_message(
+        waba_id=waba_id,
+        phone_number_id=phone_number_id,
+        contact_wa_id=to_wa_id,
+        contact_name=contact_name,
+        direction="out",
+        msg_type=msg_type,
+        body=save_body,
+        media_url=image_url if msg_type == "image" else "",
+        wamid=result,
+        status="sent",
+    )
+    return jsonify({"ok": True, "wamid": result})
 
 
 @bp.route("/waba/<waba_id>/templates/create", methods=["POST"])
