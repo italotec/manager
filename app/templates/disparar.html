@@ -173,6 +173,7 @@
           — selecione um template —
         </div>
         <input type="hidden" id="templateName">
+        <input type="hidden" id="templateLanguage">
 
         {# template picker panel (hidden until templates loaded) #}
         <div id="templatePickerPanel" class="hidden mt-2 rounded-xl border border-zinc-700 bg-zinc-950 overflow-hidden">
@@ -323,6 +324,7 @@ let csvColumns      = [];
 let activeJobId     = null;
 let pollTimer       = null;
 let logOffset       = 0;
+let _templates      = [];  // store full template objects with language
 
 // ── CSV select ─────────────────────────────────────────────────────────────
 async function onCsvSelect(filename) {
@@ -365,11 +367,13 @@ async function onCsvSelect(filename) {
 function onWabaSelect() {
   // clear template picker whenever WABA changes
   document.getElementById("templateName").value = "";
+  document.getElementById("templateLanguage").value = "";
   document.getElementById("selectedTemplateBox").textContent = "— selecione um template —";
   document.getElementById("selectedTemplateBox").className =
     "mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm text-zinc-500 cursor-pointer";
   document.getElementById("templatePickerPanel").classList.add("hidden");
   document.getElementById("templatePickerList").innerHTML = "";
+  _templates = [];
 }
 
 // ── template picker ─────────────────────────────────────────────────────────
@@ -400,7 +404,8 @@ async function fetchTemplates() {
       alert("Erro ao buscar templates: " + (data.error || res.status));
       return;
     }
-    renderTemplatePicker(data.templates || []);
+    _templates = data.templates || [];  // store full template objects
+    renderTemplatePicker(_templates);
   } catch(e) {
     alert("Erro de rede: " + e);
   } finally {
@@ -448,6 +453,12 @@ function renderTemplatePicker(templates) {
 
 function selectTemplate(name, rowEl) {
   document.getElementById("templateName").value = name;
+
+  // find template in stored array and set language
+  const tpl = _templates.find(t => t.name === name);
+  if (tpl && tpl.language) {
+    document.getElementById("templateLanguage").value = tpl.language;
+  }
 
   // update display box
   const box = document.getElementById("selectedTemplateBox");
@@ -510,10 +521,11 @@ function collectFormData() {
   const wabaOpt = document.getElementById("wabaSelect").selectedOptions[0];
   if (!wabaOpt || !wabaOpt.value) return null;
 
-  const phone_number_id = wabaOpt.dataset.phoneNumberId || "";
-  const token           = wabaOpt.dataset.token || "";
-  const template_name   = document.getElementById("templateName").value.trim();
-  const phone_col       = document.getElementById("phoneColSelect").value;
+  const phone_number_id   = wabaOpt.dataset.phoneNumberId || "";
+  const token             = wabaOpt.dataset.token || "";
+  const template_name     = document.getElementById("templateName").value.trim();
+  const template_language = document.getElementById("templateLanguage").value.trim() || "en";
+  const phone_col         = document.getElementById("phoneColSelect").value;
 
   if (!selectedCsv)       { alert("Selecione um CSV primeiro."); return null; }
   if (!phone_number_id)   { alert("O WABA selecionado não tem um Phone Number ID. Sincronize no Dashboard."); return null; }
@@ -530,7 +542,7 @@ function collectFormData() {
   const max_workers = parseInt(document.getElementById("workersValue").value) || 1;
   const skip_log = document.getElementById("skipLog").checked;
 
-  return { csv_filename: selectedCsv, phone_col, phone_number_id, token, template_name, param_map, max_workers, skip_log };
+  return { csv_filename: selectedCsv, phone_col, phone_number_id, token, template_name, template_language, param_map, max_workers, skip_log };
 }
 
 // ── start disparo ──────────────────────────────────────────────────────────

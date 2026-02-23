@@ -1,4 +1,6 @@
+import os
 import time
+from datetime import datetime
 from flask import (
     Blueprint,
     render_template,
@@ -10,6 +12,7 @@ from flask import (
     jsonify,
 )
 from flask_login import login_required, current_user
+from werkzeug.utils import secure_filename
 
 from ..json_store import (
     ensure_user_bms_file,
@@ -60,6 +63,8 @@ def dashboard():
             "status_label": snap.get("status_label") or "",
             "last_error": snap.get("last_error") or "",
             "last_add_phone_error": data.get("last_add_phone_error") or "",
+            "ever_had_erro_generic": snap.get("ever_had_erro_generic", False),
+            "ultimo_disparo": snap.get("ultimo_disparo") or "",
         })
 
     job_id = request.args.get("job", "")
@@ -136,14 +141,33 @@ def sync_now():
         health_phones, _ = get_phone_numbers_health(api_version, token, waba_id)
         health_label = evaluate_health(health_phones) if health_phones else "OK"
 
-        # Send test message to detect generic errors
-        if health_label == "OK" and phones and templates:
+        # Send test message to detect generic errors (ERRO GENERIC > PROBLEMA CARTÃO)
+        if health_label in ("OK", "PROBLEMA CARTÃO") and phones and templates:
             test_tpl = pick_test_template(templates)
             first_phone_id = phones[0].get("id") if phones else None
             if test_tpl and first_phone_id:
                 test_ok, test_resp = send_test_message(token, first_phone_id, test_tpl)
                 if not test_ok and "#135000" in test_resp:
                     health_label = "ERRO GENERIC"
+
+        # ── tracking fields ──────────────────────────────────────────────
+        ever_erro_generic  = prev_snap.get("ever_had_erro_generic", False)
+        limitada_active    = prev_snap.get("limitada_cycle_active", False)
+        ultimo_disparo     = prev_snap.get("ultimo_disparo", "")
+
+        if health_label == "ERRO GENERIC":
+            ever_erro_generic = True
+
+        if health_label == "LIMITADA":
+            if not limitada_active:
+                # First time entering LIMITADA in this cycle — record the datetime
+                ultimo_disparo  = datetime.now().strftime("%d/%m %H:%M")
+                limitada_active = True
+            # else: still LIMITADA, keep existing values
+        else:
+            # Any non-LIMITADA status resets the cycle so the next LIMITADA
+            # is treated as a new event
+            limitada_active = False
 
         update_snapshot(
             current_user.id,
@@ -154,6 +178,9 @@ def sync_now():
             last_error="",
             status_label=health_label,
             last_sync_at=int(time.time()),
+            ever_had_erro_generic=ever_erro_generic,
+            limitada_cycle_active=limitada_active,
+            ultimo_disparo=ultimo_disparo,
         )
         synced += 1
 
@@ -209,6 +236,91 @@ def export_selected():
         }
 
     return jsonify(out)
+
+
+@bp.route("/travar-start", methods=["POST"])
+@login_required
+def travar_start():
+    import random
+    from ..services.disparar_service import start_disparo_job, csvs_dir
+
+    data = request.get_json(silent=True) or {}
+    waba_ids     = data.get("waba_ids") or []
+    csv_filename = (data.get("csv_filename") or "").strip()
+    phone_col    = (data.get("phone_col")    or "").strip()
+    param_map    = data.get("param_map") or []
+
+    if not waba_ids or not csv_filename or not phone_col:
+        return jsonify({"error": "Campos obrigatórios faltando."}), 400
+
+    csv_path = os.path.join(csvs_dir(current_user.id), secure_filename(csv_filename))
+    if not os.path.exists(csv_path):
+        return jsonify({"error": f"CSV '{csv_filename}' não encontrado."}), 404
+
+    api_version = current_app.config["META_API_VERSION"]
+    bms = load_user_bms(current_user.id)
+    job_ids = []
+    errors  = []
+
+    for waba_id in waba_ids:
+        entry = bms.get(str(waba_id))
+        if not isinstance(entry, dict):
+            errors.append(f"{waba_id}: não encontrado no bms.json")
+            continue
+
+        token = (entry.get("token") or "").strip()
+        snap  = entry.get("snapshot", {}) or {}
+        phone_numbers = snap.get("phone_numbers") or []
+
+        phone_number_id = ""
+        if phone_numbers:
+            phone_number_id = phone_numbers[0].get("id", "")
+        if not phone_number_id:
+            phone_number_id = (entry.get("phone_number_id") or "").strip()
+
+        if not token:
+            errors.append(f"{waba_id}: token vazio")
+            continue
+        if not phone_number_id:
+            errors.append(f"{waba_id}: sem phone_number_id (sincronize o dashboard)")
+            continue
+
+        # Fetch templates and pick a random APPROVED one
+        templates, err_tpl = get_templates(api_version, token, waba_id)
+        if err_tpl or not templates:
+            errors.append(f"{waba_id}: erro ao buscar templates — {err_tpl or 'lista vazia'}")
+            continue
+
+        approved = [t for t in templates if t.get("status") == "APPROVED"]
+        if not approved:
+            errors.append(f"{waba_id}: nenhum template APPROVED disponível")
+            continue
+
+        chosen = random.choice(approved)
+        template_name     = chosen.get("name", "")
+        template_language = chosen.get("language", "pt")
+
+        job_id = start_disparo_job(
+            current_app._get_current_object(),
+            current_user.id,
+            csv_filename,
+            phone_col,
+            phone_number_id,
+            token,
+            template_name,
+            template_language,
+            param_map,
+            1,     # max_workers
+            False, # skip_log
+        )
+        job_ids.append({
+            "waba_id":  waba_id,
+            "job_id":   job_id,
+            "template": template_name,
+            "language": template_language,
+        })
+
+    return jsonify({"job_ids": job_ids, "errors": errors})
 
 
 @bp.route("/delete-wabas", methods=["POST"])

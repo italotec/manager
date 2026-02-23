@@ -2,7 +2,7 @@ import time
 import traceback
 from flask import current_app
 from .. import db
-from ..models import User, BalanceTx, Job
+from ..models import User, BalanceTx, Job, Proxy
 from ..json_store import load_user_bms, save_user_bms
 from .sms24h import sms24h_get_number, sms24h_get_status, sms24h_cancel
 from .meta import (
@@ -114,6 +114,11 @@ def _debit_otp(user_id: int, waba_id: str, phone_number_id: str):
     db.session.commit()
     return True, "OTP debitado"
 
+def _log(msg: str):
+    """Print debug line to terminal with a clear prefix."""
+    print(f"[ADD_PHONE] {msg}", flush=True)
+
+
 def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
     """
     Returns True if completed OK (or saved phone_id in terms-not-accepted case),
@@ -121,9 +126,11 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
     """
     job = db.session.get(Job, job_id)
     if not job:
+        _log(f"job_id={job_id} not found in DB")
         return False
 
     waba_id = str(waba_id).strip()
+    _log(f"START user_id={user_id} waba_id={waba_id} job_id={job_id}")
 
     try:
         _job_update(job, last_message="Inicializando...")
@@ -131,12 +138,14 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
         bms = load_user_bms(user_id)
 
         if not bms:
+            _log("ABORT: bms.json vazio")
             _job_update(job, last_message="bms.json vazio")
             return False
 
         data = bms.get(waba_id)
         if not isinstance(data, dict):
             # If the key isn't present, we can't write inside it.
+            _log(f"ABORT: WABA {waba_id} não encontrado no bms.json")
             _job_update(job, last_message=f"WABA {waba_id} não encontrado no bms.json")
             return False
 
@@ -146,6 +155,7 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
 
         token = (data.get("token") or "").strip()
         if not token:
+            _log("ABORT: token vazio no bms.json")
             _set_error(user_id, waba_id, "Token vazio no bms.json")
             _append_debug(user_id, waba_id, "ABORT token vazio")
             _job_update(job, last_message="Token vazio")
@@ -153,14 +163,17 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
 
         # ✅ Pre-check saldo
         ok_bal, msg_bal = _has_balance_for_otp(user_id)
+        _log(f"balance_check ok={ok_bal} msg={msg_bal}")
         _append_debug(user_id, waba_id, f"balance_check ok={ok_bal} msg={msg_bal}")
         if not ok_bal:
+            _log(f"ABORT: saldo insuficiente — {msg_bal}")
             _set_error(user_id, waba_id, msg_bal)
             _job_update(job, last_message=msg_bal)
             return False
 
         existing_phone = str(data.get("phone_number_id") or "").strip()
         if existing_phone:
+            _log(f"SKIP: já possui phone_number_id={existing_phone}")
             _append_debug(user_id, waba_id, f"SKIP existing phone_number_id={existing_phone}")
             _job_update(job, last_message="Já possui phone_number_id. Pulando.")
             return True
@@ -173,6 +186,7 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
             if elapsed < lock_hours * 3600:
                 remaining_min = int(((lock_hours * 3600) - elapsed) // 60)
                 msg = f"Cooldown OTP ativo ({lock_hours}h). Faltam ~{remaining_min} min."
+                _log(f"ABORT cooldown: elapsed={elapsed:.0f}s remaining={remaining_min}min")
                 _set_error(user_id, waba_id, msg)
                 _append_debug(user_id, waba_id, f"ABORT cooldown elapsed={elapsed}")
                 _job_update(job, last_message=msg)
@@ -184,6 +198,7 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
                 "otp_received": False,
                 "otp_received_at": 0,
             })
+            _log("cooldown expired -> cleared pending fields")
             _append_debug(user_id, waba_id, "cooldown expired -> cleared pending fields")
 
         api_version = current_app.config["META_API_VERSION"]
@@ -194,35 +209,58 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
         language = str(current_app.config["LANGUAGE"])
         max_wait = int(current_app.config["TEMPO_MAX_ESPERA_OTP"])
         max_attempts = int(current_app.config["MAX_TENTATIVAS_POR_WABA"])
-        proxies = current_app.config.get("PROXIES_RAW") or []
+        sms_api_key = current_app.config["SMS24H_API_KEY"]
+        sms_base_url = current_app.config["SMS24H_BASE_URL"]
+
+        _log(f"config: api_version={api_version} country={country} operator={operator} "
+             f"service={service} code_method={code_method} language={language} "
+             f"max_wait={max_wait}s max_attempts={max_attempts} "
+             f"sms_base_url={sms_base_url} sms_api_key={'SET' if sms_api_key else 'EMPTY'}")
+
+        proxy_objs = Proxy.query.order_by(Proxy.created_at.asc()).all()
+        proxies = []
+        for _p in proxy_objs:
+            try:
+                ip, port, user, pwd = _p.proxy_str.split(":")
+                proxies.append(f"{_p.proxy_type}://{user}:{pwd}@{ip}:{port}")
+            except Exception:
+                pass  # skip malformed entries
+        _log(f"proxies loaded: {len(proxies)} proxy(ies)")
 
         cc = COUNTRY_CODE_MAP.get(country)
         if not cc:
             msg = f"COUNTRY {country} sem CC mapeado"
+            _log(f"ABORT: {msg}")
             _set_error(user_id, waba_id, msg)
             _append_debug(user_id, waba_id, f"ABORT {msg}")
             _job_update(job, last_message=msg)
             return False
+        _log(f"country_code={cc}")
 
         # Get verified name
         _job_update(job, last_message="Obtendo nome do WABA (verified_name)...")
         raw = get_waba_name(api_version, token, waba_id)
         if isinstance(raw, tuple) and len(raw) == 2:
             verified_name, err = raw
+            _log(f"get_waba_name -> name={verified_name!r} err={err!r}")
             _append_debug(user_id, waba_id, f"get_waba_name tuple err={err} name={verified_name}")
             if err:
                 msg = f"get_waba_name: {err}"
+                _log(f"ABORT: {msg}")
                 _set_error(user_id, waba_id, msg)
                 _job_update(job, last_message=msg)
                 return False
         else:
             verified_name = raw
+            _log(f"get_waba_name raw -> {verified_name!r}")
             _append_debug(user_id, waba_id, f"get_waba_name raw={verified_name}")
 
         verified_name = normalize_verified_name(verified_name)
+        _log(f"verified_name normalized='{verified_name}'")
         _append_debug(user_id, waba_id, f"verified_name normalized='{verified_name}'")
         if not verified_name:
             msg = "verified_name vazio"
+            _log(f"ABORT: {msg}")
             _set_error(user_id, waba_id, msg)
             _job_update(job, last_message=msg)
             return False
@@ -230,41 +268,50 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
         # Main attempts
         for attempt in range(1, max_attempts + 1):
             proxy_str = proxies[(attempt - 1) % len(proxies)] if proxies else None
+            _log(f"--- Attempt {attempt}/{max_attempts} | proxy={'(none)' if not proxy_str else proxy_str.split('@')[-1]}")
             _job_update(job, last_message=f"Tentativa {attempt}/{max_attempts}: comprando número...")
 
             activation_id, full_phone = sms24h_get_number(
-                api_key=current_app.config["SMS24H_API_KEY"],
-                base_url=current_app.config["SMS24H_BASE_URL"],
+                api_key=sms_api_key,
+                base_url=sms_base_url,
                 service=service,
                 country=country,
                 operator=operator,
                 proxy_str=proxy_str
             )
+            _log(f"sms24h_get_number -> activation_id={activation_id} full_phone={full_phone}")
             _append_debug(user_id, waba_id, f"sms24h_get_number -> activation_id={activation_id} full_phone={full_phone}")
 
             if not activation_id:
+                _log("sms24h_get_number: sem activation_id, próxima tentativa")
                 _append_debug(user_id, waba_id, "sms24h_get_number failed (no activation_id)")
                 continue
 
             if not str(full_phone).startswith(cc):
+                _log(f"Phone {full_phone} não começa com CC={cc} -> cancela")
                 _append_debug(user_id, waba_id, f"Phone does not start with CC {cc}: {full_phone} -> cancel")
-                sms24h_cancel(current_app.config["SMS24H_API_KEY"], current_app.config["SMS24H_BASE_URL"], activation_id, proxy_str)
+                sms24h_cancel(sms_api_key, sms_base_url, activation_id, proxy_str)
                 continue
 
             local_number = str(full_phone)[len(cc):]
+            _log(f"número obtido: +{cc}{local_number} (activation={activation_id})")
 
             _job_update(job, last_message="Adicionando número no WABA...")
             r_add = add_phone_number(api_version, token, waba_id, cc, local_number, verified_name, proxy_str)
+            _log(f"add_phone_number -> HTTP {r_add.status_code} | body: {r_add.text[:500]}")
             _append_debug(user_id, waba_id, f"add_phone_number status={r_add.status_code} body={r_add.text[:900]}")
 
             if r_add.status_code != 200:
-                sms24h_cancel(current_app.config["SMS24H_API_KEY"], current_app.config["SMS24H_BASE_URL"], activation_id, proxy_str)
+                _log(f"add_phone_number falhou (HTTP {r_add.status_code}) -> cancela activation")
+                sms24h_cancel(sms_api_key, sms_base_url, activation_id, proxy_str)
                 _append_debug(user_id, waba_id, "add_phone_number failed -> canceled activation")
                 continue
 
             phone_id = (r_add.json() or {}).get("id")
+            _log(f"phone_id={phone_id}")
             if not phone_id:
                 msg = "Meta não retornou phone_id no add_phone"
+                _log(f"ABORT: {msg}")
                 _set_error(user_id, waba_id, msg)
                 _job_update(job, last_message=msg)
                 return False
@@ -279,34 +326,42 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
 
             _job_update(job, last_message="Solicitando OTP (request_code)...")
             r_req = request_code(api_version, token, phone_id, code_method, language, proxy_str)
+            _log(f"request_code -> HTTP {r_req.status_code} | body: {r_req.text[:500]}")
             _append_debug(user_id, waba_id, f"request_code status={r_req.status_code} body={r_req.text[:900]}")
 
             if r_req.status_code != 200:
                 msg = f"request_code falhou: {r_req.text[:900]}"
+                _log(f"request_code falhou -> cancela activation")
                 _set_error(user_id, waba_id, msg)
-                sms24h_cancel(current_app.config["SMS24H_API_KEY"], current_app.config["SMS24H_BASE_URL"], activation_id, proxy_str)
+                sms24h_cancel(sms_api_key, sms_base_url, activation_id, proxy_str)
                 continue
 
             _job_update(job, last_message="Aguardando OTP (SMS24h)...")
+            _log(f"aguardando OTP por até {max_wait}s ...")
             start = time.time()
             otp_code = None
+            poll_count = 0
 
             while time.time() - start < max_wait:
                 st = sms24h_get_status(
-                    api_key=current_app.config["SMS24H_API_KEY"],
-                    base_url=current_app.config["SMS24H_BASE_URL"],
+                    api_key=sms_api_key,
+                    base_url=sms_base_url,
                     activation_id=activation_id,
                     proxy_str=proxy_str
                 )
+                poll_count += 1
+                _log(f"  OTP poll #{poll_count} (+{int(time.time()-start)}s): status={st!r}")
 
                 if st.startswith("STATUS_OK"):
                     raw_code = st.split(":", 1)[1] if ":" in st else ""
                     otp_code = _only_digits(raw_code)
+                    _log(f"  OTP recebido! raw='{raw_code}' normalized='{otp_code}'")
                     _append_debug(user_id, waba_id, f"sms24h STATUS_OK raw='{raw_code}' normalized='{otp_code}'")
                     if otp_code:
                         break
 
                 elif st == "STATUS_CANCEL":
+                    _log("  OTP STATUS_CANCEL")
                     _append_debug(user_id, waba_id, "sms24h STATUS_CANCEL")
                     otp_code = None
                     break
@@ -314,36 +369,43 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
                 time.sleep(12)
 
             if not otp_code:
+                _log(f"OTP timeout após {poll_count} polls -> cancela activation")
                 _append_debug(user_id, waba_id, "OTP timeout -> cancel activation")
                 _job_update(job, last_message="Sem OTP → cancelando (reembolso).")
-                sms24h_cancel(current_app.config["SMS24H_API_KEY"], current_app.config["SMS24H_BASE_URL"], activation_id, proxy_str)
+                sms24h_cancel(sms_api_key, sms_base_url, activation_id, proxy_str)
                 continue
 
             _update_bms_entry(user_id, waba_id, {"otp_received": True, "otp_received_at": int(time.time())})
 
             ok, msg = _debit_otp(user_id, waba_id, phone_id)
+            _log(f"debit_otp -> ok={ok} msg={msg}")
             _append_debug(user_id, waba_id, f"DEBIT otp -> ok={ok} msg={msg}")
             if not ok:
                 msg2 = f"OTP chegou mas {msg}"
+                _log(f"ABORT: {msg2}")
                 _set_error(user_id, waba_id, msg2)
                 _job_update(job, last_message=msg2)
                 return False
 
             _job_update(job, last_message="Verificando OTP (verify_code)...")
             r_ver = verify_code(api_version, token, phone_id, otp_code, proxy_str)
+            _log(f"verify_code -> HTTP {r_ver.status_code} | body: {r_ver.text[:500]}")
             _append_debug(user_id, waba_id, f"verify_code status={r_ver.status_code} body={r_ver.text[:900]}")
 
             if r_ver.status_code != 200:
                 msg = f"verify_code falhou: {r_ver.text[:900]}"
+                _log(f"ABORT: verify_code falhou")
                 _set_error(user_id, waba_id, msg)
                 _job_update(job, last_message="OTP recebido, mas verify_code falhou. Veja last_add_phone_error.")
                 return False
 
             _job_update(job, last_message="Registrando número (register)...")
             r_reg = register_number(api_version, token, phone_id, pin="123456", proxy_str=proxy_str)
+            _log(f"register_number -> HTTP {r_reg.status_code} | body: {r_reg.text[:500]}")
             _append_debug(user_id, waba_id, f"register status={r_reg.status_code} body={r_reg.text[:900]}")
 
             if r_reg.status_code == 200:
+                _log(f"SUCCESS: número {full_phone} registrado como phone_id={phone_id}")
                 _update_bms_entry(user_id, waba_id, {
                     "phone_number_id": str(phone_id),
                     "pending_phone_number_id": "",
@@ -357,17 +419,21 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
                 return True
 
             msg = f"register falhou: {r_reg.text[:900]}"
+            _log(f"ABORT: register_number falhou (HTTP {r_reg.status_code})")
             _set_error(user_id, waba_id, msg)
             _job_update(job, last_message="verify ok, mas register falhou. Veja last_add_phone_error.")
             return False
 
         msg = "Falha após tentativas máximas"
+        _log(f"ABORT: {msg}")
         _set_error(user_id, waba_id, msg)
         _job_update(job, last_message=msg)
         return False
 
     except Exception as e:
         tb = traceback.format_exc()
+        _log(f"EXCEPTION: {type(e).__name__}: {e}")
+        _log(tb)
         # We try to write into bms.json if entry exists
         _set_error(user_id, waba_id, f"EXCEPTION: {type(e).__name__}: {e}")
         try:

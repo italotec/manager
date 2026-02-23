@@ -50,6 +50,17 @@
         </svg>
       </button>
 
+      <!-- Travar button -->
+      <button type="button"
+              title="Disparar CSV para WABAs selecionadas"
+              onclick="openTrarModal()"
+              class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-violet-900/60 text-zinc-400 hover:text-violet-300 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+        </svg>
+      </button>
+
       <button type="button" onclick="openModal()"
               class="px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">
         + Adicionar WABA
@@ -91,11 +102,16 @@
       <table class="min-w-full text-sm">
         <thead class="text-zinc-400">
           <tr class="border-b border-zinc-800">
-            <th class="text-left py-2 pr-3">Sel</th>
+            <th class="text-left py-2 pr-3">
+              <input type="checkbox" id="selectAll" title="Selecionar / desselecionar todos"
+                     onchange="toggleSelectAll(this.checked)"
+                     class="w-4 h-4 accent-emerald-600">
+            </th>
             <th class="text-left py-2">WABA</th>
             <th class="text-left py-2">Telefone</th>
             <th class="text-left py-2">Templates</th>
-            <th class="text-left py-2">Última sync</th>
+            <th class="text-left py-2">Travada</th>
+            <th class="text-left py-2">Último Disparo</th>
             <th class="text-left py-2">Status</th>
             <th class="py-2 w-10"></th>
           </tr>
@@ -147,12 +163,25 @@
               {% endif %}
             </td>
 
-            <td class="py-3 text-xs text-zinc-400">
-              {% if row.last_sync_at and row.last_sync_at > 0 %}
-                {{ row.last_sync_at | int }}
+            {# Travada — green if ever had ERRO GENERIC, red otherwise #}
+            <td class="py-3 text-center">
+              {% if row.ever_had_erro_generic %}
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-emerald-400 inline-block" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
               {% else %}
-                —
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-red-400 inline-block" viewBox="0 0 24 24" fill="none"
+                     stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
               {% endif %}
+            </td>
+
+            {# Último Disparo — datetime when LIMITADA was first detected in current cycle #}
+            <td class="py-3 text-xs text-zinc-400 font-mono">
+              {{ row.ultimo_disparo or "—" }}
             </td>
 
             <td class="py-3">
@@ -245,6 +274,89 @@
         Salvar
       </button>
     </form>
+  </div>
+</div>
+
+{# ── Travar modal ── #}
+<div id="trarModalBg" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
+  <div class="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-5 max-h-[90vh] overflow-y-auto">
+
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <div class="text-lg font-semibold flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-violet-400" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+          </svg>
+          Travar
+        </div>
+        <div class="text-xs text-zinc-500 mt-0.5">Disparar CSV para todas as WABAs selecionadas</div>
+      </div>
+      <button onclick="closeTrarModal()" class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">Fechar</button>
+    </div>
+
+    {# selected WABAs display #}
+    <div class="mb-4 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800">
+      <div class="text-xs text-zinc-500 mb-1">WABAs selecionadas</div>
+      <div id="trarWabaList" class="flex flex-wrap gap-1.5 text-xs"></div>
+    </div>
+
+    <div class="space-y-4">
+
+      {# CSV file #}
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <label class="text-xs text-zinc-400">Lista (CSV)</label>
+          <button type="button" onclick="trarLoadCsvList()"
+                  class="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs">
+            ↺ Atualizar lista
+          </button>
+        </div>
+        <select id="trarCsvSelect" onchange="trarLoadCsvColumns(this.value)"
+                class="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800 outline-none focus:border-zinc-600 text-sm">
+          <option value="">— selecione o CSV —</option>
+        </select>
+      </div>
+
+      {# Phone column #}
+      <div>
+        <label class="text-xs text-zinc-400">Coluna do telefone</label>
+        <select id="trarPhoneCol"
+                class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800 outline-none focus:border-zinc-600 text-sm">
+          <option value="">— selecione o CSV primeiro —</option>
+        </select>
+      </div>
+
+      {# Params #}
+      <div>
+        <div class="flex items-center justify-between mb-2">
+          <label class="text-xs text-zinc-400">Parâmetros do template</label>
+          <button type="button" onclick="trarAddParam()"
+                  class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold">
+            + Adicionar
+          </button>
+        </div>
+        <div id="trarParamRows" class="space-y-2">
+          {# injected by JS #}
+        </div>
+        <p class="text-xs text-zinc-600 mt-1">Nome do param → coluna do CSV</p>
+      </div>
+
+    </div>
+
+    {# result area #}
+    <div id="trarResult" class="hidden mt-4 px-4 py-3 rounded-xl border text-sm"></div>
+
+    <div class="flex items-center justify-end gap-3 mt-5">
+      <button onclick="closeTrarModal()"
+              class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">
+        Cancelar
+      </button>
+      <button id="trarBtnSubmit" onclick="submitTrar()"
+              class="px-5 py-2 rounded-xl bg-violet-700 hover:bg-violet-600 text-sm font-semibold">
+        Disparar para todas
+      </button>
+    </div>
   </div>
 </div>
 
@@ -446,6 +558,218 @@ function escHtml(str) {
   return String(str)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;")
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+// ── Select all ───────────────────────────────────────────────────────────────
+function toggleSelectAll(checked) {
+  document.querySelectorAll('input[name="waba_ids"]').forEach(cb => {
+    cb.checked = checked;
+  });
+}
+
+// keep header checkbox in sync when individual checkboxes change
+document.querySelectorAll('input[name="waba_ids"]').forEach(cb => {
+  cb.addEventListener("change", () => {
+    const all  = document.querySelectorAll('input[name="waba_ids"]');
+    const chkd = document.querySelectorAll('input[name="waba_ids"]:checked');
+    const hdr  = document.getElementById("selectAll");
+    if (hdr) hdr.checked = all.length > 0 && all.length === chkd.length;
+  });
+});
+
+// ── Travar modal ─────────────────────────────────────────────────────────────
+let _trarWabaIds   = [];
+let _trarCsvCols   = [];
+let _trarParamRowN = 0;
+
+function openTrarModal() {
+  const checks = Array.from(document.querySelectorAll('input[name="waba_ids"]:checked'));
+  if (!checks.length) {
+    alert("Selecione pelo menos 1 WABA para disparar.");
+    return;
+  }
+  _trarWabaIds = checks.map(c => c.value);
+
+  // render selected WABA pills
+  const list = document.getElementById("trarWabaList");
+  list.innerHTML = checks.map(c =>
+    `<span class="px-2 py-0.5 rounded-lg bg-violet-950/50 border border-violet-800/50 text-violet-300 font-mono">
+      ${escHtml(c.dataset.wabaName || c.value)}
+    </span>`
+  ).join("");
+
+  // reset fields
+  document.getElementById("trarResult").classList.add("hidden");
+  document.getElementById("trarParamRows").innerHTML = "";
+  _trarParamRowN = 0;
+  _trarCsvCols   = [];
+
+  const bg = document.getElementById("trarModalBg");
+  bg.classList.remove("hidden");
+  bg.classList.add("flex");
+
+  trarLoadCsvList();
+}
+
+function closeTrarModal() {
+  const bg = document.getElementById("trarModalBg");
+  bg.classList.add("hidden");
+  bg.classList.remove("flex");
+  _trarWabaIds = [];
+}
+
+document.getElementById("trarModalBg")?.addEventListener("click", (e) => {
+  if (e.target.id === "trarModalBg") closeTrarModal();
+});
+
+async function trarLoadCsvList() {
+  const sel = document.getElementById("trarCsvSelect");
+  sel.innerHTML = '<option value="">Carregando…</option>';
+  try {
+    const res = await fetch("/disparar/csv-list");
+    const data = await res.json();
+    const files = data.files || [];
+    if (!files.length) {
+      sel.innerHTML = '<option value="">Nenhum CSV encontrado — faça upload em Disparar.</option>';
+      return;
+    }
+    sel.innerHTML = '<option value="">— selecione o CSV —</option>' +
+      files.map(f => `<option value="${escHtml(f.name)}">${escHtml(f.name)}</option>`).join("");
+  } catch(e) {
+    sel.innerHTML = '<option value="">Erro ao carregar CSV.</option>';
+  }
+}
+
+async function trarLoadCsvColumns(filename) {
+  _trarCsvCols = [];
+  const colSel = document.getElementById("trarPhoneCol");
+  colSel.innerHTML = '<option value="">Carregando…</option>';
+
+  if (!filename) {
+    colSel.innerHTML = '<option value="">— selecione o CSV primeiro —</option>';
+    return;
+  }
+
+  try {
+    const res  = await fetch(`/disparar/csv/${encodeURIComponent(filename)}/columns`);
+    const data = await res.json();
+    _trarCsvCols = data.columns || [];
+  } catch(e) { /* ignore */ }
+
+  colSel.innerHTML = _trarCsvCols.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join("");
+
+  // refresh param selects
+  document.querySelectorAll(".trar-param-col").forEach(s => {
+    const cur = s.value;
+    s.innerHTML = '<option value="">— coluna —</option>' +
+      _trarCsvCols.map(c => `<option value="${escHtml(c)}"${c===cur?' selected':''}>${escHtml(c)}</option>`).join("");
+  });
+}
+
+function trarAddParam(name="", col="") {
+  _trarParamRowN++;
+  const id = _trarParamRowN;
+  const colOpts = '<option value="">— coluna —</option>' +
+    _trarCsvCols.map(c => `<option value="${escHtml(c)}"${c===col?' selected':''}>${escHtml(c)}</option>`).join("");
+
+  const div = document.createElement("div");
+  div.id = `trarParam${id}`;
+  div.className = "flex items-center gap-2";
+  div.innerHTML = `
+    <input type="text" placeholder="parameter_name"
+           class="flex-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-600 text-xs font-mono trar-param-name"
+           value="${escHtml(name)}">
+    <span class="text-zinc-600 text-xs">→</span>
+    <select class="flex-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-600 text-xs trar-param-col">
+      ${colOpts}
+    </select>
+    <button type="button" onclick="document.getElementById('trarParam${id}').remove()"
+            class="px-2 py-2 rounded-lg bg-zinc-800 hover:bg-red-900/50 text-zinc-500 hover:text-red-300 text-xs">✕</button>
+  `;
+  document.getElementById("trarParamRows").appendChild(div);
+}
+
+async function submitTrar() {
+  const csvFilename = document.getElementById("trarCsvSelect").value;
+  const phoneCol    = document.getElementById("trarPhoneCol").value;
+
+  if (!csvFilename) { alert("Selecione um CSV.");              return; }
+  if (!phoneCol)    { alert("Selecione a coluna telefone.");   return; }
+
+  const param_map = [];
+  document.querySelectorAll("#trarParamRows > div").forEach(row => {
+    const nm  = row.querySelector(".trar-param-name").value.trim();
+    const col = row.querySelector(".trar-param-col").value;
+    if (nm) param_map.push({ name: nm, column: col });
+  });
+
+  const btn = document.getElementById("trarBtnSubmit");
+  btn.disabled = true;
+  btn.textContent = "Buscando templates e iniciando…";
+
+  const resultBox = document.getElementById("trarResult");
+  resultBox.classList.add("hidden");
+
+  try {
+    const res = await fetch("{{ url_for('dashboard.travar_start') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        waba_ids: _trarWabaIds,
+        csv_filename: csvFilename,
+        phone_col: phoneCol,
+        param_map,
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok && data.error) {
+      resultBox.className = "mt-4 px-4 py-3 rounded-xl border text-sm bg-red-950/40 border-red-800 text-red-300";
+      resultBox.textContent = "Erro: " + data.error;
+      resultBox.classList.remove("hidden");
+      return;
+    }
+
+    const jobs   = data.job_ids || [];
+    const errors = data.errors  || [];
+
+    let html = "";
+    if (jobs.length) {
+      html += `<div class="text-emerald-300 font-semibold mb-2">${jobs.length} job(s) iniciado(s):</div>`;
+      html += `<div class="space-y-1">` + jobs.map(j =>
+        `<div class="flex items-center gap-2 text-xs font-mono">
+          <span class="text-zinc-400">WABA ${escHtml(j.waba_id)}</span>
+          <span class="text-zinc-600">→</span>
+          <span class="text-indigo-300">${escHtml(j.template)}</span>
+          <span class="text-zinc-600 text-[10px]">[${escHtml(j.language)}]</span>
+          <span class="text-zinc-500 ml-auto">Job #${j.job_id}</span>
+        </div>`
+      ).join("") + `</div>`;
+    }
+    if (errors.length) {
+      html += `<div class="text-red-300 font-semibold mt-3 mb-1">Erros:</div>`;
+      html += errors.map(e => `<div class="text-xs text-red-400">${escHtml(e)}</div>`).join("");
+    }
+    if (jobs.length) {
+      html += `<div class="mt-3 text-xs text-zinc-500">Acompanhe o progresso na página <a href="/disparar" class="text-indigo-400 hover:underline">Disparar</a>.</div>`;
+    }
+
+    resultBox.className = "mt-4 px-4 py-3 rounded-xl border text-sm " +
+      (errors.length && !jobs.length
+        ? "bg-red-950/40 border-red-800"
+        : "bg-emerald-950/30 border-emerald-800/50");
+    resultBox.innerHTML = html;
+    resultBox.classList.remove("hidden");
+
+  } catch(e) {
+    resultBox.className = "mt-4 px-4 py-3 rounded-xl border text-sm bg-red-950/40 border-red-800 text-red-300";
+    resultBox.textContent = "Erro de rede: " + e;
+    resultBox.classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Disparar para todas";
+  }
 }
 </script>
 

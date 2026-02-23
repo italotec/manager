@@ -84,7 +84,8 @@ def get_csv_preview(csv_path: str, n: int = 3) -> list:
 # ── Meta API call (runs inside worker threads) ────────────────────────────────
 
 def _send_template(phone: str, phone_number_id: str, token: str,
-                   template_name: str, parameters: list, namespace: str) -> tuple:
+                   template_name: str, template_language: str,
+                   parameters: list, namespace: str) -> tuple:
     """Returns (success: bool, message: str). Pure HTTP — no DB/file access."""
     api_url = f"https://graph.facebook.com/v23.0/{phone_number_id}/messages"
     headers = {
@@ -109,7 +110,7 @@ def _send_template(phone: str, phone_number_id: str, token: str,
         "template": {
             "namespace": namespace,
             "name": template_name,
-            "language": {"code": "en"},
+            "language": {"code": template_language},
             "components": components,
         },
     }
@@ -128,7 +129,8 @@ def _send_template(phone: str, phone_number_id: str, token: str,
 def _run_disparo(app, job_id: int, user_id: int,
                  csv_path: str, phone_col: str,
                  phone_number_id: str, token: str,
-                 template_name: str, param_map: list,
+                 template_name: str, template_language: str,
+                 param_map: list,
                  max_workers: int = 1,
                  skip_log: bool = False):
     """
@@ -208,7 +210,7 @@ def _run_disparo(app, job_id: int, user_id: int,
             for pm in param_map
         ]
         success, msg = _send_template(
-            phone, phone_number_id, token, template_name, params, namespace
+            phone, phone_number_id, token, template_name, template_language, params, namespace
         )
         return phone, success, msg
 
@@ -264,7 +266,8 @@ def _run_disparo(app, job_id: int, user_id: int,
 
 def start_disparo_job(app, user_id: int, csv_filename: str,
                       phone_col: str, phone_number_id: str, token: str,
-                      template_name: str, param_map: list,
+                      template_name: str, template_language: str,
+                      param_map: list,
                       max_workers: int = 1,
                       skip_log: bool = False) -> int:
     csv_path = os.path.join(csvs_dir(user_id), csv_filename)
@@ -278,8 +281,8 @@ def start_disparo_job(app, user_id: int, csv_filename: str,
     t = threading.Thread(
         target=_run_disparo,
         args=(app, job_id, user_id, csv_path, phone_col,
-              phone_number_id, token, template_name, param_map,
-              max_workers, skip_log),
+              phone_number_id, token, template_name, template_language,
+              param_map, max_workers, skip_log),
         daemon=True,
     )
     t.start()

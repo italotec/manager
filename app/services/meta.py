@@ -15,6 +15,20 @@ def _get(url: str, token: str):
     except Exception as e:
         return None, None, str(e)[:800]
 
+def subscribe_waba_webhook(api_version: str, token: str, waba_id: str):
+    """Subscribe the app to webhook events for a WABA (POST /WABA-ID/subscribed_apps)."""
+    url = f"https://graph.facebook.com/{api_version}/{waba_id}/subscribed_apps"
+    try:
+        r = requests.post(url, headers=_auth_headers(token), timeout=30)
+        j = r.json() if r.text else {}
+        if r.status_code == 200 and j.get("success"):
+            return True, None
+        err = j.get("error", {})
+        return False, err.get("message") or f"HTTP {r.status_code}"
+    except Exception as e:
+        return False, str(e)[:400]
+
+
 def get_waba_info(api_version: str, token: str, waba_id: str):
     url = f"https://graph.facebook.com/{api_version}/{waba_id}"
     status, j, snippet = _get(url, token)
@@ -75,8 +89,8 @@ def evaluate_health(phones_data: list) -> str:
     Analyze health_status from phone_numbers response.
 
     Hierarchy (first match wins):
-        Payment method error  → "PROBLEMA CARTÃO"
         WABA blocked/banned   → "DESATIVADA"
+        Payment method error  → "PROBLEMA CARTÃO"
         Phone/business limit  → "LIMITADA"
         Otherwise             → "OK"
     """
@@ -111,10 +125,10 @@ def evaluate_health(phones_data: list) -> str:
                     if "reached the limit" in desc:
                         phone_limited = True
 
-    if payment_error:
-        return "PROBLEMA CARTÃO"
     if waba_blocked:
         return "DESATIVADA"
+    if payment_error:
+        return "PROBLEMA CARTÃO"
     if phone_limited:
         return "LIMITADA"
     return "OK"
@@ -229,11 +243,10 @@ def templates_status_summary(templates: list[dict]) -> dict:
 
 # --- functions used by add-phone flow (unchanged signatures) ---
 
-def _session_with_proxy(proxy_str: str | None):
+def _session_with_proxy(proxy_url: str | None):
+    """proxy_url: full URL like http://user:pass@ip:port or socks5://user:pass@ip:port"""
     s = requests.Session()
-    if proxy_str:
-        ip, port, user, pwd = proxy_str.split(":")
-        proxy_url = f"http://{user}:{pwd}@{ip}:{port}"
+    if proxy_url:
         s.proxies.update({"http": proxy_url, "https": proxy_url})
     return s
 

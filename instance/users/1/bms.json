@@ -1,22 +1,82 @@
 {
-    "912986827907605": {
-        "waba_id": "912986827907605",
-        "token": "EAAZAnh8yNZBVMBQj6EzuaqnU31I9NYYsq9KZAiVBxKslFohZBbPH94frWFDHkyoxfRM6ddZCK8dKglrKQOIux8KR3MTDDtYkz9GVSVg76LT0bxQHjwJsmHzluOyhdMO6Qw2VGTwS4wnm4t3bSMflosBAPPzAxX0WWek1zlYZCKqmybULroQ35QadJW1V6B0TvEFqdJzIZAKBGZBw9kcgd4B4B96neUT2Hx8GUJqILTlI",
+    "1037838856069586": {
         "phone_number_id": "",
-        "templates": [],
+        "templates": [
+            ""
+        ],
+        "token": "EAA32iXTFYYcBQhKwIW3ZA70Lt54VN9qC9cXFDZCPgja0J4EBZCIEhwKYb6r4nggp8SHdVYAEfl11m4HcHPEOUeqDdam2QYr7OsVvvWNZAqDS0kwch6eeuWXWl54EeERAqUSXftJ8ZCdoVLGvOB0A2473fdwLVplry7Yl2abq4UZBNRsk8GdMEV6x6TZCgPYZAkDl1CMIT0l4JXBGlK78wCnXrrIrxVDZBTOKibZALX",
+        "waba_id": "1037838856069586",
         "snapshot": {
-            "waba_name": "Kauan Araujo de Oliveira",
+            "waba_name": "Lucas Batista de Souza Manutencoes LTDA",
             "phone_numbers": [
                 {
-                    "verified_name": "Kauan Araujo de Oliveira",
+                    "verified_name": "Lucas Batista de Souza Manutencoes LTDA",
                     "code_verification_status": "VERIFIED",
-                    "display_phone_number": "+55 31 7358-7960",
+                    "display_phone_number": "15558744851",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "958424600692226"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792290,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1173366591545311": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAANZAIbNfrvgBQ0ZA9oER1ytScBhTTwMNKNdVIZBu6SeESOE3JZBRiOM2eelf0aRLYLNERpXZCr8BIZBM0ELwEVnfZBVMuL5HwBG7jlxl4FaafNi6n5RuiZCZA5ACZBwVNGlLvAlEth4rjUV8xNoHaH3KnqdTlWkZCNp15K63sgymiFkrZAZAciax318y2D1WdCouOZC26pNkQ1qX35I2IIm7DTyQFFl78i2ngTbsj0ZAh9",
+        "waba_id": "1173366591545311",
+        "snapshot": {
+            "waba_name": "Murilo G Pereira LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Murilo G Pereira LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 31 7358-7974",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "1050979141421412"
+                },
+                {
+                    "verified_name": "Murilo G Pereira LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557442041",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "954291557773272"
+                },
+                {
+                    "verified_name": "Murilo G Pereira LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 22 92007-8709",
                     "quality_rating": "UNKNOWN",
                     "platform_type": "CLOUD_API",
                     "throughput": {
                         "level": "STANDARD"
                     },
-                    "id": "992075250655829"
+                    "id": "932552056617718"
                 }
             ],
             "template_counts": {
@@ -25,29 +85,34 @@
                 "DISABLED": 0,
                 "OTHER": 0
             },
-            "last_sync_at": 1771259694,
             "last_error": "",
-            "status_label": "DESATIVADA"
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792294,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
         }
     },
-    "879509981373964": {
-        "waba_id": "879509981373964",
-        "token": "EAAZAnh8yNZBVMBQj6EzuaqnU31I9NYYsq9KZAiVBxKslFohZBbPH94frWFDHkyoxfRM6ddZCK8dKglrKQOIux8KR3MTDDtYkz9GVSVg76LT0bxQHjwJsmHzluOyhdMO6Qw2VGTwS4wnm4t3bSMflosBAPPzAxX0WWek1zlYZCKqmybULroQ35QadJW1V6B0TvEFqdJzIZAKBGZBw9kcgd4B4B96neUT2Hx8GUJqILTlI",
+    "1179814913951710": {
         "phone_number_id": "",
-        "templates": [],
+        "templates": [
+            ""
+        ],
+        "token": "EAAXcDX8lakgBQwALOk5a4jrN4mFQITltMQh0VgQPenI47oLZCS6MPU0qvhq8hukmNAlhjQTmZAIlZCUChyOGlzM21j9SoiZCHmq5TwDq16ZA31bRh6F6VKYP3IPJtNoEh6DMBYdQdpLDZCwJ2PE4hYKG3RAQN3aSekynTaxPjg5eP75WiIVjrYfATGJ2vSjifbqJMdR62FcL2ixhgrzq4nc4rLdmU8jDRxP1InBeja",
+        "waba_id": "1179814913951710",
         "snapshot": {
-            "waba_name": "Ezequiel da Silva Cardoso",
+            "waba_name": "Mateus J Higashi Servicos Medicos Mateus Jhoji Higashi LTDA",
             "phone_numbers": [
                 {
-                    "verified_name": "Ezequiel da Silva Cardoso",
+                    "verified_name": "Mateus J Higashi Servicos Medicos Mateus Jhoji Higashi LTDA",
                     "code_verification_status": "VERIFIED",
-                    "display_phone_number": "+55 31 7358-7860",
+                    "display_phone_number": "+55 21 92041-0599",
                     "quality_rating": "UNKNOWN",
                     "platform_type": "CLOUD_API",
                     "throughput": {
                         "level": "STANDARD"
                     },
-                    "id": "917801518094191"
+                    "id": "979210771946446"
                 }
             ],
             "template_counts": {
@@ -56,40 +121,2209 @@
                 "DISABLED": 0,
                 "OTHER": 0
             },
-            "last_sync_at": 1771259697,
             "last_error": "",
-            "status_label": "DESATIVADA"
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792296,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
         }
     },
-    "708504032113630": {
-        "waba_id": "708504032113630",
-        "token": "EAAZAnh8yNZBVMBQj6EzuaqnU31I9NYYsq9KZAiVBxKslFohZBbPH94frWFDHkyoxfRM6ddZCK8dKglrKQOIux8KR3MTDDtYkz9GVSVg76LT0bxQHjwJsmHzluOyhdMO6Qw2VGTwS4wnm4t3bSMflosBAPPzAxX0WWek1zlYZCKqmybULroQ35QadJW1V6B0TvEFqdJzIZAKBGZBw9kcgd4B4B96neUT2Hx8GUJqILTlI",
+    "1182752647021766": {
         "phone_number_id": "",
-        "templates": [],
+        "templates": [
+            ""
+        ],
+        "token": "EAATtZCFu2DWABQw6F8dvYMwGf8xSpZCAiPkP7RTM62YPAeZBFXrsZCGKIaNaQwWPYREd8P8pCJAZCfms4pP2gDDH6jTfrSsZC9PZBlpGJlRYCyuL9JciTHFJ6Osqlvt35mikijYo3mwl6JHm7HgyX9tjBPTwH4mURCoTXlZBMpb1sMAczNJgvQZCAnRuCfwsgNtIMvyaZBTlY9sKaxfMJj5NsINZClOjg1sqdAxGABC",
+        "waba_id": "1182752647021766",
         "snapshot": {
-            "waba_name": "Dancont Consultoria LTDA",
+            "waba_name": "48.087.533 Flavia Janaina Gomes Dias",
             "phone_numbers": [
                 {
-                    "verified_name": "Dancont Consultoria LTDA",
+                    "verified_name": "48.087.533 Flavia Janaina Gomes Dias",
                     "code_verification_status": "VERIFIED",
-                    "display_phone_number": "+55 11 5104-1620",
+                    "display_phone_number": "+55 22 92007-7976",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "907539279118924"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792298,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1183501930234762": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAXcDX8lakgBQwALOk5a4jrN4mFQITltMQh0VgQPenI47oLZCS6MPU0qvhq8hukmNAlhjQTmZAIlZCUChyOGlzM21j9SoiZCHmq5TwDq16ZA31bRh6F6VKYP3IPJtNoEh6DMBYdQdpLDZCwJ2PE4hYKG3RAQN3aSekynTaxPjg5eP75WiIVjrYfATGJ2vSjifbqJMdR62FcL2ixhgrzq4nc4rLdmU8jDRxP1InBeja",
+        "waba_id": "1183501930234762",
+        "snapshot": {
+            "waba_name": "Assistencia Medica Sao Mateus LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Assistencia Medica Sao Mateus LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 69 93300-2547",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1051686151352904"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 5,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792301,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1209874200737914": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA7yfjXLGQABQxS04ZAVOE1AQtXwpjVIsqu64JW21XbQJTEBbZChfRqZBrZAcXYzKiZCaVDRgY7C6PLZC0UobOFzZC6A9ZAWGIBX5bNZCAP5Y3ggeWIew2gpwK0ip9CyW0ulw9oLv7uHX548iS5DyOZBYk293WgVXXop9O4O6Ot2gksl4CPz1h01E3Koqt9extiqafl0q1bGf4AujVNmNmsR6KJQ91ZBZA0CDa2U5nRT",
+        "waba_id": "1209874200737914",
+        "snapshot": {
+            "waba_name": "Ton Santos Consultoria LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Ton Santos Consultoria LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 31 93304-9664",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1065239916662307"
+                },
+                {
+                    "verified_name": "Ton Santos Consultoria LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557018959",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "998227183366254"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792306,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1229161605977682": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAANZAIbNfrvgBQ0ZA9oER1ytScBhTTwMNKNdVIZBu6SeESOE3JZBRiOM2eelf0aRLYLNERpXZCr8BIZBM0ELwEVnfZBVMuL5HwBG7jlxl4FaafNi6n5RuiZCZA5ACZBwVNGlLvAlEth4rjUV8xNoHaH3KnqdTlWkZCNp15K63sgymiFkrZAZAciax318y2D1WdCouOZC26pNkQ1qX35I2IIm7DTyQFFl78i2ngTbsj0ZAh9",
+        "waba_id": "1229161605977682",
+        "snapshot": {
+            "waba_name": "Nathalia Inez Silva Souza LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Nathalia Inez Silva Souza LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 98 92001-7969",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1076303058896010"
+                },
+                {
+                    "verified_name": "Nathalia Inez Silva Souza LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15558586548",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "944357875433581"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792308,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1244152217691389": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAART9uFZCUpwBQ1S8qWu9ASq5fZCxB7NGVEipC9AXOGgHtZBeVmxZAkEAT2YrymCIP9CtmMu9x5pkaFuN7CYaOTe8gpyW5SRMcJDulDzkXPdU2C9pVytQ37N1b7gZAjqszZB0WKCaw183XGmDLqUSHQP1QYnlY1XPxm56sFgqOtvyFXbe4V0alWtEQ4T1eYBND6CFx2FULAzWalNhLCXU8IZCVvZB5ClmzxlIjZB6lTNq",
+        "waba_id": "1244152217691389",
+        "snapshot": {
+            "waba_name": "Wilson Jose dos Santos Filho",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792310,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1246951967381169": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAART9uFZCUpwBQ1S8qWu9ASq5fZCxB7NGVEipC9AXOGgHtZBeVmxZAkEAT2YrymCIP9CtmMu9x5pkaFuN7CYaOTe8gpyW5SRMcJDulDzkXPdU2C9pVytQ37N1b7gZAjqszZB0WKCaw183XGmDLqUSHQP1QYnlY1XPxm56sFgqOtvyFXbe4V0alWtEQ4T1eYBND6CFx2FULAzWalNhLCXU8IZCVvZB5ClmzxlIjZB6lTNq",
+        "waba_id": "1246951967381169",
+        "snapshot": {
+            "waba_name": "Vida Ativa Academia LTDA",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792312,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1284937170124339": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA32iXTFYYcBQhKwIW3ZA70Lt54VN9qC9cXFDZCPgja0J4EBZCIEhwKYb6r4nggp8SHdVYAEfl11m4HcHPEOUeqDdam2QYr7OsVvvWNZAqDS0kwch6eeuWXWl54EeERAqUSXftJ8ZCdoVLGvOB0A2473fdwLVplry7Yl2abq4UZBNRsk8GdMEV6x6TZCgPYZAkDl1CMIT0l4JXBGlK78wCnXrrIrxVDZBTOKibZALX",
+        "waba_id": "1284937170124339",
+        "snapshot": {
+            "waba_name": "Arthur Nicolei Reis LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Arthur Nicolei Reis LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15558806619",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "915663071639369"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792314,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1292847999348210": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAdNty3ufRMBQZCF6L5KJKNUq96I1WZCvqIrYiungDxHQ9WEABWmZB0KMK3kdwxy521REUjOhjYry9z17C31kpmOuRfWHLQIgCbKkjNOqgHTOY2CCOVQ446yCBBhybANZBVIx0GlsqyOJuHyFcpLc6q6R9utjcZBtPIuw2bYj5HPOujufk6MqfDhXHBKxo5lFPurtqCxi8ea9oX0pjvZAvuhn5TiWuD4kAvR2fr8wG",
+        "waba_id": "1292847999348210",
+        "snapshot": {
+            "waba_name": "Neide de Moura Santos",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792316,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1303389911611909": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAATtZCFu2DWABQw6F8dvYMwGf8xSpZCAiPkP7RTM62YPAeZBFXrsZCGKIaNaQwWPYREd8P8pCJAZCfms4pP2gDDH6jTfrSsZC9PZBlpGJlRYCyuL9JciTHFJ6Osqlvt35mikijYo3mwl6JHm7HgyX9tjBPTwH4mURCoTXlZBMpb1sMAczNJgvQZCAnRuCfwsgNtIMvyaZBTlY9sKaxfMJj5NsINZClOjg1sqdAxGABC",
+        "waba_id": "1303389911611909",
+        "snapshot": {
+            "waba_name": "Point Animal Produtos Para Animais LTDA",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792318,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1361044035792087": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAKxxHHAuNQBQqlzROAAgGo8kU5hjo7sYTuDbGbPZBvvjxCSlkkf3gAk9CJUSFhaWr1I1MtAZALDJ5UUbvEQvyu7et9FOrFBq5LiZBozRH16YHWVmKhzT6sNggip4FOYZBXXGxezyFrUPlnS9Vj5rqdyOSgM83O4KtBH4S3lDgopENqWB0ZCbNZAAa7qxGHwWZBDMPZAZCinLDJB8GfFSgpKQp0YDCAwVv8XLyErl",
+        "waba_id": "1361044035792087",
+        "snapshot": {
+            "waba_name": "Daniel Confeccoes LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Daniel Confeccoes LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 11 5104-1946",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1060680980454392"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 5,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792321,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1378138106972112": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA7yfjXLGQABQxS04ZAVOE1AQtXwpjVIsqu64JW21XbQJTEBbZChfRqZBrZAcXYzKiZCaVDRgY7C6PLZC0UobOFzZC6A9ZAWGIBX5bNZCAP5Y3ggeWIew2gpwK0ip9CyW0ulw9oLv7uHX548iS5DyOZBYk293WgVXXop9O4O6Ot2gksl4CPz1h01E3Koqt9extiqafl0q1bGf4AujVNmNmsR6KJQ91ZBZA0CDa2U5nRT",
+        "waba_id": "1378138106972112",
+        "snapshot": {
+            "waba_name": "Gabriel Nicolas de Melo Dias LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Gabriel Nicolas de Melo Dias LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557933652",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "1020577134463298"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792323,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1384414696817939": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAXcDX8lakgBQwALOk5a4jrN4mFQITltMQh0VgQPenI47oLZCS6MPU0qvhq8hukmNAlhjQTmZAIlZCUChyOGlzM21j9SoiZCHmq5TwDq16ZA31bRh6F6VKYP3IPJtNoEh6DMBYdQdpLDZCwJ2PE4hYKG3RAQN3aSekynTaxPjg5eP75WiIVjrYfATGJ2vSjifbqJMdR62FcL2ixhgrzq4nc4rLdmU8jDRxP1InBeja",
+        "waba_id": "1384414696817939",
+        "snapshot": {
+            "waba_name": "Efetiva Consultoria e Gestao",
+            "phone_numbers": [
+                {
+                    "verified_name": "Efetiva Consultoria e Gestao",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15558847561",
                     "quality_rating": "GREEN",
                     "platform_type": "CLOUD_API",
                     "throughput": {
                         "level": "STANDARD"
                     },
-                    "id": "920498744490247"
+                    "id": "1058589453998990"
+                },
+                {
+                    "verified_name": "Efetiva Consultoria e Gestao",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 22 98810-3020",
+                    "quality_rating": "GREEN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "976511275552099"
                 }
             ],
             "template_counts": {
-                "APPROVED": 2,
+                "APPROVED": 5,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "LIMITADA",
+            "last_sync_at": 1771792326,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": true,
+            "ultimo_disparo": "22/02 17:32"
+        }
+    },
+    "1386446169346993": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAXcDX8lakgBQwALOk5a4jrN4mFQITltMQh0VgQPenI47oLZCS6MPU0qvhq8hukmNAlhjQTmZAIlZCUChyOGlzM21j9SoiZCHmq5TwDq16ZA31bRh6F6VKYP3IPJtNoEh6DMBYdQdpLDZCwJ2PE4hYKG3RAQN3aSekynTaxPjg5eP75WiIVjrYfATGJ2vSjifbqJMdR62FcL2ixhgrzq4nc4rLdmU8jDRxP1InBeja",
+        "waba_id": "1386446169346993",
+        "snapshot": {
+            "waba_name": "Erinho santos",
+            "phone_numbers": [
+                {
+                    "verified_name": "Erinho santos",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 21 92040-8435",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1032858239906572"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 5,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792329,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1400168194689889": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAATtZCFu2DWABQw6F8dvYMwGf8xSpZCAiPkP7RTM62YPAeZBFXrsZCGKIaNaQwWPYREd8P8pCJAZCfms4pP2gDDH6jTfrSsZC9PZBlpGJlRYCyuL9JciTHFJ6Osqlvt35mikijYo3mwl6JHm7HgyX9tjBPTwH4mURCoTXlZBMpb1sMAczNJgvQZCAnRuCfwsgNtIMvyaZBTlY9sKaxfMJj5NsINZClOjg1sqdAxGABC",
+        "waba_id": "1400168194689889",
+        "snapshot": {
+            "waba_name": "56.209.277 Thalles Giordano Machado Ritter",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792330,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1401345205069946": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA7yfjXLGQABQxS04ZAVOE1AQtXwpjVIsqu64JW21XbQJTEBbZChfRqZBrZAcXYzKiZCaVDRgY7C6PLZC0UobOFzZC6A9ZAWGIBX5bNZCAP5Y3ggeWIew2gpwK0ip9CyW0ulw9oLv7uHX548iS5DyOZBYk293WgVXXop9O4O6Ot2gksl4CPz1h01E3Koqt9extiqafl0q1bGf4AujVNmNmsR6KJQ91ZBZA0CDa2U5nRT",
+        "waba_id": "1401345205069946",
+        "snapshot": {
+            "waba_name": "Marmoraria Alessandro e Filhos LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Marmoraria Alessandro e Filhos LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15558536172",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "1052958737890386"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792333,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1415769469959755": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA32iXTFYYcBQhKwIW3ZA70Lt54VN9qC9cXFDZCPgja0J4EBZCIEhwKYb6r4nggp8SHdVYAEfl11m4HcHPEOUeqDdam2QYr7OsVvvWNZAqDS0kwch6eeuWXWl54EeERAqUSXftJ8ZCdoVLGvOB0A2473fdwLVplry7Yl2abq4UZBNRsk8GdMEV6x6TZCgPYZAkDl1CMIT0l4JXBGlK78wCnXrrIrxVDZBTOKibZALX",
+        "waba_id": "1415769469959755",
+        "snapshot": {
+            "waba_name": "Descolanguage Idiomas LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Descolanguage Idiomas LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557854844",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "989383574255988"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792335,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1418211426354572": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA7yfjXLGQABQxS04ZAVOE1AQtXwpjVIsqu64JW21XbQJTEBbZChfRqZBrZAcXYzKiZCaVDRgY7C6PLZC0UobOFzZC6A9ZAWGIBX5bNZCAP5Y3ggeWIew2gpwK0ip9CyW0ulw9oLv7uHX548iS5DyOZBYk293WgVXXop9O4O6Ot2gksl4CPz1h01E3Koqt9extiqafl0q1bGf4AujVNmNmsR6KJQ91ZBZA0CDa2U5nRT",
+        "waba_id": "1418211426354572",
+        "snapshot": {
+            "waba_name": "John Emerson Sousa Santos LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "John Emerson Sousa Santos LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557011471",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "989543447570511"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792337,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1421485535508430": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAdNty3ufRMBQZCF6L5KJKNUq96I1WZCvqIrYiungDxHQ9WEABWmZB0KMK3kdwxy521REUjOhjYry9z17C31kpmOuRfWHLQIgCbKkjNOqgHTOY2CCOVQ446yCBBhybANZBVIx0GlsqyOJuHyFcpLc6q6R9utjcZBtPIuw2bYj5HPOujufk6MqfDhXHBKxo5lFPurtqCxi8ea9oX0pjvZAvuhn5TiWuD4kAvR2fr8wG",
+        "waba_id": "1421485535508430",
+        "snapshot": {
+            "waba_name": "Benoni Matias de Oliveira",
+            "phone_numbers": [
+                {
+                    "verified_name": "Benoni Matias de Oliveira",
+                    "code_verification_status": "NOT_VERIFIED",
+                    "display_phone_number": "+55 65 7603-5340",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "1079311158591751"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 4,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792340,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1426666902411103": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAdNty3ufRMBQZCF6L5KJKNUq96I1WZCvqIrYiungDxHQ9WEABWmZB0KMK3kdwxy521REUjOhjYry9z17C31kpmOuRfWHLQIgCbKkjNOqgHTOY2CCOVQ446yCBBhybANZBVIx0GlsqyOJuHyFcpLc6q6R9utjcZBtPIuw2bYj5HPOujufk6MqfDhXHBKxo5lFPurtqCxi8ea9oX0pjvZAvuhn5TiWuD4kAvR2fr8wG",
+        "waba_id": "1426666902411103",
+        "snapshot": {
+            "waba_name": "Kaio Bessa Freire",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792342,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1431165775352145": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA32iXTFYYcBQhKwIW3ZA70Lt54VN9qC9cXFDZCPgja0J4EBZCIEhwKYb6r4nggp8SHdVYAEfl11m4HcHPEOUeqDdam2QYr7OsVvvWNZAqDS0kwch6eeuWXWl54EeERAqUSXftJ8ZCdoVLGvOB0A2473fdwLVplry7Yl2abq4UZBNRsk8GdMEV6x6TZCgPYZAkDl1CMIT0l4JXBGlK78wCnXrrIrxVDZBTOKibZALX",
+        "waba_id": "1431165775352145",
+        "snapshot": {
+            "waba_name": "Ed Alimentos LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Ed Alimentos LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 11 5104-1941",
+                    "quality_rating": "GREEN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1052675844591281"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 5,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792345,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1434869634691887": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAATtZCFu2DWABQw6F8dvYMwGf8xSpZCAiPkP7RTM62YPAeZBFXrsZCGKIaNaQwWPYREd8P8pCJAZCfms4pP2gDDH6jTfrSsZC9PZBlpGJlRYCyuL9JciTHFJ6Osqlvt35mikijYo3mwl6JHm7HgyX9tjBPTwH4mURCoTXlZBMpb1sMAczNJgvQZCAnRuCfwsgNtIMvyaZBTlY9sKaxfMJj5NsINZClOjg1sqdAxGABC",
+        "waba_id": "1434869634691887",
+        "snapshot": {
+            "waba_name": "Associacao de Protecao Veicular - Proteger",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792346,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1452659086392189": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAApdQvBVoFMBQ2b8bqFfEwM858yeuW9craxUD6xTm3pOSDixZAzEj5wmHKwWyxaDYHI6ZCwCCIYILveoxZAOxpcXwRWhUysxZARO2KcO1UZC06g0Ij6VfOGZBVL0ETvUFGbAfjIhRNhecxjP6heIadrkluM9yTsFTTlz5DHpsFqFYraPhGhQt8xe0cvZBg7c1dJZBcEc0Bz8VSBuVPnZAmJUKQaVPTb1qjy4dPR22735w",
+        "waba_id": "1452659086392189",
+        "snapshot": {
+            "waba_name": "Weslei Xavier da Silva LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Weslei Xavier da Silva LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 11 5104-1922",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1026369400559944"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 4,
                 "PAUSED": 1,
                 "DISABLED": 0,
                 "OTHER": 0
             },
-            "last_sync_at": 1771259701,
             "last_error": "",
-            "status_label": "LIMITADA"
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792349,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1462682595192674": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAdNty3ufRMBQZCF6L5KJKNUq96I1WZCvqIrYiungDxHQ9WEABWmZB0KMK3kdwxy521REUjOhjYry9z17C31kpmOuRfWHLQIgCbKkjNOqgHTOY2CCOVQ446yCBBhybANZBVIx0GlsqyOJuHyFcpLc6q6R9utjcZBtPIuw2bYj5HPOujufk6MqfDhXHBKxo5lFPurtqCxi8ea9oX0pjvZAvuhn5TiWuD4kAvR2fr8wG",
+        "waba_id": "1462682595192674",
+        "snapshot": {
+            "waba_name": "Guilherme Henrique Leoncio Queiroz",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792350,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1538323110614764": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAdNty3ufRMBQZCF6L5KJKNUq96I1WZCvqIrYiungDxHQ9WEABWmZB0KMK3kdwxy521REUjOhjYry9z17C31kpmOuRfWHLQIgCbKkjNOqgHTOY2CCOVQ446yCBBhybANZBVIx0GlsqyOJuHyFcpLc6q6R9utjcZBtPIuw2bYj5HPOujufk6MqfDhXHBKxo5lFPurtqCxi8ea9oX0pjvZAvuhn5TiWuD4kAvR2fr8wG",
+        "waba_id": "1538323110614764",
+        "snapshot": {
+            "waba_name": "57.955.253 Maria Janielle Luis Fontenele",
+            "phone_numbers": [
+                {
+                    "verified_name": "57.955.253 Maria Janielle Luis Fontenele",
+                    "code_verification_status": "NOT_VERIFIED",
+                    "display_phone_number": "+55 82 9697-0212",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "1018136864718574"
+                },
+                {
+                    "verified_name": "57.955.253 Maria Janielle Luis Fontenele",
+                    "code_verification_status": "NOT_VERIFIED",
+                    "display_phone_number": "+55 65 7603-5340",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "970543799479591"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 4,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792353,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1561672748859118": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAM9pKKM2aIBQgbvrwR5Vxnc4owPZAqMPYJtsD30C253DPB3nDFGKRulov0U5WCaAZAZBZCsccHSpNBCZAPRJ16uPQFGN0fGf5deUAJRrwZCfgBdGsP0uAEZCQmOpvKcd5HC1XK94aM3YsUv5PzBk6fhlHkmjEz7MD0mFS1NUeUZCohPLTMQaQZB5kh0A0nuidneaQlLL5RcYGYSPiBMWIRrt7Py9qtIuv9oDg33wiAuC",
+        "waba_id": "1561672748859118",
+        "snapshot": {
+            "waba_name": "Yano Negocios Imobiliarios LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Yano Negocios Imobiliarios LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 27 98150-1193",
+                    "quality_rating": "GREEN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "951699951369715"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 3,
+                "PAUSED": 2,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792358,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1568816107671700": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA7yfjXLGQABQxS04ZAVOE1AQtXwpjVIsqu64JW21XbQJTEBbZChfRqZBrZAcXYzKiZCaVDRgY7C6PLZC0UobOFzZC6A9ZAWGIBX5bNZCAP5Y3ggeWIew2gpwK0ip9CyW0ulw9oLv7uHX548iS5DyOZBYk293WgVXXop9O4O6Ot2gksl4CPz1h01E3Koqt9extiqafl0q1bGf4AujVNmNmsR6KJQ91ZBZA0CDa2U5nRT",
+        "waba_id": "1568816107671700",
+        "snapshot": {
+            "waba_name": "Otavio Belmiro Neto LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Otavio Belmiro Neto LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557092480",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "1006924885835418"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792360,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1597655108222557": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA7yfjXLGQABQxS04ZAVOE1AQtXwpjVIsqu64JW21XbQJTEBbZChfRqZBrZAcXYzKiZCaVDRgY7C6PLZC0UobOFzZC6A9ZAWGIBX5bNZCAP5Y3ggeWIew2gpwK0ip9CyW0ulw9oLv7uHX548iS5DyOZBYk293WgVXXop9O4O6Ot2gksl4CPz1h01E3Koqt9extiqafl0q1bGf4AujVNmNmsR6KJQ91ZBZA0CDa2U5nRT",
+        "waba_id": "1597655108222557",
+        "snapshot": {
+            "waba_name": "Alessandro Mancio de Souza Corretagem de Seguros LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Alessandro Mancio de Souza Corretagem de Seguros LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15558241092",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "987653284432728"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792362,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1608365726793062": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAANZAIbNfrvgBQ0ZA9oER1ytScBhTTwMNKNdVIZBu6SeESOE3JZBRiOM2eelf0aRLYLNERpXZCr8BIZBM0ELwEVnfZBVMuL5HwBG7jlxl4FaafNi6n5RuiZCZA5ACZBwVNGlLvAlEth4rjUV8xNoHaH3KnqdTlWkZCNp15K63sgymiFkrZAZAciax318y2D1WdCouOZC26pNkQ1qX35I2IIm7DTyQFFl78i2ngTbsj0ZAh9",
+        "waba_id": "1608365726793062",
+        "snapshot": {
+            "waba_name": "Univers Tech",
+            "phone_numbers": [
+                {
+                    "verified_name": "Univers Tech",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15558305312",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "last_onboarded_time": "2025-10-28T16:51:21+0000",
+                    "id": "914374325081665"
+                },
+                {
+                    "verified_name": "Univers Tech",
+                    "code_verification_status": "EXPIRED",
+                    "display_phone_number": "+55 31 7334-6501",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "847422125130035"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 6,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792366,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1624597632051565": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAXcDX8lakgBQwALOk5a4jrN4mFQITltMQh0VgQPenI47oLZCS6MPU0qvhq8hukmNAlhjQTmZAIlZCUChyOGlzM21j9SoiZCHmq5TwDq16ZA31bRh6F6VKYP3IPJtNoEh6DMBYdQdpLDZCwJ2PE4hYKG3RAQN3aSekynTaxPjg5eP75WiIVjrYfATGJ2vSjifbqJMdR62FcL2ixhgrzq4nc4rLdmU8jDRxP1InBeja",
+        "waba_id": "1624597632051565",
+        "snapshot": {
+            "waba_name": "ERINHO SANTOS LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "ERINHO SANTOS LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 68 92001-7746",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1013851301808820"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 5,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792370,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1681681962813178": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAANZAIbNfrvgBQ0ZA9oER1ytScBhTTwMNKNdVIZBu6SeESOE3JZBRiOM2eelf0aRLYLNERpXZCr8BIZBM0ELwEVnfZBVMuL5HwBG7jlxl4FaafNi6n5RuiZCZA5ACZBwVNGlLvAlEth4rjUV8xNoHaH3KnqdTlWkZCNp15K63sgymiFkrZAZAciax318y2D1WdCouOZC26pNkQ1qX35I2IIm7DTyQFFl78i2ngTbsj0ZAh9",
+        "waba_id": "1681681962813178",
+        "snapshot": {
+            "waba_name": "ComplexidadeGringa",
+            "phone_numbers": [
+                {
+                    "verified_name": "ComplexidadeGringa",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15558044945",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "906050535935169"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792372,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1716409762677026": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAART9uFZCUpwBQ1S8qWu9ASq5fZCxB7NGVEipC9AXOGgHtZBeVmxZAkEAT2YrymCIP9CtmMu9x5pkaFuN7CYaOTe8gpyW5SRMcJDulDzkXPdU2C9pVytQ37N1b7gZAjqszZB0WKCaw183XGmDLqUSHQP1QYnlY1XPxm56sFgqOtvyFXbe4V0alWtEQ4T1eYBND6CFx2FULAzWalNhLCXU8IZCVvZB5ClmzxlIjZB6lTNq",
+        "waba_id": "1716409762677026",
+        "snapshot": {
+            "waba_name": "Noeli Teodoro de Moraes Oliveira",
+            "phone_numbers": [
+                {
+                    "verified_name": "Noeli Teodoro de Moraes Oliveira",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 21 92031-3183",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "985015681364847"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 5,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792375,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1738238000942997": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA32iXTFYYcBQhKwIW3ZA70Lt54VN9qC9cXFDZCPgja0J4EBZCIEhwKYb6r4nggp8SHdVYAEfl11m4HcHPEOUeqDdam2QYr7OsVvvWNZAqDS0kwch6eeuWXWl54EeERAqUSXftJ8ZCdoVLGvOB0A2473fdwLVplry7Yl2abq4UZBNRsk8GdMEV6x6TZCgPYZAkDl1CMIT0l4JXBGlK78wCnXrrIrxVDZBTOKibZALX",
+        "waba_id": "1738238000942997",
+        "snapshot": {
+            "waba_name": "Rafael Augusto Santos de Siqueira Leite LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Rafael Augusto Santos de Siqueira Leite LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 11 5104-1940",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "905978372608621"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 4,
+                "PAUSED": 1,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792379,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1785303658804181": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAART9uFZCUpwBQ1S8qWu9ASq5fZCxB7NGVEipC9AXOGgHtZBeVmxZAkEAT2YrymCIP9CtmMu9x5pkaFuN7CYaOTe8gpyW5SRMcJDulDzkXPdU2C9pVytQ37N1b7gZAjqszZB0WKCaw183XGmDLqUSHQP1QYnlY1XPxm56sFgqOtvyFXbe4V0alWtEQ4T1eYBND6CFx2FULAzWalNhLCXU8IZCVvZB5ClmzxlIjZB6lTNq",
+        "waba_id": "1785303658804181",
+        "snapshot": {
+            "waba_name": "Mepp Fabricacao e Comercio LTDA",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792380,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1804018093605058": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAATtZCFu2DWABQw6F8dvYMwGf8xSpZCAiPkP7RTM62YPAeZBFXrsZCGKIaNaQwWPYREd8P8pCJAZCfms4pP2gDDH6jTfrSsZC9PZBlpGJlRYCyuL9JciTHFJ6Osqlvt35mikijYo3mwl6JHm7HgyX9tjBPTwH4mURCoTXlZBMpb1sMAczNJgvQZCAnRuCfwsgNtIMvyaZBTlY9sKaxfMJj5NsINZClOjg1sqdAxGABC",
+        "waba_id": "1804018093605058",
+        "snapshot": {
+            "waba_name": "Hnm2 Consultoria e Servicos LTDA",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792383,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1847166682649665": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAART9uFZCUpwBQ1S8qWu9ASq5fZCxB7NGVEipC9AXOGgHtZBeVmxZAkEAT2YrymCIP9CtmMu9x5pkaFuN7CYaOTe8gpyW5SRMcJDulDzkXPdU2C9pVytQ37N1b7gZAjqszZB0WKCaw183XGmDLqUSHQP1QYnlY1XPxm56sFgqOtvyFXbe4V0alWtEQ4T1eYBND6CFx2FULAzWalNhLCXU8IZCVvZB5ClmzxlIjZB6lTNq",
+        "waba_id": "1847166682649665",
+        "snapshot": {
+            "waba_name": "Roney Magno O. da Silva",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792386,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1896351470994531": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA7yfjXLGQABQxS04ZAVOE1AQtXwpjVIsqu64JW21XbQJTEBbZChfRqZBrZAcXYzKiZCaVDRgY7C6PLZC0UobOFzZC6A9ZAWGIBX5bNZCAP5Y3ggeWIew2gpwK0ip9CyW0ulw9oLv7uHX548iS5DyOZBYk293WgVXXop9O4O6Ot2gksl4CPz1h01E3Koqt9extiqafl0q1bGf4AujVNmNmsR6KJQ91ZBZA0CDa2U5nRT",
+        "waba_id": "1896351470994531",
+        "snapshot": {
+            "waba_name": "P. Alessandra da Silva Colares LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "P. Alessandra da Silva Colares LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557931976",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "1015464608310912"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792388,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1921018222107427": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA7yfjXLGQABQxS04ZAVOE1AQtXwpjVIsqu64JW21XbQJTEBbZChfRqZBrZAcXYzKiZCaVDRgY7C6PLZC0UobOFzZC6A9ZAWGIBX5bNZCAP5Y3ggeWIew2gpwK0ip9CyW0ulw9oLv7uHX548iS5DyOZBYk293WgVXXop9O4O6Ot2gksl4CPz1h01E3Koqt9extiqafl0q1bGf4AujVNmNmsR6KJQ91ZBZA0CDa2U5nRT",
+        "waba_id": "1921018222107427",
+        "snapshot": {
+            "waba_name": "Luiz Gustavo",
+            "phone_numbers": [
+                {
+                    "verified_name": "Luiz Gustavo",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557878197",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "1039965589189565"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792390,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "1959849534569901": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAXcDX8lakgBQwALOk5a4jrN4mFQITltMQh0VgQPenI47oLZCS6MPU0qvhq8hukmNAlhjQTmZAIlZCUChyOGlzM21j9SoiZCHmq5TwDq16ZA31bRh6F6VKYP3IPJtNoEh6DMBYdQdpLDZCwJ2PE4hYKG3RAQN3aSekynTaxPjg5eP75WiIVjrYfATGJ2vSjifbqJMdR62FcL2ixhgrzq4nc4rLdmU8jDRxP1InBeja",
+        "waba_id": "1959849534569901",
+        "snapshot": {
+            "waba_name": "Nilce Mlenek LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Nilce Mlenek LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 63 92001-8356",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1051977757989338"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 4,
+                "PAUSED": 1,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792392,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "2006948426537902": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAART9uFZCUpwBQ1S8qWu9ASq5fZCxB7NGVEipC9AXOGgHtZBeVmxZAkEAT2YrymCIP9CtmMu9x5pkaFuN7CYaOTe8gpyW5SRMcJDulDzkXPdU2C9pVytQ37N1b7gZAjqszZB0WKCaw183XGmDLqUSHQP1QYnlY1XPxm56sFgqOtvyFXbe4V0alWtEQ4T1eYBND6CFx2FULAzWalNhLCXU8IZCVvZB5ClmzxlIjZB6lTNq",
+        "waba_id": "2006948426537902",
+        "snapshot": {
+            "waba_name": "Esmeuda Monsuett Araujo de Mendonca ",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792394,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "2067058967480330": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAART9uFZCUpwBQ1S8qWu9ASq5fZCxB7NGVEipC9AXOGgHtZBeVmxZAkEAT2YrymCIP9CtmMu9x5pkaFuN7CYaOTe8gpyW5SRMcJDulDzkXPdU2C9pVytQ37N1b7gZAjqszZB0WKCaw183XGmDLqUSHQP1QYnlY1XPxm56sFgqOtvyFXbe4V0alWtEQ4T1eYBND6CFx2FULAzWalNhLCXU8IZCVvZB5ClmzxlIjZB6lTNq",
+        "waba_id": "2067058967480330",
+        "snapshot": {
+            "waba_name": "56.210.018 Erica Martins de Oliveira",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792396,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "2113752446145406": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAANZAIbNfrvgBQ0ZA9oER1ytScBhTTwMNKNdVIZBu6SeESOE3JZBRiOM2eelf0aRLYLNERpXZCr8BIZBM0ELwEVnfZBVMuL5HwBG7jlxl4FaafNi6n5RuiZCZA5ACZBwVNGlLvAlEth4rjUV8xNoHaH3KnqdTlWkZCNp15K63sgymiFkrZAZAciax318y2D1WdCouOZC26pNkQ1qX35I2IIm7DTyQFFl78i2ngTbsj0ZAh9",
+        "waba_id": "2113752446145406",
+        "snapshot": {
+            "waba_name": "Breno Aparecido Yano Alves Consultoria em Tecnologia da Informacao LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Breno Aparecido Yano Alves Consultoria em Tecnologia da Informacao LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557962709",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "911992285341647"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792398,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "2115556789277850": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA32iXTFYYcBQhKwIW3ZA70Lt54VN9qC9cXFDZCPgja0J4EBZCIEhwKYb6r4nggp8SHdVYAEfl11m4HcHPEOUeqDdam2QYr7OsVvvWNZAqDS0kwch6eeuWXWl54EeERAqUSXftJ8ZCdoVLGvOB0A2473fdwLVplry7Yl2abq4UZBNRsk8GdMEV6x6TZCgPYZAkDl1CMIT0l4JXBGlK78wCnXrrIrxVDZBTOKibZALX",
+        "waba_id": "2115556789277850",
+        "snapshot": {
+            "waba_name": "Lyana Linhares de Sousa Silva LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Lyana Linhares de Sousa Silva LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557801026",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "925046127366624"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792400,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "2167760293971360": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAF6RWbEngcMBQsN6ZBwuISNQUNACRzsFu4aB1DEZCkezf9xO8YVpJ2rlWBfuOxvAjp9B0ZBc3jvbZAGbPZBz0znK8FB7TwB1qBCQ98ZCJaiXRX3mAS1S7EkEzpRPDebuF76NJ3cZBbuSAmQQb8FI7nZA5OAAxp7Fv1X59B6fg0aKcw0JpXMh2urQBBPGFE5aJtSZCwW3OkgAyShbWd7LgdnEHTZCWxET5WjkkGtcWZBsfCv",
+        "waba_id": "2167760293971360",
+        "snapshot": {
+            "waba_name": "Luan Felipe Penacci Nogueira LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Luan Felipe Penacci Nogueira LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 11 5104-1924",
+                    "quality_rating": "GREEN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1038225009369179"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 3,
+                "PAUSED": 2,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "LIMITADA",
+            "last_sync_at": 1771792404,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": true,
+            "ultimo_disparo": "22/02 16:41"
+        }
+    },
+    "2347423649068273": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAXcDX8lakgBQwALOk5a4jrN4mFQITltMQh0VgQPenI47oLZCS6MPU0qvhq8hukmNAlhjQTmZAIlZCUChyOGlzM21j9SoiZCHmq5TwDq16ZA31bRh6F6VKYP3IPJtNoEh6DMBYdQdpLDZCwJ2PE4hYKG3RAQN3aSekynTaxPjg5eP75WiIVjrYfATGJ2vSjifbqJMdR62FcL2ixhgrzq4nc4rLdmU8jDRxP1InBeja",
+        "waba_id": "2347423649068273",
+        "snapshot": {
+            "waba_name": "Mateus Nath Servicos Medicos LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Mateus Nath Servicos Medicos LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 21 92047-8465",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1064346366751062"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 5,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792406,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "25878064841853571": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAART9uFZCUpwBQ1S8qWu9ASq5fZCxB7NGVEipC9AXOGgHtZBeVmxZAkEAT2YrymCIP9CtmMu9x5pkaFuN7CYaOTe8gpyW5SRMcJDulDzkXPdU2C9pVytQ37N1b7gZAjqszZB0WKCaw183XGmDLqUSHQP1QYnlY1XPxm56sFgqOtvyFXbe4V0alWtEQ4T1eYBND6CFx2FULAzWalNhLCXU8IZCVvZB5ClmzxlIjZB6lTNq",
+        "waba_id": "25878064841853571",
+        "snapshot": {
+            "waba_name": "Ccs Technology Indl LTDA",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792408,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "25932041573123857": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAdNty3ufRMBQZCF6L5KJKNUq96I1WZCvqIrYiungDxHQ9WEABWmZB0KMK3kdwxy521REUjOhjYry9z17C31kpmOuRfWHLQIgCbKkjNOqgHTOY2CCOVQ446yCBBhybANZBVIx0GlsqyOJuHyFcpLc6q6R9utjcZBtPIuw2bYj5HPOujufk6MqfDhXHBKxo5lFPurtqCxi8ea9oX0pjvZAvuhn5TiWuD4kAvR2fr8wG",
+        "waba_id": "25932041573123857",
+        "snapshot": {
+            "waba_name": "Farmtech Solucoes Digitais Ltda.",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 4,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792410,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "26470126122594458": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAXcDX8lakgBQwALOk5a4jrN4mFQITltMQh0VgQPenI47oLZCS6MPU0qvhq8hukmNAlhjQTmZAIlZCUChyOGlzM21j9SoiZCHmq5TwDq16ZA31bRh6F6VKYP3IPJtNoEh6DMBYdQdpLDZCwJ2PE4hYKG3RAQN3aSekynTaxPjg5eP75WiIVjrYfATGJ2vSjifbqJMdR62FcL2ixhgrzq4nc4rLdmU8jDRxP1InBeja",
+        "waba_id": "26470126122594458",
+        "snapshot": {
+            "waba_name": "churrasquinhomix_",
+            "phone_numbers": [
+                {
+                    "verified_name": "churrasquinhomix_",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 22 92007-6913",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1041640882358831"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 5,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792412,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "2716080035416088": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA32iXTFYYcBQhKwIW3ZA70Lt54VN9qC9cXFDZCPgja0J4EBZCIEhwKYb6r4nggp8SHdVYAEfl11m4HcHPEOUeqDdam2QYr7OsVvvWNZAqDS0kwch6eeuWXWl54EeERAqUSXftJ8ZCdoVLGvOB0A2473fdwLVplry7Yl2abq4UZBNRsk8GdMEV6x6TZCgPYZAkDl1CMIT0l4JXBGlK78wCnXrrIrxVDZBTOKibZALX",
+        "waba_id": "2716080035416088",
+        "snapshot": {
+            "waba_name": "Lucas Batista Imports LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Lucas Batista Imports LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557929871",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "1009093728951646"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792414,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "3462515767231796": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAARe51fsQZBQBQlC0F2sJ1bMkNwr9nem0cZCGnuTfaoolCIgLqotfZBZCmWwRqBSRYWrVkMriQXHErB8pftB5WI4g8IXxig1V2XQvVMLzKIvTjWwtT17Bxk0V3LcflSD1WiX7ZBj4uHCXdVuK1NnfgDmscYi3manBCzApmNrUO5sBaEVlnZBInkmxpszJw8jrz18sYpaOIuSekdS08PYSCfIKgXYawB3y75Qlt39R4",
+        "waba_id": "3462515767231796",
+        "snapshot": {
+            "waba_name": "Bruno Messias Lopes LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Bruno Messias Lopes LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 11 5104-1945",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "932807183258404"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 4,
+                "PAUSED": 1,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792417,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "4399906410323726": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAdNty3ufRMBQZCF6L5KJKNUq96I1WZCvqIrYiungDxHQ9WEABWmZB0KMK3kdwxy521REUjOhjYry9z17C31kpmOuRfWHLQIgCbKkjNOqgHTOY2CCOVQ446yCBBhybANZBVIx0GlsqyOJuHyFcpLc6q6R9utjcZBtPIuw2bYj5HPOujufk6MqfDhXHBKxo5lFPurtqCxi8ea9oX0pjvZAvuhn5TiWuD4kAvR2fr8wG",
+        "waba_id": "4399906410323726",
+        "snapshot": {
+            "waba_name": "Condominio do Predio Mario Mendes ",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792418,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "4419001821712410": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAANZAIbNfrvgBQ0ZA9oER1ytScBhTTwMNKNdVIZBu6SeESOE3JZBRiOM2eelf0aRLYLNERpXZCr8BIZBM0ELwEVnfZBVMuL5HwBG7jlxl4FaafNi6n5RuiZCZA5ACZBwVNGlLvAlEth4rjUV8xNoHaH3KnqdTlWkZCNp15K63sgymiFkrZAZAciax318y2D1WdCouOZC26pNkQ1qX35I2IIm7DTyQFFl78i2ngTbsj0ZAh9",
+        "waba_id": "4419001821712410",
+        "snapshot": {
+            "waba_name": "Yan Cesar Lopes Formiga Nunes LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Yan Cesar Lopes Formiga Nunes LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15558757344",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "911543438719049"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792421,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "657725570724196": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA7yfjXLGQABQxS04ZAVOE1AQtXwpjVIsqu64JW21XbQJTEBbZChfRqZBrZAcXYzKiZCaVDRgY7C6PLZC0UobOFzZC6A9ZAWGIBX5bNZCAP5Y3ggeWIew2gpwK0ip9CyW0ulw9oLv7uHX548iS5DyOZBYk293WgVXXop9O4O6Ot2gksl4CPz1h01E3Koqt9extiqafl0q1bGf4AujVNmNmsR6KJQ91ZBZA0CDa2U5nRT",
+        "waba_id": "657725570724196",
+        "snapshot": {
+            "waba_name": "Carlos Bruno de Macedo Fontes Apoio Administrativo LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Carlos Bruno de Macedo Fontes Apoio Administrativo LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557261102",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "976344672226166"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792423,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "741372869044757": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA7yfjXLGQABQxS04ZAVOE1AQtXwpjVIsqu64JW21XbQJTEBbZChfRqZBrZAcXYzKiZCaVDRgY7C6PLZC0UobOFzZC6A9ZAWGIBX5bNZCAP5Y3ggeWIew2gpwK0ip9CyW0ulw9oLv7uHX548iS5DyOZBYk293WgVXXop9O4O6Ot2gksl4CPz1h01E3Koqt9extiqafl0q1bGf4AujVNmNmsR6KJQ91ZBZA0CDa2U5nRT",
+        "waba_id": "741372869044757",
+        "snapshot": {
+            "waba_name": "Sergio Roberto de Medeiros Cirne LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Sergio Roberto de Medeiros Cirne LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557360639",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "998409463350693"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792425,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "795351990245624": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA32iXTFYYcBQhKwIW3ZA70Lt54VN9qC9cXFDZCPgja0J4EBZCIEhwKYb6r4nggp8SHdVYAEfl11m4HcHPEOUeqDdam2QYr7OsVvvWNZAqDS0kwch6eeuWXWl54EeERAqUSXftJ8ZCdoVLGvOB0A2473fdwLVplry7Yl2abq4UZBNRsk8GdMEV6x6TZCgPYZAkDl1CMIT0l4JXBGlK78wCnXrrIrxVDZBTOKibZALX",
+        "waba_id": "795351990245624",
+        "snapshot": {
+            "waba_name": "Batista & Mancini LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Batista & Mancini LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15558865082",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "969227419608336"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792427,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "865178269886071": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAdNty3ufRMBQZCF6L5KJKNUq96I1WZCvqIrYiungDxHQ9WEABWmZB0KMK3kdwxy521REUjOhjYry9z17C31kpmOuRfWHLQIgCbKkjNOqgHTOY2CCOVQ446yCBBhybANZBVIx0GlsqyOJuHyFcpLc6q6R9utjcZBtPIuw2bYj5HPOujufk6MqfDhXHBKxo5lFPurtqCxi8ea9oX0pjvZAvuhn5TiWuD4kAvR2fr8wG",
+        "waba_id": "865178269886071",
+        "snapshot": {
+            "waba_name": "Gabriel Borges dos Santos",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 4,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792429,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "875447415248322": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAARdskx4SZC8BQs6IQFQMtZA1sSZAOXlpZCahPZA8YtwCy58zdy3S2TjJR5AQsD4mzxZAudDIrHkI6u0Hvd8mI2fSf4EyFe1alAofYATXCoSIZAsrBLb72rhoxolkrMVpJaHjvSzzrjGS0Ovh4BLeKc9ZAJQlLfBrDBLhAopJRmxkC3M0vpnPSorLH1mTRlPNkAX6pZClqbpJm21GqPl0bkUmWLnYTpiHZCFZCyCbsbHECt",
+        "waba_id": "875447415248322",
+        "snapshot": {
+            "waba_name": "Bruno Lopes Designers Graficos LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Bruno Lopes Designers Graficos LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 11 5104-1930",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1052783067906865"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 4,
+                "PAUSED": 1,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792431,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "891687277096074": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA32iXTFYYcBQhKwIW3ZA70Lt54VN9qC9cXFDZCPgja0J4EBZCIEhwKYb6r4nggp8SHdVYAEfl11m4HcHPEOUeqDdam2QYr7OsVvvWNZAqDS0kwch6eeuWXWl54EeERAqUSXftJ8ZCdoVLGvOB0A2473fdwLVplry7Yl2abq4UZBNRsk8GdMEV6x6TZCgPYZAkDl1CMIT0l4JXBGlK78wCnXrrIrxVDZBTOKibZALX",
+        "waba_id": "891687277096074",
+        "snapshot": {
+            "waba_name": "Matheus Vinicius Soares Transportes LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Matheus Vinicius Soares Transportes LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 11 5104-1931",
+                    "quality_rating": "GREEN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "987868991083757"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 3,
+                "PAUSED": 2,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "LIMITADA",
+            "last_sync_at": 1771792434,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": true,
+            "ultimo_disparo": "22/02 16:42"
+        }
+    },
+    "891900660223804": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAdNty3ufRMBQZCF6L5KJKNUq96I1WZCvqIrYiungDxHQ9WEABWmZB0KMK3kdwxy521REUjOhjYry9z17C31kpmOuRfWHLQIgCbKkjNOqgHTOY2CCOVQ446yCBBhybANZBVIx0GlsqyOJuHyFcpLc6q6R9utjcZBtPIuw2bYj5HPOujufk6MqfDhXHBKxo5lFPurtqCxi8ea9oX0pjvZAvuhn5TiWuD4kAvR2fr8wG",
+        "waba_id": "891900660223804",
+        "snapshot": {
+            "waba_name": "Construtora America LTDA",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792436,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "897862533204920": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAdNty3ufRMBQZCF6L5KJKNUq96I1WZCvqIrYiungDxHQ9WEABWmZB0KMK3kdwxy521REUjOhjYry9z17C31kpmOuRfWHLQIgCbKkjNOqgHTOY2CCOVQ446yCBBhybANZBVIx0GlsqyOJuHyFcpLc6q6R9utjcZBtPIuw2bYj5HPOujufk6MqfDhXHBKxo5lFPurtqCxi8ea9oX0pjvZAvuhn5TiWuD4kAvR2fr8wG",
+        "waba_id": "897862533204920",
+        "snapshot": {
+            "waba_name": "Fatima de Oliveira Silva",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 3
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792437,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "905983128695297": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA7yfjXLGQABQxS04ZAVOE1AQtXwpjVIsqu64JW21XbQJTEBbZChfRqZBrZAcXYzKiZCaVDRgY7C6PLZC0UobOFzZC6A9ZAWGIBX5bNZCAP5Y3ggeWIew2gpwK0ip9CyW0ulw9oLv7uHX548iS5DyOZBYk293WgVXXop9O4O6Ot2gksl4CPz1h01E3Koqt9extiqafl0q1bGf4AujVNmNmsR6KJQ91ZBZA0CDa2U5nRT",
+        "waba_id": "905983128695297",
+        "snapshot": {
+            "waba_name": "Bruno Rodrigues Ramos e Cia LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Bruno Rodrigues Ramos e Cia LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557762346",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "998288956696039"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792440,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "916624490915733": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAANZAIbNfrvgBQ0ZA9oER1ytScBhTTwMNKNdVIZBu6SeESOE3JZBRiOM2eelf0aRLYLNERpXZCr8BIZBM0ELwEVnfZBVMuL5HwBG7jlxl4FaafNi6n5RuiZCZA5ACZBwVNGlLvAlEth4rjUV8xNoHaH3KnqdTlWkZCNp15K63sgymiFkrZAZAciax318y2D1WdCouOZC26pNkQ1qX35I2IIm7DTyQFFl78i2ngTbsj0ZAh9",
+        "waba_id": "916624490915733",
+        "snapshot": {
+            "waba_name": "Karla da Fonseca Campos Corretora Seguros LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Karla da Fonseca Campos Corretora Seguros LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557359310",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "891149750759090"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792442,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "917599207429584": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAART9uFZCUpwBQ1S8qWu9ASq5fZCxB7NGVEipC9AXOGgHtZBeVmxZAkEAT2YrymCIP9CtmMu9x5pkaFuN7CYaOTe8gpyW5SRMcJDulDzkXPdU2C9pVytQ37N1b7gZAjqszZB0WKCaw183XGmDLqUSHQP1QYnlY1XPxm56sFgqOtvyFXbe4V0alWtEQ4T1eYBND6CFx2FULAzWalNhLCXU8IZCVvZB5ClmzxlIjZB6lTNq",
+        "waba_id": "917599207429584",
+        "snapshot": {
+            "waba_name": "56.203.099 Aline Oliveira Carvalho",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792443,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        },
+        "last_add_phone_error": "Falha após tentativas máximas",
+        "last_add_phone_debug": [
+            "START user_id=1 waba_id=917599207429584 job_id=34",
+            "balance_check ok=True msg=OK",
+            "get_waba_name tuple err=None name=56.203.099 Aline Oliveira Carvalho",
+            "verified_name normalized='56.203.099 Aline Oliveira Carvalho'",
+            "sms24h_get_number -> activation_id=None full_phone=None",
+            "sms24h_get_number failed (no activation_id)",
+            "sms24h_get_number -> activation_id=None full_phone=None",
+            "sms24h_get_number failed (no activation_id)",
+            "sms24h_get_number -> activation_id=None full_phone=None",
+            "sms24h_get_number failed (no activation_id)",
+            "sms24h_get_number -> activation_id=None full_phone=None",
+            "sms24h_get_number failed (no activation_id)",
+            "sms24h_get_number -> activation_id=None full_phone=None",
+            "sms24h_get_number failed (no activation_id)"
+        ]
+    },
+    "925152686714948": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAA7yfjXLGQABQxS04ZAVOE1AQtXwpjVIsqu64JW21XbQJTEBbZChfRqZBrZAcXYzKiZCaVDRgY7C6PLZC0UobOFzZC6A9ZAWGIBX5bNZCAP5Y3ggeWIew2gpwK0ip9CyW0ulw9oLv7uHX548iS5DyOZBYk293WgVXXop9O4O6Ot2gksl4CPz1h01E3Koqt9extiqafl0q1bGf4AujVNmNmsR6KJQ91ZBZA0CDa2U5nRT",
+        "waba_id": "925152686714948",
+        "snapshot": {
+            "waba_name": "Naldi Mobili LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Naldi Mobili LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557751059",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "1021521104371417"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "DESATIVADA",
+            "last_sync_at": 1771792445,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "937827085335086": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAAXcDX8lakgBQwALOk5a4jrN4mFQITltMQh0VgQPenI47oLZCS6MPU0qvhq8hukmNAlhjQTmZAIlZCUChyOGlzM21j9SoiZCHmq5TwDq16ZA31bRh6F6VKYP3IPJtNoEh6DMBYdQdpLDZCwJ2PE4hYKG3RAQN3aSekynTaxPjg5eP75WiIVjrYfATGJ2vSjifbqJMdR62FcL2ixhgrzq4nc4rLdmU8jDRxP1InBeja",
+        "waba_id": "937827085335086",
+        "snapshot": {
+            "waba_name": "Sm Gestao e Agronegocios",
+            "phone_numbers": [
+                {
+                    "verified_name": "Sm Gestao e Agronegocios",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "+55 24 98154-1205",
+                    "quality_rating": "GREEN",
+                    "platform_type": "CLOUD_API",
+                    "throughput": {
+                        "level": "STANDARD"
+                    },
+                    "id": "1068967106291200"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 4,
+                "PAUSED": 1,
+                "DISABLED": 0,
+                "OTHER": 0
+            },
+            "last_error": "",
+            "status_label": "LIMITADA",
+            "last_sync_at": 1771792448,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": true,
+            "ultimo_disparo": "22/02 17:24"
+        }
+    },
+    "941751201614821": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAART9uFZCUpwBQ1S8qWu9ASq5fZCxB7NGVEipC9AXOGgHtZBeVmxZAkEAT2YrymCIP9CtmMu9x5pkaFuN7CYaOTe8gpyW5SRMcJDulDzkXPdU2C9pVytQ37N1b7gZAjqszZB0WKCaw183XGmDLqUSHQP1QYnlY1XPxm56sFgqOtvyFXbe4V0alWtEQ4T1eYBND6CFx2FULAzWalNhLCXU8IZCVvZB5ClmzxlIjZB6lTNq",
+        "waba_id": "941751201614821",
+        "snapshot": {
+            "waba_name": "17.698.950 Simone Campaneli",
+            "phone_numbers": [],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "OK",
+            "last_sync_at": 1771792450,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
+        }
+    },
+    "944812531450611": {
+        "phone_number_id": "",
+        "templates": [
+            ""
+        ],
+        "token": "EAANZAIbNfrvgBQ0ZA9oER1ytScBhTTwMNKNdVIZBu6SeESOE3JZBRiOM2eelf0aRLYLNERpXZCr8BIZBM0ELwEVnfZBVMuL5HwBG7jlxl4FaafNi6n5RuiZCZA5ACZBwVNGlLvAlEth4rjUV8xNoHaH3KnqdTlWkZCNp15K63sgymiFkrZAZAciax318y2D1WdCouOZC26pNkQ1qX35I2IIm7DTyQFFl78i2ngTbsj0ZAh9",
+        "waba_id": "944812531450611",
+        "snapshot": {
+            "waba_name": "Lucio Flavio Fernandes de Paiva LTDA",
+            "phone_numbers": [
+                {
+                    "verified_name": "Lucio Flavio Fernandes de Paiva LTDA",
+                    "code_verification_status": "VERIFIED",
+                    "display_phone_number": "15557098749",
+                    "quality_rating": "UNKNOWN",
+                    "platform_type": "NOT_APPLICABLE",
+                    "throughput": {
+                        "level": "NOT_APPLICABLE"
+                    },
+                    "id": "1000190229836982"
+                }
+            ],
+            "template_counts": {
+                "APPROVED": 0,
+                "PAUSED": 0,
+                "DISABLED": 0,
+                "OTHER": 5
+            },
+            "last_error": "",
+            "status_label": "PROBLEMA CARTÃO",
+            "last_sync_at": 1771792452,
+            "ever_had_erro_generic": false,
+            "limitada_cycle_active": false,
+            "ultimo_disparo": ""
         }
     }
 }

@@ -1,10 +1,9 @@
 import requests
 
-def _session_with_proxy(proxy_str: str | None):
+def _session_with_proxy(proxy_url: str | None):
+    """proxy_url: full URL like http://user:pass@ip:port or socks5://user:pass@ip:port"""
     s = requests.Session()
-    if proxy_str:
-        ip, port, user, pwd = proxy_str.split(":")
-        proxy_url = f"http://{user}:{pwd}@{ip}:{port}"
+    if proxy_url:
         s.proxies.update({"http": proxy_url, "https": proxy_url})
     return s
 

@@ -118,3 +118,12 @@ class AppSetting(db.Model):
     """Generic key-value store for persistent admin settings."""
     key   = db.Column(db.String(64),  primary_key=True)
     value = db.Column(db.String(255), default="", nullable=False)
+
+
+class Proxy(db.Model):
+    """HTTP proxy entries managed through the admin panel."""
+    id         = db.Column(db.Integer,     primary_key=True)
+    proxy_str  = db.Column(db.String(255), nullable=False)              # ip:port:user:pass
+    proxy_type = db.Column(db.String(16),  default="http", nullable=False)  # http / socks5
+    label      = db.Column(db.String(128), default="", nullable=False)
+    created_at = db.Column(db.DateTime,    default=datetime.utcnow, nullable=False)

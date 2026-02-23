@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-start justify-between gap-4 mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold">Admin • Proxies</h1>
+    <p class="text-sm text-zinc-400">Proxies usados na função de adicionar número de telefone.</p>
+  </div>
+  <a href="{{ url_for('admin.admin_users') }}"
+     class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors shrink-0">
+    ← Usuários
+  </a>
+</div>
+
+{% with msgs = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in msgs %}
+    <div class="mb-4 px-4 py-3 rounded-xl text-sm
+      {% if cat == 'error' %}bg-red-950/60 border border-red-800 text-red-300
+      {% else %}bg-emerald-950/60 border border-emerald-800 text-emerald-300{% endif %}">
+      {{ msg }}
+    </div>
+  {% endfor %}
+{% endwith %}
+
+{# Add proxy form #}
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-6 mb-6">
+  <h2 class="font-semibold mb-3">Adicionar proxy</h2>
+  <form method="post" action="{{ url_for('admin.proxy_add') }}" class="grid md:grid-cols-4 gap-3">
+    <div class="md:col-span-2">
+      <input name="proxy_str" required placeholder="ip:porta:usuario:senha"
+             class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono
+                    focus:outline-none focus:border-indigo-600" />
+    </div>
+    <select name="proxy_type"
+            class="px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm
+                   focus:outline-none focus:border-indigo-600">
+      <option value="http" selected>HTTP (padrão)</option>
+      <option value="socks5">SOCKS5</option>
+    </select>
+    <input name="label" placeholder="Label (opcional)"
+           class="px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm
+                  focus:outline-none focus:border-indigo-600" />
+    <div class="md:col-span-4">
+      <button class="px-6 py-3 rounded-xl bg-indigo-700 hover:bg-indigo-600 font-semibold text-sm transition-colors">
+        Adicionar
+      </button>
+    </div>
+  </form>
+  <p class="mt-2 text-xs text-zinc-500">Formato: <span class="font-mono">ip:porta:usuario:senha</span> — ex: <span class="font-mono">192.168.1.1:8080:user:pass</span></p>
+</div>
+
+{# Proxy list #}
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/20 overflow-hidden">
+  <div class="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+    <h2 class="font-semibold">Proxies cadastrados</h2>
+    <span class="text-xs text-zinc-500">{{ proxies | length }} proxy(ies)</span>
+  </div>
+
+  {% if not proxies %}
+    <div class="px-6 py-8 text-center text-zinc-500 text-sm">
+      Nenhum proxy cadastrado. Adicione um acima.
+    </div>
+  {% else %}
+    <table class="min-w-full text-sm">
+      <thead class="text-xs text-zinc-500 border-b border-zinc-800">
+        <tr>
+          <th class="text-left px-6 py-3">#</th>
+          <th class="text-left px-6 py-3">Proxy</th>
+          <th class="text-left px-6 py-3">Tipo</th>
+          <th class="text-left px-6 py-3">Label</th>
+          <th class="text-left px-6 py-3">Adicionado em</th>
+          <th class="text-left px-6 py-3">Status</th>
+          <th class="px-6 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-zinc-800">
+        {% for p in proxies %}
+        <tr class="hover:bg-zinc-800/30 transition-colors">
+          <td class="px-6 py-3 text-zinc-500">{{ loop.index }}</td>
+          <td class="px-6 py-3 font-mono text-zinc-200">
+            {% set parts = p.proxy_str.split(':') %}
+            {{ parts[0] }}:{{ parts[1] }}:<span class="text-zinc-500">****:****</span>
+          </td>
+          <td class="px-6 py-3">
+            <span class="px-2 py-0.5 rounded text-xs font-semibold
+              {% if p.proxy_type == 'socks5' %}bg-purple-900/50 text-purple-300 border border-purple-800/50
+              {% else %}bg-blue-900/50 text-blue-300 border border-blue-800/50{% endif %}">
+              {{ p.proxy_type | upper }}
+            </span>
+          </td>
+          <td class="px-6 py-3 text-zinc-400">{{ p.label or '—' }}</td>
+          <td class="px-6 py-3 text-zinc-500 text-xs">{{ p.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+          <td class="px-6 py-3">
+            <span id="status-{{ p.id }}" class="text-xs text-zinc-500">—</span>
+          </td>
+          <td class="px-6 py-3">
+            <div class="flex items-center gap-2 justify-end">
+              <button onclick="testProxy({{ p.id }}, this)"
+                      class="px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200
+                             text-xs font-semibold transition-colors border border-zinc-600">
+                Testar
+              </button>
+              <form method="post" action="{{ url_for('admin.proxy_delete', proxy_id=p.id) }}"
+                    onsubmit="return confirm('Remover este proxy?')">
+                <button class="px-3 py-1.5 rounded-lg bg-red-900/40 hover:bg-red-900/70 text-red-300
+                               text-xs font-semibold transition-colors border border-red-800/50">
+                  Remover
+                </button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</div>
+
+<script>
+async function testProxy(proxyId, btn) {
+  const statusEl = document.getElementById("status-" + proxyId);
+  btn.disabled = true;
+  btn.textContent = "Testando…";
+  statusEl.textContent = "…";
+  statusEl.className = "text-xs text-zinc-400";
+
+  try {
+    const res = await fetch(`/admin/proxies/${proxyId}/test`, { method: "POST" });
+    const data = await res.json();
+    if (data.ok) {
+      statusEl.textContent = "✓ " + data.ip;
+      statusEl.className = "text-xs text-emerald-400 font-mono";
+    } else {
+      statusEl.textContent = "✗ " + (data.error || "erro");
+      statusEl.className = "text-xs text-red-400";
+    }
+  } catch (e) {
+    statusEl.textContent = "✗ rede";
+    statusEl.className = "text-xs text-red-400";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Testar";
+  }
+}
+</script>
+{% endblock %}

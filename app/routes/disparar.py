@@ -162,6 +162,21 @@ def delete_csv(filename):
     return redirect(url_for("disparar.disparar_page"))
 
 
+@bp.route("/disparar/csv-list")
+@login_required
+def csv_list():
+    csv_d = csvs_dir(current_user.id)
+    files = []
+    for fn in sorted(os.listdir(csv_d)):
+        if fn.lower().endswith(".csv"):
+            try:
+                cols = get_csv_columns(os.path.join(csv_d, fn))
+            except Exception:
+                cols = []
+            files.append({"name": fn, "columns": cols})
+    return jsonify({"files": files})
+
+
 @bp.route("/disparar/csv/<filename>/columns")
 @login_required
 def csv_columns(filename):
@@ -232,15 +247,16 @@ def clear_sent_log():
 def start_disparo():
     data = request.get_json(silent=True) or {}
 
-    csv_filename    = (data.get("csv_filename")    or "").strip()
-    phone_col       = (data.get("phone_col")       or "").strip()
-    phone_number_id = (data.get("phone_number_id") or "").strip()
-    token           = (data.get("token")           or "").strip()
-    template_name   = (data.get("template_name")   or "").strip()
-    param_map       = data.get("param_map", [])
-    max_workers     = int(data.get("max_workers") or 1)
-    max_workers     = max(1, min(max_workers, 20))  # clamp 1–20
-    skip_log        = bool(data.get("skip_log"))
+    csv_filename      = (data.get("csv_filename")      or "").strip()
+    phone_col         = (data.get("phone_col")         or "").strip()
+    phone_number_id   = (data.get("phone_number_id")   or "").strip()
+    token             = (data.get("token")             or "").strip()
+    template_name     = (data.get("template_name")     or "").strip()
+    template_language = (data.get("template_language") or "en").strip()
+    param_map         = data.get("param_map", [])
+    max_workers       = int(data.get("max_workers") or 1)
+    max_workers       = max(1, min(max_workers, 20))  # clamp 1–20
+    skip_log          = bool(data.get("skip_log"))
 
     if not all([csv_filename, phone_col, phone_number_id, token, template_name]):
         return jsonify({"error": "Campos obrigatórios faltando."}), 400
@@ -257,6 +273,7 @@ def start_disparo():
         phone_number_id,
         token,
         template_name,
+        template_language,
         param_map,
         max_workers,
         skip_log,

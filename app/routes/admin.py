@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
+import requests as _requests
 from .. import db
-from ..models import User, BalanceTx, Waba
+from ..models import User, BalanceTx, Waba, Proxy
 from ..json_store import ensure_user_bms_file
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -194,3 +195,66 @@ def webhook_logs_clear():
     db.session.commit()
     flash("Logs limpos.", "success")
     return redirect(url_for("admin.webhook_logs"))
+
+
+# ── Proxy management ──────────────────────────────────────────────────────────
+
+@bp.route("/proxies")
+@login_required
+def proxies():
+    all_proxies = Proxy.query.order_by(Proxy.created_at.asc()).all()
+    return render_template("admin_proxies.html", title="Admin • Proxies", proxies=all_proxies)
+
+
+@bp.route("/proxies/add", methods=["POST"])
+@login_required
+def proxy_add():
+    proxy_str  = (request.form.get("proxy_str")  or "").strip()
+    label      = (request.form.get("label")      or "").strip()
+    proxy_type = (request.form.get("proxy_type") or "http").strip()
+
+    if proxy_type not in ("http", "socks5"):
+        proxy_type = "http"
+
+    if not proxy_str:
+        flash("Informe o proxy.", "error")
+        return redirect(url_for("admin.proxies"))
+
+    parts = proxy_str.split(":")
+    if len(parts) != 4:
+        flash("Formato inválido. Use ip:porta:usuario:senha.", "error")
+        return redirect(url_for("admin.proxies"))
+
+    db.session.add(Proxy(proxy_str=proxy_str, proxy_type=proxy_type, label=label))
+    db.session.commit()
+    flash("Proxy adicionado.", "success")
+    return redirect(url_for("admin.proxies"))
+
+
+@bp.route("/proxies/<int:proxy_id>/delete", methods=["POST"])
+@login_required
+def proxy_delete(proxy_id: int):
+    p = db.session.get(Proxy, proxy_id)
+    if p:
+        db.session.delete(p)
+        db.session.commit()
+        flash("Proxy removido.", "success")
+    return redirect(url_for("admin.proxies"))
+
+
+@bp.route("/proxies/<int:proxy_id>/test", methods=["POST"])
+@login_required
+def proxy_test(proxy_id: int):
+    p = db.session.get(Proxy, proxy_id)
+    if not p:
+        return jsonify({"ok": False, "error": "Proxy não encontrado."}), 404
+
+    try:
+        ip, port, user, pwd = p.proxy_str.split(":")
+        proxy_url = f"{p.proxy_type}://{user}:{pwd}@{ip}:{port}"
+        proxies = {"http": proxy_url, "https": proxy_url}
+        r = _requests.get("https://api.ipify.org?format=json", proxies=proxies, timeout=10)
+        data = r.json()
+        return jsonify({"ok": True, "ip": data.get("ip", "?")})
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)[:200]})
