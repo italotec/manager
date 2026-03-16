@@ -7,6 +7,8 @@ import random
 import string
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from zoneinfo import ZoneInfo
+_SP = ZoneInfo("America/Sao_Paulo")
 
 import requests
 
@@ -251,7 +253,7 @@ def _run_disparo(app, job_id: int, user_id: int,
                     state["failed"] += 1
 
                 _append_log({
-                    "ts":      datetime.utcnow().strftime("%H:%M:%S"),
+                    "ts":      datetime.now(_SP).strftime("%H:%M:%S"),
                     "phone":   phone,
                     "status":  "sent" if success else "failed",
                     "message": msg,

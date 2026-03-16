@@ -1,5 +1,12 @@
 from datetime import datetime
+from zoneinfo import ZoneInfo
 from flask_login import UserMixin
+
+_SP = ZoneInfo("America/Sao_Paulo")
+
+
+def _now_sp():
+    return datetime.now(_SP)
 from werkzeug.security import generate_password_hash, check_password_hash
 from . import db, login_manager
 
@@ -44,7 +51,7 @@ class Waba(db.Model):
     otp_received = db.Column(db.Boolean, default=False, nullable=False)
     otp_received_at = db.Column(db.Integer, default=0, nullable=False)  # epoch seconds
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=_now_sp, nullable=False)
 
 class BalanceTx(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -56,7 +63,7 @@ class BalanceTx(db.Model):
     waba_id = db.Column(db.String(64), default="", nullable=False)
     phone_number_id = db.Column(db.String(64), default="", nullable=False)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=_now_sp, nullable=False)
 
 class Job(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -71,7 +78,7 @@ class Job(db.Model):
     current_label = db.Column(db.String(255), default="", nullable=False)
     last_message = db.Column(db.Text, default="", nullable=False)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=_now_sp, nullable=False)
 
 
 class DisparoJob(db.Model):
@@ -88,7 +95,7 @@ class DisparoJob(db.Model):
     last_message = db.Column(db.Text, default="", nullable=False)
     stop_requested = db.Column(db.Boolean, default=False, nullable=False)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=_now_sp, nullable=False)
 
 
 class ChatMessage(db.Model):
@@ -103,7 +110,7 @@ class ChatMessage(db.Model):
     media_url       = db.Column(db.Text,        default="", nullable=False)
     wamid           = db.Column(db.String(128), default="", nullable=False, index=True)
     status          = db.Column(db.String(16),  default="sent", nullable=False)
-    timestamp       = db.Column(db.DateTime,    default=datetime.utcnow,   nullable=False)
+    timestamp       = db.Column(db.DateTime,    default=_now_sp,   nullable=False)
     __table_args__  = (db.Index("ix_chat_conv", "waba_id", "phone_number_id", "contact_wa_id"),)
 
 
@@ -111,7 +118,7 @@ class WebhookLog(db.Model):
     id           = db.Column(db.Integer,    primary_key=True)
     waba_id      = db.Column(db.String(64), default="", nullable=False)
     payload_json = db.Column(db.Text,       nullable=False)
-    created_at   = db.Column(db.DateTime,   default=datetime.utcnow, nullable=False)
+    created_at   = db.Column(db.DateTime,   default=_now_sp, nullable=False)
 
 
 class AppSetting(db.Model):
@@ -126,4 +133,4 @@ class Proxy(db.Model):
     proxy_str  = db.Column(db.String(255), nullable=False)              # ip:port:user:pass
     proxy_type = db.Column(db.String(16),  default="http", nullable=False)  # http / socks5
     label      = db.Column(db.String(128), default="", nullable=False)
-    created_at = db.Column(db.DateTime,    default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime,    default=_now_sp, nullable=False)

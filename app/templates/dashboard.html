@@ -232,20 +232,45 @@
               {% endif %}
             </td>
 
-            {# trash icon — always visible but subtle, brightens on row hover #}
+            {# action buttons: remarks / copy / trash #}
             <td class="py-3 text-right">
-              <button type="button"
-                      title="Excluir esta WABA"
-                      onclick="openDeleteModal('{{ row.waba_id }}', '{{ row.waba_name | e }}')"
-                      class="p-1.5 rounded-lg text-zinc-700 group-hover:text-zinc-400 hover:!text-red-400 hover:bg-red-950/40 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none"
-                     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6"></polyline>
-                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
-                  <path d="M10 11v6"></path><path d="M14 11v6"></path>
-                  <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
-                </svg>
-              </button>
+              <div class="inline-flex items-center gap-0.5">
+                {# remarks / notes button #}
+                <button type="button"
+                        title="{{ row.remarks if row.remarks else 'Adicionar observação' }}"
+                        onclick="openRemarksModal('{{ row.waba_id }}', {{ row.remarks | tojson }})"
+                        class="p-1.5 rounded-lg text-zinc-700 group-hover:text-zinc-400 hover:!text-yellow-400 hover:bg-yellow-950/40 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 20h9"></path>
+                    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+                  </svg>
+                </button>
+                {# copy single WABA button #}
+                <button type="button"
+                        title="Copiar dados desta WABA"
+                        onclick="copySingle('{{ row.waba_id }}')"
+                        class="p-1.5 rounded-lg text-zinc-700 group-hover:text-zinc-400 hover:!text-blue-400 hover:bg-blue-950/40 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="9" y="2" width="6" height="4" rx="1"></rect>
+                    <path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"></path>
+                  </svg>
+                </button>
+                {# trash button #}
+                <button type="button"
+                        title="Excluir esta WABA"
+                        onclick="openDeleteModal('{{ row.waba_id }}', '{{ row.waba_name | e }}')"
+                        class="p-1.5 rounded-lg text-zinc-700 group-hover:text-zinc-400 hover:!text-red-400 hover:bg-red-950/40 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path>
+                    <path d="M10 11v6"></path><path d="M14 11v6"></path>
+                    <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"></path>
+                  </svg>
+                </button>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -479,6 +504,38 @@
   </div>
 </div>
 
+{# ── Remarks modal ── #}
+<div id="remarksModalBg" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
+  <div class="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-9 h-9 rounded-xl bg-yellow-950/50 border border-yellow-800/50 flex items-center justify-center shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-yellow-400" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 20h9"></path>
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
+        </svg>
+      </div>
+      <div>
+        <div class="font-semibold text-zinc-100">Observações</div>
+        <div id="remarksModalSubtitle" class="text-xs text-zinc-400"></div>
+      </div>
+    </div>
+    <textarea id="remarksText" rows="5"
+              class="w-full rounded-xl border border-zinc-700 bg-zinc-900 text-sm text-zinc-100 px-3 py-2 resize-none focus:outline-none focus:border-yellow-600 placeholder-zinc-600"
+              placeholder="Escreva suas observações sobre esta WABA…"></textarea>
+    <div class="flex justify-end gap-2 mt-4">
+      <button type="button" onclick="closeRemarksModal()"
+              class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-300">
+        Cancelar
+      </button>
+      <button type="button" onclick="saveRemarks()"
+              class="px-5 py-2 rounded-xl bg-yellow-700 hover:bg-yellow-600 text-sm font-semibold text-white">
+        Salvar
+      </button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── Add WABA modal ──────────────────────────────────────────────────────────
 function openModal() {
@@ -606,6 +663,67 @@ async function copySelected() {
     alert("Copiado para a área de transferência!");
   }
 }
+
+// ── Copy single WABA ────────────────────────────────────────────────────────
+async function copySingle(wabaId) {
+  const res = await fetch("{{ url_for('dashboard.export_selected') }}", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ waba_ids: [wabaId] })
+  });
+  if (!res.ok) { alert("Erro ao copiar dados da WABA."); return; }
+  const data = await res.json();
+  const text = JSON.stringify(data, null, 4);
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    const ta = document.createElement("textarea");
+    ta.value = text; document.body.appendChild(ta); ta.select();
+    document.execCommand("copy"); document.body.removeChild(ta);
+  }
+  alert("Copiado para a área de transferência!");
+}
+
+// ── Remarks modal ────────────────────────────────────────────────────────────
+let _remarksWabaId = null;
+
+function openRemarksModal(wabaId, currentText) {
+  _remarksWabaId = wabaId;
+  document.getElementById("remarksText").value = currentText || "";
+  document.getElementById("remarksModalSubtitle").textContent = "WABA " + wabaId;
+  const bg = document.getElementById("remarksModalBg");
+  bg.classList.remove("hidden");
+  bg.classList.add("flex");
+}
+
+function closeRemarksModal() {
+  const bg = document.getElementById("remarksModalBg");
+  bg.classList.add("hidden");
+  bg.classList.remove("flex");
+  _remarksWabaId = null;
+}
+
+async function saveRemarks() {
+  if (!_remarksWabaId) return;
+  const text = document.getElementById("remarksText").value;
+  const res = await fetch(`/waba/${_remarksWabaId}/remarks`, {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ text })
+  });
+  if (!res.ok) { alert("Erro ao salvar observação."); return; }
+  // Update the button title in the DOM without a full reload
+  const btn = document.querySelector(`button[onclick="openRemarksModal('${_remarksWabaId}', ${JSON.stringify(text || '')})"]`);
+  if (btn) {
+    btn.title = text || "Adicionar observação";
+    btn.setAttribute("onclick", `openRemarksModal('${_remarksWabaId}', ${JSON.stringify(text)})`);
+  }
+  closeRemarksModal();
+}
+
+document.getElementById("remarksModalBg")?.addEventListener("click", (e) => {
+  if (e.target.id === "remarksModalBg") closeRemarksModal();
+});
 
 // ── Job polling ─────────────────────────────────────────────────────────────
 (function(){

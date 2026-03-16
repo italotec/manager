@@ -3,6 +3,8 @@ nul
 __pycache__/
 *.pyc
 instance/app.db
+instance/app.db-shm
+instance/app.db-wal
 instance/users/
 *.jsonl
 *.log

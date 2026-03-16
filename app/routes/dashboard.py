@@ -17,6 +17,7 @@ from ..json_store import (
     ensure_user_bms_file,
     load_user_bms,
     save_user_bms,
+    save_waba_remarks,
     update_snapshot,
 )
 from ..services.meta import (
@@ -65,6 +66,7 @@ def dashboard():
             "last_add_phone_error": data.get("last_add_phone_error") or "",
             "ever_had_erro_generic": snap.get("ever_had_erro_generic", False),
             "ultimo_disparo": snap.get("ultimo_disparo") or "",
+            "remarks": data.get("remarks") or "",
         })
 
     job_id = request.args.get("job", "")
@@ -230,6 +232,14 @@ def export_selected():
         }
 
     return jsonify(out)
+
+
+@bp.route("/waba/<waba_id>/remarks", methods=["POST"])
+@login_required
+def save_remarks(waba_id):
+    text = (request.get_json(silent=True) or {}).get("text", "")
+    save_waba_remarks(current_user.id, waba_id, text)
+    return jsonify({"ok": True})
 
 
 @bp.route("/travar-start", methods=["POST"])

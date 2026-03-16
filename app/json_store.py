@@ -77,6 +77,14 @@ def update_snapshot(user_id: int, waba_id: str, **fields) -> None:
     save_user_bms(user_id, data)
 
 
+def save_waba_remarks(user_id: int, waba_id: str, text: str) -> None:
+    data = load_user_bms(user_id)
+    key = str(waba_id).strip()
+    if key in data and isinstance(data.get(key), dict):
+        data[key]["remarks"] = text
+        save_user_bms(user_id, data)
+
+
 def patch_snapshot(user_id: int, waba_id: str, **fields) -> None:
     """Update specific snapshot fields without touching last_sync_at."""
     data = load_user_bms(user_id)

@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
+_SP = ZoneInfo("America/Sao_Paulo")
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 import requests as _requests
@@ -21,8 +23,8 @@ def guard():
 def admin_users():
     users = User.query.order_by(User.is_admin.desc(), User.id.asc()).all()
 
-    now = datetime.utcnow()
-    start_today = datetime(now.year, now.month, now.day)
+    now = datetime.now(_SP)
+    start_today = datetime(now.year, now.month, now.day, tzinfo=_SP)
     start_week = now - timedelta(days=7)
 
     stats = {}
