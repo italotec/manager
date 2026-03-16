@@ -238,7 +238,9 @@
                 {# remarks / notes button #}
                 <button type="button"
                         title="{{ row.remarks if row.remarks else 'Adicionar observação' }}"
-                        onclick="openRemarksModal('{{ row.waba_id }}', {{ row.remarks | tojson }})"
+                        data-waba-id="{{ row.waba_id }}"
+                        data-remarks="{{ row.remarks | e }}"
+                        onclick="openRemarksModal(this.dataset.wabaId, this.dataset.remarks)"
                         class="p-1.5 rounded-lg text-zinc-700 group-hover:text-zinc-400 hover:!text-yellow-400 hover:bg-yellow-950/40 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none"
                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -712,11 +714,11 @@ async function saveRemarks() {
     body: JSON.stringify({ text })
   });
   if (!res.ok) { alert("Erro ao salvar observação."); return; }
-  // Update the button title in the DOM without a full reload
-  const btn = document.querySelector(`button[onclick="openRemarksModal('${_remarksWabaId}', ${JSON.stringify(text || '')})"]`);
+  // Update the button's data and title in the DOM without a full reload
+  const btn = document.querySelector(`button[data-waba-id="${_remarksWabaId}"][data-remarks]`);
   if (btn) {
+    btn.dataset.remarks = text;
     btn.title = text || "Adicionar observação";
-    btn.setAttribute("onclick", `openRemarksModal('${_remarksWabaId}', ${JSON.stringify(text)})`);
   }
   closeRemarksModal();
 }
