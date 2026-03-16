@@ -61,7 +61,10 @@ def get_waba_analytics(api_version: str, token: str, waba_id: str,
 
 
 def get_phone_numbers(api_version: str, token: str, waba_id: str):
-    url = f"https://graph.facebook.com/{api_version}/{waba_id}/phone_numbers"
+    url = (
+        f"https://graph.facebook.com/{api_version}/{waba_id}/phone_numbers"
+        f"?fields=id,display_phone_number,verified_name,quality_rating,status"
+    )
     status, j, snippet = _get(url, token)
     if status != 200 or not isinstance(j, dict):
         return [], f"HTTP {status}: {snippet}"

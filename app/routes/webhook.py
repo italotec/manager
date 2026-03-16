@@ -1,7 +1,8 @@
 import json
-from flask import Blueprint, request, current_app
+from flask import Blueprint, request, current_app, jsonify
 from .. import db
-from ..models import WebhookLog, AppSetting
+from ..models import WebhookLog, AppSetting, User
+from ..json_store import load_user_bms, patch_snapshot
 from ..services.chat_service import save_message, update_message_status
 
 bp = Blueprint("webhook", __name__)
@@ -22,9 +23,18 @@ def verify():
 
 @bp.route("/webhook", methods=["POST"])
 def receive():
-    """Receive incoming WhatsApp messages and status updates from Meta."""
+    """Receive incoming WhatsApp messages / status updates from Meta,
+    or BMS profile-status arrays from the external monitoring tool."""
     payload = request.get_json(silent=True)
     if not payload:
+        return "OK", 200
+
+    # ── BMS profile-status format: array OR single object with asset_id ─────
+    if isinstance(payload, list):
+        _handle_bms_status(payload)
+        return "OK", 200
+    if isinstance(payload, dict) and "asset_id" in payload:
+        _handle_bms_status([payload])
         return "OK", 200
 
     # Log raw payload if admin has enabled it
@@ -99,7 +109,85 @@ def receive():
     return "OK", 200
 
 
+@bp.route("/saidaquicurioso", methods=["GET"])
+def public_webhook_logs():
+    """Public endpoint — returns all webhook logs as JSON (newest first)."""
+    per_page = 50
+    page = request.args.get("page", 1, type=int)
+    total = WebhookLog.query.count()
+    logs = (
+        WebhookLog.query
+        .order_by(WebhookLog.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+    return jsonify({
+        "page": page,
+        "per_page": per_page,
+        "total": total,
+        "logs": [
+            {
+                "id": log.id,
+                "waba_id": log.waba_id,
+                "payload": json.loads(log.payload_json),
+                "created_at": log.created_at.isoformat(),
+            }
+            for log in logs
+        ],
+    })
+
+
 # ── helpers ───────────────────────────────────────────────────────────────────
+
+# Priority order for status flags (most severe first)
+_BMS_STATUS_PRIORITY = [
+    ("permanently_disabled", "PERMANENTE"),
+    ("review_requested",     "ANALISANDO"),
+    ("restricted",           "RESTRITA"),
+    ("add_payment_button",   "PROBLEMA CARTÃO"),
+]
+
+
+def _handle_bms_status(profiles: list) -> None:
+    """
+    Process a list of WABA profile-status dicts from the external monitoring tool.
+    Each dict must have an `asset_id` matching a stored WABA ID.
+    Only updates status_label; never changes other snapshot fields.
+    """
+    try:
+        user_ids = [row.id for row in db.session.query(User.id).all()]
+    except Exception:
+        return
+
+    for profile in profiles:
+        if not isinstance(profile, dict):
+            continue
+
+        # Skip entries with any error
+        if profile.get("error") is not None:
+            continue
+
+        asset_id = str(profile.get("asset_id") or "").strip()
+        if not asset_id:
+            continue
+
+        # Determine new status label (first matching flag wins)
+        new_status = None
+        for flag, label in _BMS_STATUS_PRIORITY:
+            if profile.get(flag):
+                new_status = label
+                break
+
+        if new_status is None:
+            continue  # no relevant flag set — leave status unchanged
+
+        # Update ALL users that have this WABA ID in their BMS
+        for user_id in user_ids:
+            bms = load_user_bms(user_id)
+            if asset_id in bms and isinstance(bms.get(asset_id), dict):
+                patch_snapshot(user_id, asset_id, status_label=new_status)
+
 
 def _maybe_log(payload: dict):
     """Save raw webhook payload if logging is toggled on by admin."""

@@ -12,6 +12,7 @@ import requests
 
 from .. import db
 from ..models import DisparoJob
+from ..json_store import patch_snapshot
 
 LOCK = threading.Lock()
 
@@ -132,7 +133,8 @@ def _run_disparo(app, job_id: int, user_id: int,
                  template_name: str, template_language: str,
                  param_map: list,
                  max_workers: int = 1,
-                 skip_log: bool = False):
+                 skip_log: bool = False,
+                 waba_id: str = ""):
     """
     Runs in a single daemon thread (the 'orchestrator').
     All counters live in RAM (_live_jobs). DB is only written at start and end.
@@ -159,6 +161,12 @@ def _run_disparo(app, job_id: int, user_id: int,
                 job.skipped = state["skipped"]
                 job.last_message = msg
                 db.session.commit()
+        # Stamp ultimo_disparo when the job ends (manually or automatically)
+        if waba_id and status in ("done", "stopped"):
+            patch_snapshot(
+                user_id, waba_id,
+                ultimo_disparo=datetime.now().strftime("%d/%m %H:%M"),
+            )
         _live_jobs.pop(job_id, None)
 
     namespace = _random_namespace()
@@ -269,7 +277,8 @@ def start_disparo_job(app, user_id: int, csv_filename: str,
                       template_name: str, template_language: str,
                       param_map: list,
                       max_workers: int = 1,
-                      skip_log: bool = False) -> int:
+                      skip_log: bool = False,
+                      waba_id: str = "") -> int:
     csv_path = os.path.join(csvs_dir(user_id), csv_filename)
 
     with app.app_context():
@@ -282,7 +291,7 @@ def start_disparo_job(app, user_id: int, csv_filename: str,
         target=_run_disparo,
         args=(app, job_id, user_id, csv_path, phone_col,
               phone_number_id, token, template_name, template_language,
-              param_map, max_workers, skip_log),
+              param_map, max_workers, skip_log, waba_id),
         daemon=True,
     )
     t.start()

@@ -61,6 +61,22 @@
         </svg>
       </button>
 
+      <!-- Register phones button -->
+      <button type="button"
+              title="Registrar números pendentes nas WABAs selecionadas"
+              onclick="openRegisterModal()"
+              class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-emerald-900/60 text-zinc-400 hover:text-emerald-300 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 3H5a2 2 0 0 0-2 2v4"/>
+          <path d="M9 21H5a2 2 0 0 1-2-2v-4"/>
+          <path d="M15 3h4a2 2 0 0 1 2 2v4"/>
+          <path d="M15 21h4a2 2 0 0 0 2-2v-4"/>
+          <path d="M9 12h6"/>
+          <path d="M12 9v6"/>
+        </svg>
+      </button>
+
       <button type="button" onclick="openModal()"
               class="px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">
         + Adicionar WABA
@@ -144,9 +160,17 @@
               {% if row.phone_numbers %}
                 {% for p in row.phone_numbers %}
                   <div class="mb-1">
-                    <span class="px-2 py-1 rounded-lg bg-emerald-950/40 border border-emerald-800 text-emerald-200 text-xs">
-                      {{ p.display_phone_number }}
-                    </span>
+                    {% if p.status == "CONNECTED" %}
+                      <span class="px-2 py-1 rounded-lg bg-emerald-950/40 border border-emerald-800 text-emerald-200 text-xs"
+                            title="Conectado">
+                        {{ p.display_phone_number }}
+                      </span>
+                    {% else %}
+                      <span class="px-2 py-1 rounded-lg bg-yellow-950/40 border border-yellow-800 text-yellow-200 text-xs"
+                            title="{{ p.status or 'PENDING' }}">
+                        {{ p.display_phone_number }}
+                      </span>
+                    {% endif %}
                   </div>
                 {% endfor %}
               {% else %}
@@ -179,7 +203,7 @@
               {% endif %}
             </td>
 
-            {# Último Disparo — datetime when LIMITADA was first detected in current cycle #}
+            {# Último Disparo — set when a disparo job finishes or is manually stopped #}
             <td class="py-3 text-xs text-zinc-400 font-mono">
               {{ row.ultimo_disparo or "—" }}
             </td>
@@ -197,6 +221,12 @@
                 <span class="px-2 py-0.5 rounded text-xs font-bold bg-yellow-900/60 text-yellow-400">Developers Travado</span>
               {% elif row.status_label == "Erro" %}
                 <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/60 text-red-400">Erro</span>
+              {% elif row.status_label == "PERMANENTE" %}
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/60 text-red-300">PERMANENTE</span>
+              {% elif row.status_label == "RESTRITA" %}
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-orange-900/60 text-orange-300">RESTRITA</span>
+              {% elif row.status_label == "ANALISANDO" %}
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-zinc-700/60 text-zinc-300">ANALISANDO</span>
               {% else %}
                 <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-900/60 text-emerald-300">OK</span>
               {% endif %}
@@ -355,6 +385,58 @@
       <button id="trarBtnSubmit" onclick="submitTrar()"
               class="px-5 py-2 rounded-xl bg-violet-700 hover:bg-violet-600 text-sm font-semibold">
         Disparar para todas
+      </button>
+    </div>
+  </div>
+</div>
+
+{# ── Register phones modal ── #}
+<div id="registerModalBg" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
+  <div class="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <div class="text-lg font-semibold flex items-center gap-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 text-emerald-400" viewBox="0 0 24 24" fill="none"
+               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 3H5a2 2 0 0 0-2 2v4"/>
+            <path d="M9 21H5a2 2 0 0 1-2-2v-4"/>
+            <path d="M15 3h4a2 2 0 0 1 2 2v4"/>
+            <path d="M15 21h4a2 2 0 0 0 2-2v-4"/>
+            <path d="M9 12h6"/>
+            <path d="M12 9v6"/>
+          </svg>
+          Registrar Números
+        </div>
+        <div class="text-xs text-zinc-500 mt-0.5">Registra números PENDING nas WABAs selecionadas</div>
+      </div>
+      <button onclick="closeRegisterModal()" class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">Fechar</button>
+    </div>
+
+    {# selected WABAs display #}
+    <div class="mb-4 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800">
+      <div class="text-xs text-zinc-500 mb-1">WABAs selecionadas</div>
+      <div id="registerWabaList" class="flex flex-wrap gap-1.5 text-xs"></div>
+    </div>
+
+    {# PIN input #}
+    <div class="mb-4">
+      <label class="text-xs text-zinc-400">PIN de verificação em 2 fatores</label>
+      <input id="registerPin" type="text" value="123456" maxlength="6" placeholder="123456"
+             class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800 outline-none focus:border-zinc-600 text-sm font-mono tracking-widest">
+      <p class="text-xs text-zinc-600 mt-1">PIN de 6 dígitos configurado no número. Padrão: 123456.</p>
+    </div>
+
+    {# result area #}
+    <div id="registerResult" class="hidden mb-4 px-4 py-3 rounded-xl border text-sm max-h-60 overflow-y-auto"></div>
+
+    <div class="flex items-center justify-end gap-3">
+      <button onclick="closeRegisterModal()"
+              class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">
+        Cancelar
+      </button>
+      <button id="registerBtnSubmit" onclick="submitRegisterPhones()"
+              class="px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-semibold">
+        Registrar
       </button>
     </div>
   </div>
@@ -769,6 +851,105 @@ async function submitTrar() {
   } finally {
     btn.disabled = false;
     btn.textContent = "Disparar para todas";
+  }
+}
+
+// ── Register phones modal ─────────────────────────────────────────────────────
+let _registerWabaIds = [];
+
+function openRegisterModal() {
+  const checks = Array.from(document.querySelectorAll('input[name="waba_ids"]:checked'));
+  if (!checks.length) {
+    alert("Selecione pelo menos 1 WABA para registrar números.");
+    return;
+  }
+  _registerWabaIds = checks.map(c => c.value);
+
+  const list = document.getElementById("registerWabaList");
+  list.innerHTML = checks.map(c =>
+    `<span class="px-2 py-0.5 rounded-lg bg-emerald-950/50 border border-emerald-800/50 text-emerald-300 font-mono">
+      ${escHtml(c.dataset.wabaName || c.value)}
+    </span>`
+  ).join("");
+
+  document.getElementById("registerResult").classList.add("hidden");
+  document.getElementById("registerPin").value = "123456";
+
+  const bg = document.getElementById("registerModalBg");
+  bg.classList.remove("hidden");
+  bg.classList.add("flex");
+}
+
+function closeRegisterModal() {
+  const bg = document.getElementById("registerModalBg");
+  bg.classList.add("hidden");
+  bg.classList.remove("flex");
+  _registerWabaIds = [];
+}
+
+document.getElementById("registerModalBg")?.addEventListener("click", (e) => {
+  if (e.target.id === "registerModalBg") closeRegisterModal();
+});
+
+async function submitRegisterPhones() {
+  const pin = document.getElementById("registerPin").value.trim();
+  if (!pin) { alert("Informe o PIN."); return; }
+
+  const btn = document.getElementById("registerBtnSubmit");
+  btn.disabled = true;
+  btn.textContent = "Registrando…";
+
+  const resultBox = document.getElementById("registerResult");
+  resultBox.classList.add("hidden");
+
+  try {
+    const res = await fetch("{{ url_for('dashboard.register_phones') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ waba_ids: _registerWabaIds, pin }),
+    });
+    const data = await res.json();
+
+    if (!res.ok && data.error) {
+      resultBox.className = "mb-4 px-4 py-3 rounded-xl border text-sm max-h-60 overflow-y-auto bg-red-950/40 border-red-800 text-red-300";
+      resultBox.textContent = "Erro: " + data.error;
+      resultBox.classList.remove("hidden");
+      return;
+    }
+
+    const results = data.results || [];
+    const anyOk  = results.some(r => r.ok);
+    const anyErr = results.some(r => !r.ok);
+
+    let html = results.map(r => {
+      const icon  = r.ok ? "✓" : "✕";
+      const color = r.ok ? "text-emerald-400" : "text-red-400";
+      const phone = r.phone ? escHtml(r.phone) : escHtml(r.phone_id || r.waba_id);
+      return `
+        <div class="flex items-start gap-2 py-1 border-b border-zinc-800/50 last:border-0">
+          <span class="${color} font-bold text-xs mt-0.5">${icon}</span>
+          <div class="flex-1 min-w-0">
+            <div class="text-xs font-mono text-zinc-300">${phone}</div>
+            <div class="text-xs text-zinc-500 truncate">${escHtml(r.msg)}</div>
+          </div>
+          <span class="text-[10px] text-zinc-600 font-mono shrink-0">${escHtml(r.waba_id)}</span>
+        </div>`;
+    }).join("");
+
+    resultBox.className = "mb-4 px-4 py-3 rounded-xl border text-sm max-h-60 overflow-y-auto " +
+      (anyErr && !anyOk ? "bg-red-950/40 border-red-800" :
+       anyErr           ? "bg-zinc-900 border-zinc-700" :
+                          "bg-emerald-950/30 border-emerald-800/50");
+    resultBox.innerHTML = html || '<span class="text-zinc-500">Nenhum número pendente encontrado.</span>';
+    resultBox.classList.remove("hidden");
+
+  } catch(e) {
+    resultBox.className = "mb-4 px-4 py-3 rounded-xl border text-sm max-h-60 overflow-y-auto bg-red-950/40 border-red-800 text-red-300";
+    resultBox.textContent = "Erro de rede: " + e;
+    resultBox.classList.remove("hidden");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Registrar";
   }
 }
 </script>

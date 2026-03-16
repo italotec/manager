@@ -1,6 +1,5 @@
 import os
 import time
-from datetime import datetime
 from flask import (
     Blueprint,
     render_template,
@@ -29,6 +28,7 @@ from ..services.meta import (
     evaluate_health,
     pick_test_template,
     send_test_message,
+    register_number,
 )
 
 bp = Blueprint("dashboard", __name__)
@@ -109,6 +109,16 @@ def sync_now():
         prev_snap = data.get("snapshot", {}) or {}
         prev_name = prev_snap.get("waba_name") or "—"
 
+        # Statuses set by the external webhook tool — API sync must not overwrite them.
+        # Exception: "DESATIVADA" is NOT protected so the API can recover it to "OK"
+        # when the health check no longer shows it as disabled.
+        _WEBHOOK_PROTECTED = {"PERMANENTE", "ANALISANDO", "RESTRITA"}
+        current_status = prev_snap.get("status_label", "")
+
+        def _effective_status(api_status: str) -> str:
+            """Return api_status unless the current status is webhook-protected."""
+            return current_status if current_status in _WEBHOOK_PROTECTED else api_status
+
         if API_BLOCKED_MARK in all_errors:
             update_snapshot(
                 current_user.id,
@@ -117,7 +127,7 @@ def sync_now():
                 phone_numbers=[],
                 template_counts={"APPROVED": 0, "PAUSED": 0, "DISABLED": 0, "OTHER": 0},
                 last_error="",
-                status_label="Developers Travado",
+                status_label=_effective_status("Developers Travado"),
                 last_sync_at=int(time.time()),
             )
             blocked += 1
@@ -131,7 +141,7 @@ def sync_now():
                 phone_numbers=phones or [],
                 template_counts=templates_status_summary(templates or []),
                 last_error=all_errors[:900],
-                status_label="Erro",
+                status_label=_effective_status("Erro"),
                 last_sync_at=int(time.time()),
             )
             errors += 1
@@ -151,23 +161,9 @@ def sync_now():
                     health_label = "ERRO GENERIC"
 
         # ── tracking fields ──────────────────────────────────────────────
-        ever_erro_generic  = prev_snap.get("ever_had_erro_generic", False)
-        limitada_active    = prev_snap.get("limitada_cycle_active", False)
-        ultimo_disparo     = prev_snap.get("ultimo_disparo", "")
-
+        ever_erro_generic = prev_snap.get("ever_had_erro_generic", False)
         if health_label == "ERRO GENERIC":
             ever_erro_generic = True
-
-        if health_label == "LIMITADA":
-            if not limitada_active:
-                # First time entering LIMITADA in this cycle — record the datetime
-                ultimo_disparo  = datetime.now().strftime("%d/%m %H:%M")
-                limitada_active = True
-            # else: still LIMITADA, keep existing values
-        else:
-            # Any non-LIMITADA status resets the cycle so the next LIMITADA
-            # is treated as a new event
-            limitada_active = False
 
         update_snapshot(
             current_user.id,
@@ -176,11 +172,9 @@ def sync_now():
             phone_numbers=phones or [],
             template_counts=templates_status_summary(templates or []),
             last_error="",
-            status_label=health_label,
+            status_label=_effective_status(health_label),
             last_sync_at=int(time.time()),
             ever_had_erro_generic=ever_erro_generic,
-            limitada_cycle_active=limitada_active,
-            ultimo_disparo=ultimo_disparo,
         )
         synced += 1
 
@@ -310,8 +304,9 @@ def travar_start():
             template_name,
             template_language,
             param_map,
-            1,     # max_workers
-            False, # skip_log
+            1,        # max_workers
+            False,    # skip_log
+            waba_id,  # waba_id — used to stamp ultimo_disparo on finish
         )
         job_ids.append({
             "waba_id":  waba_id,
@@ -343,4 +338,75 @@ def delete_wabas():
 
     save_user_bms(current_user.id, bms)
     return jsonify({"deleted": deleted})
+
+
+@bp.route("/register-phones", methods=["POST"])
+@login_required
+def register_phones():
+    """
+    Register pending (non-CONNECTED) phone numbers for selected WABAs.
+    Expects JSON: { waba_ids: [...], pin: "123456" }
+    Returns JSON: { results: [{waba_id, phone_id, phone, ok, msg}, ...] }
+    """
+    payload = request.get_json(silent=True) or {}
+    waba_ids = payload.get("waba_ids") or []
+    pin = (payload.get("pin") or "123456").strip()
+
+    if not isinstance(waba_ids, list) or not waba_ids:
+        return jsonify({"error": "Selecione pelo menos 1 WABA."}), 400
+
+    api_version = current_app.config["META_API_VERSION"]
+    bms = load_user_bms(current_user.id)
+    results = []
+
+    for waba_id in waba_ids:
+        entry = bms.get(str(waba_id))
+        if not isinstance(entry, dict):
+            results.append({
+                "waba_id": waba_id, "phone_id": "", "phone": "",
+                "ok": False, "msg": "WABA não encontrada",
+            })
+            continue
+
+        token = (entry.get("token") or "").strip()
+        snap = entry.get("snapshot", {}) or {}
+        phone_numbers = snap.get("phone_numbers") or []
+
+        pending = [p for p in phone_numbers if (p.get("status") or "").upper() != "CONNECTED"]
+
+        if not pending:
+            results.append({
+                "waba_id": waba_id, "phone_id": "", "phone": "",
+                "ok": True, "msg": "Todos os números já estão registrados",
+            })
+            continue
+
+        for p in pending:
+            phone_id = p.get("id", "")
+            display = p.get("display_phone_number", phone_id)
+            try:
+                r = register_number(api_version, token, phone_id, pin, None)
+                try:
+                    j = r.json()
+                except Exception:
+                    j = {}
+                if r.status_code == 200 and j.get("success"):
+                    results.append({
+                        "waba_id": waba_id, "phone_id": phone_id, "phone": display,
+                        "ok": True, "msg": "Registrado com sucesso",
+                    })
+                else:
+                    err = j.get("error", {})
+                    msg = err.get("message") or f"HTTP {r.status_code}"
+                    results.append({
+                        "waba_id": waba_id, "phone_id": phone_id, "phone": display,
+                        "ok": False, "msg": msg,
+                    })
+            except Exception as e:
+                results.append({
+                    "waba_id": waba_id, "phone_id": phone_id, "phone": display,
+                    "ok": False, "msg": str(e)[:300],
+                })
+
+    return jsonify({"results": results})
 

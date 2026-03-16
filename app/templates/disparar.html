@@ -542,7 +542,8 @@ function collectFormData() {
   const max_workers = parseInt(document.getElementById("workersValue").value) || 1;
   const skip_log = document.getElementById("skipLog").checked;
 
-  return { csv_filename: selectedCsv, phone_col, phone_number_id, token, template_name, template_language, param_map, max_workers, skip_log };
+  const waba_id = wabaOpt.value || "";
+  return { csv_filename: selectedCsv, phone_col, phone_number_id, token, template_name, template_language, param_map, max_workers, skip_log, waba_id };
 }
 
 // ── start disparo ──────────────────────────────────────────────────────────

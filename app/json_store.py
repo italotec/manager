@@ -75,3 +75,21 @@ def update_snapshot(user_id: int, waba_id: str, **fields) -> None:
     entry["snapshot"] = snap
     data[key] = entry
     save_user_bms(user_id, data)
+
+
+def patch_snapshot(user_id: int, waba_id: str, **fields) -> None:
+    """Update specific snapshot fields without touching last_sync_at."""
+    data = load_user_bms(user_id)
+    key = str(waba_id).strip()
+    if key not in data or not isinstance(data.get(key), dict):
+        return
+
+    entry = data[key]
+    snap = entry.get("snapshot", {}) if isinstance(entry.get("snapshot"), dict) else {}
+
+    for k, v in fields.items():
+        snap[k] = v
+
+    entry["snapshot"] = snap
+    data[key] = entry
+    save_user_bms(user_id, data)

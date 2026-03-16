@@ -257,6 +257,7 @@ def start_disparo():
     max_workers       = int(data.get("max_workers") or 1)
     max_workers       = max(1, min(max_workers, 20))  # clamp 1–20
     skip_log          = bool(data.get("skip_log"))
+    waba_id           = (data.get("waba_id") or "").strip()
 
     if not all([csv_filename, phone_col, phone_number_id, token, template_name]):
         return jsonify({"error": "Campos obrigatórios faltando."}), 400
@@ -277,6 +278,7 @@ def start_disparo():
         param_map,
         max_workers,
         skip_log,
+        waba_id,
     )
     return jsonify({"job_id": job_id})
 
