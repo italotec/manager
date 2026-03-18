@@ -69,30 +69,45 @@ def _random_param_name(length: int = 7) -> str:
 
 # ── CSV / XLSX helpers ────────────────────────────────────────────────────────
 
-def _read_rows(path: str) -> list:
+def _read_rows(path: str, has_header: bool = True) -> list:
     """Read all rows as list of dicts. Supports .csv and .xlsx."""
     if path.lower().endswith(".xlsx"):
         import openpyxl
         wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
         ws = wb.active
         all_rows = list(ws.iter_rows(values_only=True))
+        wb.close()
         if not all_rows:
             return []
-        headers = [str(c) if c is not None else "" for c in all_rows[0]]
-        return [dict(zip(headers, [str(v) if v is not None else "" for v in row])) for row in all_rows[1:]]
+        if has_header:
+            headers = [str(c) if c is not None else "" for c in all_rows[0]]
+            data_rows = all_rows[1:]
+        else:
+            headers = [f"Coluna {i+1}" for i in range(len(all_rows[0]))]
+            data_rows = all_rows
+        return [dict(zip(headers, [str(v) if v is not None else "" for v in row])) for row in data_rows]
     else:
         with open(path, "r", encoding="utf-8-sig", newline="") as f:
-            return [dict(r) for r in csv.DictReader(f)]
+            raw = list(csv.reader(f))
+        if not raw:
+            return []
+        if has_header:
+            headers = raw[0]
+            data_rows = raw[1:]
+        else:
+            headers = [f"Coluna {i+1}" for i in range(len(raw[0]))]
+            data_rows = raw
+        return [dict(zip(headers, row)) for row in data_rows]
 
 
-def get_csv_columns(csv_path: str) -> list:
-    rows = _read_rows(csv_path)
+def get_csv_columns(csv_path: str, has_header: bool = True) -> list:
+    rows = _read_rows(csv_path, has_header=has_header)
     if not rows:
         return []
     return list(rows[0].keys())
 
-def get_csv_preview(csv_path: str, n: int = 3) -> list:
-    return _read_rows(csv_path)[:n]
+def get_csv_preview(csv_path: str, n: int = 3, has_header: bool = True) -> list:
+    return _read_rows(csv_path, has_header=has_header)[:n]
 
 
 # ── Meta API call (runs inside worker threads) ────────────────────────────────
@@ -147,7 +162,8 @@ def _run_disparo(app, job_id: int, user_id: int,
                  param_map: list,
                  max_workers: int = 1,
                  skip_log: bool = False,
-                 waba_id: str = ""):
+                 waba_id: str = "",
+                 has_header: bool = True):
     """
     Runs in a single daemon thread (the 'orchestrator').
     All counters live in RAM (_live_jobs). DB is only written at start and end.
@@ -194,7 +210,7 @@ def _run_disparo(app, job_id: int, user_id: int,
 
     # Read CSV / XLSX
     try:
-        rows = _read_rows(csv_path)
+        rows = _read_rows(csv_path, has_header=has_header)
     except Exception as exc:
         _finish("error", f"Erro ao ler arquivo: {exc}")
         return
@@ -288,7 +304,8 @@ def start_disparo_job(app, user_id: int, csv_filename: str,
                       param_map: list,
                       max_workers: int = 1,
                       skip_log: bool = False,
-                      waba_id: str = "") -> int:
+                      waba_id: str = "",
+                      has_header: bool = True) -> int:
     csv_path = os.path.join(csvs_dir(user_id), csv_filename)
 
     with app.app_context():
@@ -301,7 +318,7 @@ def start_disparo_job(app, user_id: int, csv_filename: str,
         target=_run_disparo,
         args=(app, job_id, user_id, csv_path, phone_col,
               phone_number_id, token, template_name, template_language,
-              param_map, max_workers, skip_log, waba_id),
+              param_map, max_workers, skip_log, waba_id, has_header),
         daemon=True,
     )
     t.start()

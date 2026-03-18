@@ -183,9 +183,10 @@ def csv_columns(filename):
     path = os.path.join(csvs_dir(current_user.id), fn)
     if not os.path.exists(path):
         return jsonify({"error": "not found"}), 404
+    has_header = request.args.get("has_header", "1") != "0"
     try:
-        cols = get_csv_columns(path)
-        preview = get_csv_preview(path, n=2)
+        cols = get_csv_columns(path, has_header=has_header)
+        preview = get_csv_preview(path, n=2, has_header=has_header)
         return jsonify({"columns": cols, "preview": preview})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
@@ -257,6 +258,7 @@ def start_disparo():
     max_workers       = max(1, min(max_workers, 20))  # clamp 1–20
     skip_log          = bool(data.get("skip_log"))
     waba_id           = (data.get("waba_id") or "").strip()
+    has_header        = data.get("has_header", True)
 
     if not all([csv_filename, phone_col, phone_number_id, token, template_name]):
         return jsonify({"error": "Campos obrigatórios faltando."}), 400
@@ -278,6 +280,7 @@ def start_disparo():
         max_workers,
         skip_log,
         waba_id,
+        has_header,
     )
     return jsonify({"job_id": job_id})
 
