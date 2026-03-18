@@ -67,21 +67,32 @@ def _random_param_name(length: int = 7) -> str:
     return first + rest
 
 
-# ── CSV helpers ───────────────────────────────────────────────────────────────
+# ── CSV / XLSX helpers ────────────────────────────────────────────────────────
+
+def _read_rows(path: str) -> list:
+    """Read all rows as list of dicts. Supports .csv and .xlsx."""
+    if path.lower().endswith(".xlsx"):
+        import openpyxl
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+        if not all_rows:
+            return []
+        headers = [str(c) if c is not None else "" for c in all_rows[0]]
+        return [dict(zip(headers, [str(v) if v is not None else "" for v in row])) for row in all_rows[1:]]
+    else:
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+            return [dict(r) for r in csv.DictReader(f)]
+
 
 def get_csv_columns(csv_path: str) -> list:
-    with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
-        return next(csv.reader(f), [])
+    rows = _read_rows(csv_path)
+    if not rows:
+        return []
+    return list(rows[0].keys())
 
 def get_csv_preview(csv_path: str, n: int = 3) -> list:
-    rows = []
-    with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
-        reader = csv.DictReader(f)
-        for i, row in enumerate(reader):
-            if i >= n:
-                break
-            rows.append(dict(row))
-    return rows
+    return _read_rows(csv_path)[:n]
 
 
 # ── Meta API call (runs inside worker threads) ────────────────────────────────
@@ -167,7 +178,7 @@ def _run_disparo(app, job_id: int, user_id: int,
         if waba_id and status in ("done", "stopped"):
             patch_snapshot(
                 user_id, waba_id,
-                ultimo_disparo=datetime.now().strftime("%d/%m %H:%M"),
+                ultimo_disparo=datetime.now(_SP).strftime("%d/%m %H:%M"),
             )
         _live_jobs.pop(job_id, None)
 
@@ -181,14 +192,11 @@ def _run_disparo(app, job_id: int, user_id: int,
         with open(sent_path, "r", encoding="utf-8") as f:
             already_sent = {ln.strip() for ln in f if ln.strip()}
 
-    # Read CSV
+    # Read CSV / XLSX
     try:
-        rows = []
-        with open(csv_path, "r", encoding="utf-8-sig", newline="") as f:
-            for row in csv.DictReader(f):
-                rows.append(dict(row))
+        rows = _read_rows(csv_path)
     except Exception as exc:
-        _finish("error", f"Erro ao ler CSV: {exc}")
+        _finish("error", f"Erro ao ler arquivo: {exc}")
         return
 
     if rows and phone_col not in rows[0]:

@@ -23,11 +23,12 @@ from ..services.disparar_service import (
     get_csv_preview,
     get_live_state,
     request_stop,
+    _read_rows,
 )
 
 bp = Blueprint("disparar", __name__)
 
-ALLOWED_EXT = {"csv"}
+ALLOWED_EXT = {"csv", "xlsx"}
 
 
 def _allowed(filename: str) -> bool:
@@ -95,20 +96,18 @@ def disparar_page():
 
     csv_files = []
     for fn in sorted(os.listdir(csv_d)):
-        if not fn.lower().endswith(".csv"):
+        if not fn.lower().endswith((".csv", ".xlsx")):
             continue
         path = os.path.join(csv_d, fn)
         try:
             cols = get_csv_columns(path)
             size = os.path.getsize(path)
-            # count rows + how many match sent_log
-            row_count = 0
-            sent_in_csv = 0
-            with open(path, "r", encoding="utf-8-sig", newline="") as f:
-                for row in _csv.DictReader(f):
-                    row_count += 1
-                    if any(str(v).strip() in sent_set for v in row.values()):
-                        sent_in_csv += 1
+            rows_data = _read_rows(path)
+            row_count = len(rows_data)
+            sent_in_csv = sum(
+                1 for row in rows_data
+                if any(str(v).strip() in sent_set for v in row.values())
+            )
         except Exception:
             cols = []
             size = 0
@@ -141,7 +140,7 @@ def disparar_page():
 def upload_csv():
     f = request.files.get("csv_file")
     if not f or not f.filename or not _allowed(f.filename):
-        flash("Arquivo inválido. Envie um .csv.", "error")
+        flash("Arquivo inválido. Envie um .csv ou .xlsx.", "error")
         return redirect(url_for("disparar.disparar_page"))
 
     fn = secure_filename(f.filename)
@@ -168,7 +167,7 @@ def csv_list():
     csv_d = csvs_dir(current_user.id)
     files = []
     for fn in sorted(os.listdir(csv_d)):
-        if fn.lower().endswith(".csv"):
+        if fn.lower().endswith((".csv", ".xlsx")):
             try:
                 cols = get_csv_columns(os.path.join(csv_d, fn))
             except Exception:
