@@ -211,14 +211,20 @@
             {{ n }}
           </button>
           {% endfor %}
+          <button type="button"
+                  onclick="setWorkers(0)"
+                  data-workers="0"
+                  class="workers-btn px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs font-mono transition-colors text-emerald-400">
+            MAX
+          </button>
           <div class="flex items-center gap-1">
-            <input id="workersCustom" type="number" min="1" max="20" step="1"
+            <input id="workersCustom" type="number" min="1" step="1"
                    placeholder="custom"
                    oninput="setWorkers(parseInt(this.value))"
                    class="w-20 px-2 py-2 rounded-xl bg-zinc-950 border border-zinc-700 outline-none focus:border-zinc-500 text-xs font-mono text-center" />
           </div>
         </div>
-        <p class="text-xs text-zinc-600 mt-1">Número de envios simultâneos (como o <code>max_workers</code> do ThreadPoolExecutor).</p>
+        <p class="text-xs text-zinc-600 mt-1">Número de envios simultâneos. MAX usa async I/O (aiohttp) — envia tudo de uma vez.</p>
         <input type="hidden" id="workersValue" value="1">
       </div>
 
@@ -494,7 +500,7 @@ function selectTemplate(name, rowEl) {
 // ── workers picker ─────────────────────────────────────────────────────────
 function setWorkers(val) {
   const v = parseInt(val);
-  if (isNaN(v) || v < 1) return;
+  if (isNaN(v) || v < 0) return;
   document.getElementById("workersValue").value = v;
   document.querySelectorAll(".workers-btn").forEach(btn => {
     const active = parseInt(btn.dataset.workers) === v;
@@ -555,7 +561,7 @@ function collectFormData() {
     if (nm) param_map.push({ name: nm, column: col });
   });
 
-  const max_workers = parseInt(document.getElementById("workersValue").value) || 1;
+  const max_workers = parseInt(document.getElementById("workersValue").value ?? "1");
   const skip_log = document.getElementById("skipLog").checked;
 
   const waba_id = wabaOpt.value || "";

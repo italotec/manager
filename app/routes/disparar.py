@@ -255,7 +255,8 @@ def start_disparo():
     template_language = (data.get("template_language") or "en").strip()
     param_map         = data.get("param_map", [])
     max_workers       = int(data.get("max_workers") or 1)
-    max_workers       = max(1, min(max_workers, 20))  # clamp 1–20
+    if max_workers != 0:
+        max_workers = max(1, min(max_workers, 500))  # 0 = async MAX mode
     skip_log          = bool(data.get("skip_log"))
     waba_id           = (data.get("waba_id") or "").strip()
     has_header        = data.get("has_header", True)

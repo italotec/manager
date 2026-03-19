@@ -1,6 +1,7 @@
 import os
 import json
 import csv
+import asyncio
 import threading
 import uuid
 import random
@@ -164,6 +165,86 @@ def _send_template(phone: str, phone_number_id: str, token: str,
         return False, f"Exceção: {str(exc)[:300]}"
 
 
+# ── async MAX mode ────────────────────────────────────────────────────────────
+
+async def _send_template_async(session, phone, phone_number_id, token,
+                               template_name, template_language, parameters, namespace):
+    url = f"https://graph.facebook.com/v23.0/{phone_number_id}/messages"
+    hdrs = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
+    components = []
+    if parameters:
+        components.append({
+            "type": "body",
+            "parameters": [
+                {"type": "text", "parameter_name": p["name"], "text": p["value"]}
+                for p in parameters
+            ],
+        })
+    payload = {
+        "messaging_product": "whatsapp",
+        "type": "template",
+        "to": phone,
+        "template": {
+            "namespace": namespace,
+            "name": template_name,
+            "language": {"code": template_language},
+            "components": components,
+        },
+    }
+    import aiohttp as _aiohttp
+    try:
+        async with session.post(url, headers=hdrs, json=payload,
+                                timeout=_aiohttp.ClientTimeout(total=30)) as r:
+            if r.status == 200:
+                return True, f"OK ({r.status})"
+            text = await r.text()
+            return False, f"Erro {r.status}: {text[:300]}"
+    except Exception as exc:
+        return False, f"Exceção: {str(exc)[:300]}"
+
+
+async def _run_async_jobs(state, pending, phone_col, phone_number_id, token,
+                          template_name, template_language, param_map, namespace,
+                          sent_path, log_path, skip_log):
+    import aiohttp as _aiohttp
+    sem = asyncio.Semaphore(300)
+
+    async with _aiohttp.ClientSession() as session:
+        async def _task(row):
+            async with sem:
+                if state["stop_requested"]:
+                    return
+                phone = str(row.get(phone_col, "")).strip()
+                if not phone:
+                    state["skipped"] += 1
+                    return
+                params = [
+                    {"name": pm["name"],
+                     "value": str(row.get(pm.get("column", ""), "")).strip()}
+                    for pm in param_map
+                ]
+                success, msg = await _send_template_async(
+                    session, phone, phone_number_id, token,
+                    template_name, template_language, params, namespace)
+                if success:
+                    state["sent"] += 1
+                    if not skip_log:
+                        with open(sent_path, "a", encoding="utf-8") as sf:
+                            sf.write(phone + "\n")
+                else:
+                    state["failed"] += 1
+                with open(log_path, "a", encoding="utf-8") as lf:
+                    lf.write(json.dumps({
+                        "ts":      datetime.now(_SP).strftime("%H:%M:%S"),
+                        "phone":   phone,
+                        "status":  "sent" if success else "failed",
+                        "message": msg,
+                    }, ensure_ascii=False) + "\n")
+                state["last_message"] = f"{'✓' if success else '✗'} {phone}: {msg}"
+
+        await asyncio.gather(*[_task(row) for row in pending])
+
+
 # ── background orchestrator ───────────────────────────────────────────────────
 
 def _run_disparo(app, job_id: int, user_id: int,
@@ -261,41 +342,52 @@ def _run_disparo(app, job_id: int, user_id: int,
 
     # ── main pool loop ─────────────────────────────────────────────────
     try:
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_map = {executor.submit(_worker, row): row for row in pending}
+        if max_workers == 0:
+            # MAX mode: async I/O via aiohttp — 300 concurrent requests, single OS thread
+            asyncio.run(_run_async_jobs(
+                state, pending, phone_col, phone_number_id, token,
+                template_name, template_language, param_map, namespace,
+                sent_path, log_path, skip_log,
+            ))
+            if state["stop_requested"]:
+                _finish("stopped", "Envio interrompido pelo usuário.")
+                return
+        else:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                future_map = {executor.submit(_worker, row): row for row in pending}
 
-            for future in as_completed(future_map):
-                if state["stop_requested"]:
-                    for f in future_map:
-                        f.cancel()
-                    _finish("stopped", "Envio interrompido pelo usuário.")
-                    return
+                for future in as_completed(future_map):
+                    if state["stop_requested"]:
+                        for f in future_map:
+                            f.cancel()
+                        _finish("stopped", "Envio interrompido pelo usuário.")
+                        return
 
-                try:
-                    phone, success, msg = future.result()
-                except Exception as exc:
-                    phone, success, msg = "?", False, str(exc)
+                    try:
+                        phone, success, msg = future.result()
+                    except Exception as exc:
+                        phone, success, msg = "?", False, str(exc)
 
-                if success is None:           # empty phone
-                    state["skipped"] += 1
-                elif success:
-                    state["sent"] += 1
-                    if not skip_log:
-                        with LOCK:
-                            with open(sent_path, "a", encoding="utf-8") as sf:
-                                sf.write(phone + "\n")
-                else:
-                    state["failed"] += 1
+                    if success is None:           # empty phone
+                        state["skipped"] += 1
+                    elif success:
+                        state["sent"] += 1
+                        if not skip_log:
+                            with LOCK:
+                                with open(sent_path, "a", encoding="utf-8") as sf:
+                                    sf.write(phone + "\n")
+                    else:
+                        state["failed"] += 1
 
-                _append_log({
-                    "ts":      datetime.now(_SP).strftime("%H:%M:%S"),
-                    "phone":   phone,
-                    "status":  "sent" if success else "failed",
-                    "message": msg,
-                })
+                    _append_log({
+                        "ts":      datetime.now(_SP).strftime("%H:%M:%S"),
+                        "phone":   phone,
+                        "status":  "sent" if success else "failed",
+                        "message": msg,
+                    })
 
-                icon = "✓" if success else "✗"
-                state["last_message"] = f"{icon} {phone}: {msg}"
+                    icon = "✓" if success else "✗"
+                    state["last_message"] = f"{icon} {phone}: {msg}"
 
     except Exception as exc:
         _finish("error", f"Erro inesperado: {str(exc)[:300]}")
