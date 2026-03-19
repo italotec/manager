@@ -1,4 +1,5 @@
 import os
+import sys
 import json
 import csv
 import asyncio
@@ -207,11 +208,11 @@ async def _run_async_jobs(state, pending, phone_col, phone_number_id, token,
                           template_name, template_language, param_map, namespace,
                           sent_path, log_path, skip_log):
     import aiohttp as _aiohttp
-    sem = asyncio.Semaphore(300)
+    sem = asyncio.Semaphore(500)
     # Collect results in memory — no file I/O inside coroutines (would block event loop)
     results = []  # list of (phone, success, msg, ts)
 
-    connector = _aiohttp.TCPConnector(limit=300, limit_per_host=300)
+    connector = _aiohttp.TCPConnector(limit=500, limit_per_host=500)
     async with _aiohttp.ClientSession(connector=connector) as session:
         async def _task(row):
             async with sem:
@@ -354,12 +355,26 @@ def _run_disparo(app, job_id: int, user_id: int,
     # ── main pool loop ─────────────────────────────────────────────────
     try:
         if max_workers == 0:
-            # MAX mode: async I/O via aiohttp — 300 concurrent requests, single OS thread
-            asyncio.run(_run_async_jobs(
-                state, pending, phone_col, phone_number_id, token,
-                template_name, template_language, param_map, namespace,
-                sent_path, log_path, skip_log,
-            ))
+            # MAX mode: async I/O via aiohttp — 500 concurrent requests, single OS thread
+            # Use SelectorEventLoop on Windows (more compatible with aiohttp than ProactorEventLoop)
+            if sys.platform == "win32":
+                _loop = asyncio.SelectorEventLoop()
+                asyncio.set_event_loop(_loop)
+                try:
+                    _loop.run_until_complete(_run_async_jobs(
+                        state, pending, phone_col, phone_number_id, token,
+                        template_name, template_language, param_map, namespace,
+                        sent_path, log_path, skip_log,
+                    ))
+                finally:
+                    _loop.close()
+                    asyncio.set_event_loop(None)
+            else:
+                asyncio.run(_run_async_jobs(
+                    state, pending, phone_col, phone_number_id, token,
+                    template_name, template_language, param_map, namespace,
+                    sent_path, log_path, skip_log,
+                ))
             if state["stop_requested"]:
                 _finish("stopped", "Envio interrompido pelo usuário.")
                 return

@@ -502,6 +502,7 @@ function setWorkers(val) {
   const v = parseInt(val);
   if (isNaN(v) || v < 0) return;
   document.getElementById("workersValue").value = v;
+  if (v === 0) document.getElementById("workersCustom").value = "";
   document.querySelectorAll(".workers-btn").forEach(btn => {
     const active = parseInt(btn.dataset.workers) === v;
     btn.classList.toggle("bg-indigo-700",    active);
