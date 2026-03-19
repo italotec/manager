@@ -208,8 +208,11 @@ async def _run_async_jobs(state, pending, phone_col, phone_number_id, token,
                           sent_path, log_path, skip_log):
     import aiohttp as _aiohttp
     sem = asyncio.Semaphore(300)
+    # Collect results in memory — no file I/O inside coroutines (would block event loop)
+    results = []  # list of (phone, success, msg, ts)
 
-    async with _aiohttp.ClientSession() as session:
+    connector = _aiohttp.TCPConnector(limit=300, limit_per_host=300)
+    async with _aiohttp.ClientSession(connector=connector) as session:
         async def _task(row):
             async with sem:
                 if state["stop_requested"]:
@@ -226,23 +229,31 @@ async def _run_async_jobs(state, pending, phone_col, phone_number_id, token,
                 success, msg = await _send_template_async(
                     session, phone, phone_number_id, token,
                     template_name, template_language, params, namespace)
+                ts = datetime.now(_SP).strftime("%H:%M:%S")
+                results.append((phone, success, msg, ts))
+                # update in-memory counters (asyncio is single-threaded — no races)
                 if success:
                     state["sent"] += 1
-                    if not skip_log:
-                        with open(sent_path, "a", encoding="utf-8") as sf:
-                            sf.write(phone + "\n")
                 else:
                     state["failed"] += 1
-                with open(log_path, "a", encoding="utf-8") as lf:
-                    lf.write(json.dumps({
-                        "ts":      datetime.now(_SP).strftime("%H:%M:%S"),
-                        "phone":   phone,
-                        "status":  "sent" if success else "failed",
-                        "message": msg,
-                    }, ensure_ascii=False) + "\n")
                 state["last_message"] = f"{'✓' if success else '✗'} {phone}: {msg}"
 
         await asyncio.gather(*[_task(row) for row in pending])
+
+    # Batch write all logs after all requests complete
+    if results:
+        if not skip_log:
+            sent_phones = [p for p, ok, _, _ in results if ok]
+            if sent_phones:
+                with open(sent_path, "a", encoding="utf-8") as sf:
+                    sf.write("\n".join(sent_phones) + "\n")
+        with open(log_path, "a", encoding="utf-8") as lf:
+            for phone, success, msg, ts in results:
+                lf.write(json.dumps({
+                    "ts": ts, "phone": phone,
+                    "status": "sent" if success else "failed",
+                    "message": msg,
+                }, ensure_ascii=False) + "\n")
 
 
 # ── background orchestrator ───────────────────────────────────────────────────
