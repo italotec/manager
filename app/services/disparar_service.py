@@ -11,12 +11,23 @@ from zoneinfo import ZoneInfo
 _SP = ZoneInfo("America/Sao_Paulo")
 
 import requests
+from requests.adapters import HTTPAdapter
 
 from .. import db
 from ..models import DisparoJob
 from ..json_store import patch_snapshot
 
 LOCK = threading.Lock()
+_tls = threading.local()
+
+
+def _get_session() -> requests.Session:
+    """One persistent HTTP session per worker thread — avoids shared pool contention."""
+    if not hasattr(_tls, "session"):
+        s = requests.Session()
+        s.mount("https://", HTTPAdapter(pool_connections=1, pool_maxsize=1))
+        _tls.session = s
+    return _tls.session
 
 # ── in-memory job state (no DB during sending) ───────────────────────────────
 # {job_id: {status, total, sent, failed, skipped, last_message, stop_requested}}
@@ -145,7 +156,7 @@ def _send_template(phone: str, phone_number_id: str, token: str,
     }
 
     try:
-        r = requests.post(api_url, headers=headers, json=payload, timeout=30)
+        r = _get_session().post(api_url, headers=headers, json=payload, timeout=30)
         if r.status_code == 200:
             return True, f"OK ({r.status_code})"
         return False, f"Erro {r.status_code}: {r.text[:300]}"
