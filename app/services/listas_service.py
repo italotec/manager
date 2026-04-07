@@ -141,13 +141,14 @@ def _xlsx_stream_info(
     headers: list[str] = []
     row_count = 0
     preview: list[dict] = []
+    row_idx = 0  # 1-based counter by iteration order, not by <row r=""> attribute
 
     with zf.open(sheet_path) as f:
         for _, elem in ET.iterparse(f, events=("end",)):
             if elem.tag != f"{NS}row":
                 elem.clear()
                 continue
-            r = int(elem.get("r", 0))
+            row_idx += 1
             cells: dict[str, str] = {}
             for c in elem:
                 col_ref = re.sub(r"\d+", "", c.get("r", ""))
@@ -155,7 +156,7 @@ def _xlsx_stream_info(
                     cells[col_ref] = cell_value(c)
             values = [cells[c] for c in sorted(cells, key=_col_index)]
 
-            if r == 1:
+            if row_idx == 1:
                 headers = values
             else:
                 row_count += 1
@@ -194,19 +195,20 @@ def _read_file(path: str) -> tuple[list[dict], str]:
 
             headers: list[str] = []
             rows: list[dict] = []
+            row_idx = 0
             with zf.open(sheet_path) as f:
                 for _, elem in ET.iterparse(f, events=("end",)):
                     if elem.tag != f"{NS}row":
                         elem.clear()
                         continue
-                    r = int(elem.get("r", 0))
+                    row_idx += 1
                     cells: dict[str, str] = {}
                     for c in elem:
                         col_ref = re.sub(r"\d+", "", c.get("r", ""))
                         if col_ref:
                             cells[col_ref] = cell_value(c)
                     values = [cells[c] for c in sorted(cells, key=_col_index)]
-                    if r == 1:
+                    if row_idx == 1:
                         headers = values
                     elif headers:
                         rows.append(dict(zip(headers, values[:len(headers)])))
