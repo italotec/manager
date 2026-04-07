@@ -186,33 +186,55 @@ def _read_file_info(
     ext = os.path.splitext(path)[1].lower()
     if ext == ".xlsx":
         import zipfile
-        from openpyxl import load_workbook
+        import xml.etree.ElementTree as ET
+        NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
-        # Read headers + preview using openpyxl read_only (handles all xlsx variants).
-        # Always stops after preview_rows data rows — fast for both endpoints.
-        headers: list[str] = []
-        preview: list[dict] = []
-        wb = load_workbook(path, read_only=True, data_only=True)
-        try:
-            ws = wb.active
-            data_rows_seen = 0
-            for row_idx, row in enumerate(ws.iter_rows(values_only=True)):
-                if row_idx == 0:
-                    headers = [str(v) if v is not None else "" for v in row]
-                else:
-                    data_rows_seen += 1
-                    if data_rows_seen <= preview_rows:
-                        values = [str(v) if v is not None else "" for v in row]
-                        preview.append(dict(zip(headers, values[:len(headers)])))
-                    if data_rows_seen >= preview_rows:
-                        break
-        finally:
-            wb.close()
+        def cell_value(c_elem) -> str:
+            t = c_elem.get("t", "")
+            v = c_elem.find(f"{NS}v")
+            if t == "s":
+                return sst[int(v.text)] if v is not None and v.text and int(v.text) < len(sst) else ""
+            if t == "inlineStr":
+                is_e = c_elem.find(f"{NS}is")
+                return "".join(x.text or "" for x in is_e.findall(f".//{NS}t")) if is_e is not None else ""
+            return (v.text or "") if v is not None else ""
 
-        # Row count via fast byte scan (no XML parsing).
         with zipfile.ZipFile(path, "r") as zf:
+            sst = _xlsx_read_sst(zf)
             sheet_path = _xlsx_best_sheet(zf)
-            row_count = _xlsx_count_rows(zf, sheet_path) if sheet_path else 0
+            if sheet_path is None:
+                return [], 0, []
+
+            headers: list[str] = []
+            preview: list[dict] = []
+            row_idx = 0
+            data_rows_seen = 0
+
+            with zf.open(sheet_path) as f:
+                for _, elem in ET.iterparse(f, events=("end",)):
+                    if elem.tag != f"{NS}row":
+                        continue  # do NOT clear here — cells are children of row
+                    row_idx += 1
+                    cells: dict[str, str] = {}
+                    for c in elem:
+                        if c.tag != f"{NS}c":
+                            continue
+                        col_ref = re.sub(r"\d+", "", c.get("r", ""))
+                        if col_ref:
+                            cells[col_ref] = cell_value(c)
+                    values = [cells[c] for c in sorted(cells, key=_col_index)]
+                    if row_idx == 1:
+                        headers = values
+                    else:
+                        data_rows_seen += 1
+                        if data_rows_seen <= preview_rows:
+                            preview.append(dict(zip(headers, values[:len(headers)])))
+                        if data_rows_seen >= preview_rows:
+                            elem.clear()
+                            break
+                    elem.clear()
+
+            row_count = _xlsx_count_rows(zf, sheet_path)
 
         return headers, row_count, preview
     else:
