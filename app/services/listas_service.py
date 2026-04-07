@@ -107,7 +107,7 @@ def _xlsx_best_sheet(zf) -> str | None:
     best, best_cnt = sheet_paths[0], -1
     for sp in sheet_paths:
         with zf.open(sp) as f:
-            cnt = sum(chunk.count(b"<row") for chunk in iter(lambda: f.read(65536), b""))
+            cnt = sum(chunk.count(b"<row ") for chunk in iter(lambda: f.read(65536), b""))
         if cnt > best_cnt:
             best_cnt, best = cnt, sp
     return best
@@ -116,57 +116,9 @@ def _xlsx_best_sheet(zf) -> str | None:
 def _xlsx_count_rows(zf, sheet_path: str) -> int:
     """Count data rows (excluding header) by scanning for <row  bytes."""
     with zf.open(sheet_path) as f:
-        total = sum(chunk.count(b"<row") for chunk in iter(lambda: f.read(65536), b""))
+        total = sum(chunk.count(b"<row ") for chunk in iter(lambda: f.read(65536), b""))
     return max(0, total - 1)  # subtract header row
 
-
-def _xlsx_stream_info(
-    zf, sheet_path: str, sst: list[str], preview_rows: int, stop_after_preview: bool
-) -> tuple[list[str], int, list[dict]]:
-    """Stream a worksheet XML, collecting headers + preview. Optionally stops early."""
-    import xml.etree.ElementTree as ET
-    NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
-
-    def cell_value(c_elem) -> str:
-        t = c_elem.get("t", "")
-        v = c_elem.find(f"{NS}v")
-        if t == "s":  # shared string index
-            return sst[int(v.text)] if v is not None and v.text and int(v.text) < len(sst) else ""
-        if t == "inlineStr":
-            is_e = c_elem.find(f"{NS}is")
-            return "".join(x.text or "" for x in is_e.findall(f".//{NS}t")) if is_e is not None else ""
-        # t="str" (formula result), number, date, bool
-        return (v.text or "") if v is not None else ""
-
-    headers: list[str] = []
-    row_count = 0
-    preview: list[dict] = []
-    row_idx = 0  # 1-based counter by iteration order, not by <row r=""> attribute
-
-    with zf.open(sheet_path) as f:
-        for _, elem in ET.iterparse(f, events=("end",)):
-            if elem.tag != f"{NS}row":
-                continue
-            row_idx += 1
-            cells: dict[str, str] = {}
-            for c in elem:
-                col_ref = re.sub(r"\d+", "", c.get("r", ""))
-                if col_ref:
-                    cells[col_ref] = cell_value(c)
-            values = [cells[c] for c in sorted(cells, key=_col_index)]
-
-            if row_idx == 1:
-                headers = values
-            else:
-                row_count += 1
-                if row_count <= preview_rows:
-                    preview.append(dict(zip(headers, values[:len(headers)])))
-                if stop_after_preview and row_count >= preview_rows:
-                    elem.clear()
-                    break
-            elem.clear()
-
-    return headers, row_count, preview
 
 
 def _read_file(path: str) -> tuple[list[dict], str]:
@@ -234,18 +186,34 @@ def _read_file_info(
     ext = os.path.splitext(path)[1].lower()
     if ext == ".xlsx":
         import zipfile
+        from openpyxl import load_workbook
+
+        # Read headers + preview using openpyxl read_only (handles all xlsx variants).
+        # Always stops after preview_rows data rows — fast for both endpoints.
+        headers: list[str] = []
+        preview: list[dict] = []
+        wb = load_workbook(path, read_only=True, data_only=True)
+        try:
+            ws = wb.active
+            data_rows_seen = 0
+            for row_idx, row in enumerate(ws.iter_rows(values_only=True)):
+                if row_idx == 0:
+                    headers = [str(v) if v is not None else "" for v in row]
+                else:
+                    data_rows_seen += 1
+                    if data_rows_seen <= preview_rows:
+                        values = [str(v) if v is not None else "" for v in row]
+                        preview.append(dict(zip(headers, values[:len(headers)])))
+                    if data_rows_seen >= preview_rows:
+                        break
+        finally:
+            wb.close()
+
+        # Row count via fast byte scan (no XML parsing).
         with zipfile.ZipFile(path, "r") as zf:
-            sst = _xlsx_read_sst(zf)
             sheet_path = _xlsx_best_sheet(zf)
-            if sheet_path is None:
-                return [], 0, []
-            headers, scanned_count, preview = _xlsx_stream_info(
-                zf, sheet_path, sst, preview_rows, stop_after_preview
-            )
-            if stop_after_preview:
-                row_count = _xlsx_count_rows(zf, sheet_path)
-            else:
-                row_count = scanned_count
+            row_count = _xlsx_count_rows(zf, sheet_path) if sheet_path else 0
+
         return headers, row_count, preview
     else:
         with open(path, "r", encoding="utf-8-sig", newline="") as f:
