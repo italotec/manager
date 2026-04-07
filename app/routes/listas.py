@@ -15,7 +15,6 @@ from ..services.listas_service import (
     result_path,
     get_live_state,
     request_stop,
-    _read_file,
     _read_file_info,
 )
 
@@ -48,7 +47,7 @@ def listas_page():
             continue
         path = os.path.join(d, fn)
         try:
-            columns, row_count = _read_file_info(path)
+            columns, row_count, _ = _read_file_info(path)
         except Exception:
             row_count = 0
             columns = []
@@ -103,9 +102,7 @@ def file_columns(filename):
     if not os.path.exists(path):
         return jsonify({"error": "not found"}), 404
     try:
-        columns, _ = _read_file_info(path)
-        rows, _ = _read_file(path)
-        preview = rows[:2]
+        columns, _, preview = _read_file_info(path)
         return jsonify({"columns": columns, "preview": preview})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500

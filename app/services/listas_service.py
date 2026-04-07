@@ -98,10 +98,11 @@ def _read_file(path: str) -> tuple[list[dict], str]:
         return rows, ".csv"
 
 
-def _read_file_info(path: str) -> tuple[list[str], int]:
+def _read_file_info(path: str, preview_rows: int = 2) -> tuple[list[str], int, list[dict]]:
     """
-    Efficiently return (column_names, row_count) without loading all data
-    into memory. Used for the file listing on the main page.
+    Efficiently return (column_names, row_count, preview) by streaming the file.
+    Never loads more than `preview_rows` data rows into memory before counting.
+    Used for the file listing and column-picker endpoint.
     """
     ext = os.path.splitext(path)[1].lower()
     if ext == ".xlsx":
@@ -109,31 +110,39 @@ def _read_file_info(path: str) -> tuple[list[str], int]:
         wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
         ws = wb.active
         if ws is None:
-            # Fallback: open without read_only
             wb.close()
+            # Fallback: open without read_only
             wb = openpyxl.load_workbook(path, data_only=True)
             ws = wb.active
         if ws is None:
             wb.close()
-            return [], 0
+            return [], 0, []
         headers: list[str] = []
         row_count = 0
+        preview: list[dict] = []
         for i, row in enumerate(ws.iter_rows(values_only=True)):
             if i == 0:
                 headers = [str(c) if c is not None else "" for c in row]
             else:
                 row_count += 1
+                if row_count <= preview_rows:
+                    preview.append(dict(zip(headers, [str(v) if v is not None else "" for v in row])))
         wb.close()
-        return headers, row_count
+        return headers, row_count, preview
     else:
         with open(path, "r", encoding="utf-8-sig", newline="") as f:
             reader = csv.reader(f)
             headers_row = next(reader, None)
             if headers_row is None:
-                return [], 0
+                return [], 0, []
             headers = headers_row
-            row_count = sum(1 for _ in reader)
-        return headers, row_count
+            row_count = 0
+            preview = []
+            for row in reader:
+                row_count += 1
+                if row_count <= preview_rows:
+                    preview.append(dict(zip(headers, row)))
+        return headers, row_count, preview
 
 
 def _write_file(rows: list[dict], path: str, ext: str) -> None:
