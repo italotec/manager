@@ -107,7 +107,7 @@ def _xlsx_best_sheet(zf) -> str | None:
     best, best_cnt = sheet_paths[0], -1
     for sp in sheet_paths:
         with zf.open(sp) as f:
-            cnt = sum(chunk.count(b"<row ") for chunk in iter(lambda: f.read(65536), b""))
+            cnt = sum(chunk.count(b"<row") for chunk in iter(lambda: f.read(65536), b""))
         if cnt > best_cnt:
             best_cnt, best = cnt, sp
     return best
@@ -116,7 +116,7 @@ def _xlsx_best_sheet(zf) -> str | None:
 def _xlsx_count_rows(zf, sheet_path: str) -> int:
     """Count data rows (excluding header) by scanning for <row  bytes."""
     with zf.open(sheet_path) as f:
-        total = sum(chunk.count(b"<row ") for chunk in iter(lambda: f.read(65536), b""))
+        total = sum(chunk.count(b"<row") for chunk in iter(lambda: f.read(65536), b""))
     return max(0, total - 1)  # subtract header row
 
 
@@ -146,7 +146,6 @@ def _xlsx_stream_info(
     with zf.open(sheet_path) as f:
         for _, elem in ET.iterparse(f, events=("end",)):
             if elem.tag != f"{NS}row":
-                elem.clear()
                 continue
             row_idx += 1
             cells: dict[str, str] = {}
@@ -199,7 +198,6 @@ def _read_file(path: str) -> tuple[list[dict], str]:
             with zf.open(sheet_path) as f:
                 for _, elem in ET.iterparse(f, events=("end",)):
                     if elem.tag != f"{NS}row":
-                        elem.clear()
                         continue
                     row_idx += 1
                     cells: dict[str, str] = {}
