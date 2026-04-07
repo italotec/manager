@@ -228,6 +228,14 @@
         <input type="hidden" id="workersValue" value="1">
       </div>
 
+      <div class="mt-3">
+        <label class="text-xs text-zinc-400 font-medium">Limite de leads</label>
+        <input id="maxLeadsInput" type="number" min="1" step="1"
+               placeholder="sem limite"
+               class="mt-1 w-36 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-700 outline-none focus:border-zinc-500 text-xs font-mono text-center" />
+        <p class="text-xs text-zinc-600 mt-1">Máximo de leads a enviar neste disparo. Vazio = todos.</p>
+      </div>
+
       <div class="mt-2">
         <label class="flex items-center gap-2 cursor-pointer text-sm text-zinc-300">
           <input type="checkbox" id="skipLog" class="accent-amber-500 w-4 h-4">
@@ -563,11 +571,13 @@ function collectFormData() {
   });
 
   const max_workers = parseInt(document.getElementById("workersValue").value ?? "1");
+  const _ml = parseInt(document.getElementById("maxLeadsInput").value);
+  const max_leads = isNaN(_ml) || _ml < 1 ? 0 : _ml;
   const skip_log = document.getElementById("skipLog").checked;
 
   const waba_id = wabaOpt.value || "";
   const has_header = !document.getElementById("noHeaderCheck").checked;
-  return { csv_filename: selectedCsv, phone_col, phone_number_id, token, template_name, template_language, param_map, max_workers, skip_log, waba_id, has_header };
+  return { csv_filename: selectedCsv, phone_col, phone_number_id, token, template_name, template_language, param_map, max_workers, max_leads, skip_log, waba_id, has_header };
 }
 
 // ── start disparo ──────────────────────────────────────────────────────────

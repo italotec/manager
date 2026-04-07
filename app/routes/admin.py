@@ -5,7 +5,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 import requests as _requests
 from .. import db
-from ..models import User, BalanceTx, Waba, Proxy
+from ..models import User, BalanceTx, Waba, Proxy, AppSetting
 from ..json_store import ensure_user_bms_file
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -260,3 +260,44 @@ def proxy_test(proxy_id: int):
         return jsonify({"ok": True, "ip": data.get("ip", "?")})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)[:200]})
+
+
+# ── Listas webhook config ─────────────────────────────────────────────────────
+
+_LISTAS_KEYS = [
+    "listas_waba_token",
+    "listas_phone_number_id",
+    "listas_template_name",
+    "listas_template_language",
+    "listas_template_body",
+    "listas_batch_size",
+    "listas_country_code",
+    "listas_webhook_wait",
+    "listas_webhook_poll_attempts",
+    "listas_webhook_poll_interval",
+]
+
+
+@bp.route("/listas-config", methods=["GET"])
+@login_required
+def listas_config():
+    cfg = {}
+    for key in _LISTAS_KEYS:
+        row = db.session.get(AppSetting, key)
+        cfg[key] = row.value if row else ""
+    return render_template("admin_listas_config.html", cfg=cfg)
+
+
+@bp.route("/listas-config", methods=["POST"])
+@login_required
+def listas_config_save():
+    for key in _LISTAS_KEYS:
+        value = (request.form.get(key) or "").strip()
+        row = db.session.get(AppSetting, key)
+        if row:
+            row.value = value
+        else:
+            db.session.add(AppSetting(key=key, value=value))
+    db.session.commit()
+    flash("Configuração de Listas salva.", "success")
+    return redirect(url_for("admin.listas_config"))

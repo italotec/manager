@@ -267,7 +267,8 @@ def _run_disparo(app, job_id: int, user_id: int,
                  max_workers: int = 1,
                  skip_log: bool = False,
                  waba_id: str = "",
-                 has_header: bool = True):
+                 has_header: bool = True,
+                 max_leads: int = 0):
     """
     Runs in a single daemon thread (the 'orchestrator').
     All counters live in RAM (_live_jobs). DB is only written at start and end.
@@ -324,6 +325,9 @@ def _run_disparo(app, job_id: int, user_id: int,
         return
 
     pending = [r for r in rows if str(r.get(phone_col, "")).strip() not in already_sent]
+
+    if max_leads > 0:
+        pending = pending[:max_leads]
 
     state["total"] = len(rows)
     state["skipped"] = len(rows) - len(pending)
@@ -434,7 +438,8 @@ def start_disparo_job(app, user_id: int, csv_filename: str,
                       max_workers: int = 1,
                       skip_log: bool = False,
                       waba_id: str = "",
-                      has_header: bool = True) -> int:
+                      has_header: bool = True,
+                      max_leads: int = 0) -> int:
     csv_path = os.path.join(csvs_dir(user_id), csv_filename)
 
     with app.app_context():
@@ -447,7 +452,7 @@ def start_disparo_job(app, user_id: int, csv_filename: str,
         target=_run_disparo,
         args=(app, job_id, user_id, csv_path, phone_col,
               phone_number_id, token, template_name, template_language,
-              param_map, max_workers, skip_log, waba_id, has_header),
+              param_map, max_workers, skip_log, waba_id, has_header, max_leads),
         daemon=True,
     )
     t.start()

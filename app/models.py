@@ -98,6 +98,23 @@ class DisparoJob(db.Model):
     created_at = db.Column(db.DateTime, default=_now_sp, nullable=False)
 
 
+class ListaJob(db.Model):
+    id            = db.Column(db.Integer, primary_key=True)
+    user_id       = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    status        = db.Column(db.String(32), default="queued", nullable=False)   # queued/running/done/error/stopped
+    mode          = db.Column(db.String(16), default="dedup_validate", nullable=False)  # dedup_only / dedup_validate
+    original_file = db.Column(db.String(255), default="", nullable=False)
+    phone_column  = db.Column(db.String(128), default="", nullable=False)
+    total         = db.Column(db.Integer, default=0, nullable=False)
+    has_whatsapp  = db.Column(db.Integer, default=0, nullable=False)
+    no_whatsapp   = db.Column(db.Integer, default=0, nullable=False)
+    errors        = db.Column(db.Integer, default=0, nullable=False)
+    max_workers   = db.Column(db.Integer, default=30, nullable=False)
+    last_message  = db.Column(db.Text, default="", nullable=False)
+    stop_requested = db.Column(db.Boolean, default=False, nullable=False)
+    created_at    = db.Column(db.DateTime, default=_now_sp, nullable=False)
+
+
 class ChatMessage(db.Model):
     id              = db.Column(db.Integer,     primary_key=True)
     waba_id         = db.Column(db.String(64),  nullable=False, index=True)

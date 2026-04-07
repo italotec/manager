@@ -24,6 +24,7 @@ def create_app():
     from .routes.disparar import bp as disparar_bp
     from .routes.waba_detail import bp as waba_detail_bp
     from .routes.webhook import bp as webhook_bp
+    from .routes.listas import bp as listas_bp
 
     app.register_blueprint(billing_bp)
     app.register_blueprint(auth_bp)
@@ -34,6 +35,7 @@ def create_app():
     app.register_blueprint(disparar_bp)
     app.register_blueprint(waba_detail_bp)
     app.register_blueprint(webhook_bp)
+    app.register_blueprint(listas_bp)
 
     # Make balance available to all templates
     @app.context_processor
@@ -60,12 +62,16 @@ def create_app():
         db.session.commit()
 
         # Clean up jobs that were left "running"/"queued" by a previous restart
-        from .models import DisparoJob
+        from .models import DisparoJob, ListaJob
         stuck = DisparoJob.query.filter(DisparoJob.status.in_(["running", "queued"])).all()
         for j in stuck:
             j.status = "stopped"
             j.last_message = "Interrompido: servidor reiniciou."
-        if stuck:
+        stuck_listas = ListaJob.query.filter(ListaJob.status.in_(["running", "queued"])).all()
+        for j in stuck_listas:
+            j.status = "stopped"
+            j.last_message = "Interrompido: servidor reiniciou."
+        if stuck or stuck_listas:
             db.session.commit()
 
         # Seed admin df/df

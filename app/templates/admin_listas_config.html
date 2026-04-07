@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-start justify-between gap-4 mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold">Admin · Listas Config</h1>
+    <p class="text-sm text-zinc-400">Configuração do WABA e template usado para validação de WhatsApp.</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('admin.admin_users') }}"
+       class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors shrink-0">
+      Usuários
+    </a>
+    <a href="{{ url_for('admin.proxies') }}"
+       class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors shrink-0">
+      Proxies
+    </a>
+    <a href="{{ url_for('admin.webhook_logs') }}"
+       class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors shrink-0">
+      Webhook Logs
+    </a>
+  </div>
+</div>
+
+<form method="POST" action="{{ url_for('admin.listas_config_save') }}">
+  <div class="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-6 mb-6 space-y-4">
+
+    <div class="grid md:grid-cols-2 gap-4">
+
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Token do WABA (Bearer)</label>
+        <input name="listas_waba_token"
+               value="{{ cfg.get('listas_waba_token', '') }}"
+               placeholder="EAAYWa..."
+               class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono">
+        <div class="text-xs text-zinc-500 mt-1">Token da WABA usada para enviar mensagens de validação.</div>
+      </div>
+
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Phone Number ID</label>
+        <input name="listas_phone_number_id"
+               value="{{ cfg.get('listas_phone_number_id', '') }}"
+               placeholder="1006821585852621"
+               class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono">
+        <div class="text-xs text-zinc-500 mt-1">ID do número de telefone registrado na Meta.</div>
+      </div>
+
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Nome do Template</label>
+        <input name="listas_template_name"
+               value="{{ cfg.get('listas_template_name', 'atualizacao_cadastro') }}"
+               placeholder="atualizacao_cadastro"
+               class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm">
+      </div>
+
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Idioma do Template</label>
+        <input name="listas_template_language"
+               value="{{ cfg.get('listas_template_language', 'en') }}"
+               placeholder="en"
+               class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm">
+        <div class="text-xs text-zinc-500 mt-1">ex: <code>en</code>, <code>pt_BR</code></div>
+      </div>
+
+      <div class="md:col-span-2">
+        <label class="block text-xs text-zinc-400 mb-1">Texto do body do template</label>
+        <input name="listas_template_body"
+               value="{{ cfg.get('listas_template_body', 'boa tarde, tudo bem?') }}"
+               placeholder="boa tarde, tudo bem?"
+               class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm">
+        <div class="text-xs text-zinc-500 mt-1">Parâmetro de corpo enviado ao template.</div>
+      </div>
+
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Batch Size</label>
+        <input name="listas_batch_size"
+               type="number" min="1" max="5000"
+               value="{{ cfg.get('listas_batch_size', '1000') }}"
+               class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono">
+        <div class="text-xs text-zinc-500 mt-1">Números por lote antes de aguardar o webhook.</div>
+      </div>
+
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Country Code</label>
+        <input name="listas_country_code"
+               value="{{ cfg.get('listas_country_code', '55') }}"
+               placeholder="55"
+               class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono">
+        <div class="text-xs text-zinc-500 mt-1">Código do país padrão (Brasil = 55).</div>
+      </div>
+
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Webhook Wait (segundos)</label>
+        <input name="listas_webhook_wait"
+               type="number" min="1" max="120"
+               value="{{ cfg.get('listas_webhook_wait', '10') }}"
+               class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono">
+        <div class="text-xs text-zinc-500 mt-1">Tempo de espera inicial após enviar o batch.</div>
+      </div>
+
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Poll Attempts</label>
+        <input name="listas_webhook_poll_attempts"
+               type="number" min="1" max="20"
+               value="{{ cfg.get('listas_webhook_poll_attempts', '6') }}"
+               class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono">
+        <div class="text-xs text-zinc-500 mt-1">Quantas vezes verificar os logs de webhook por batch.</div>
+      </div>
+
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Poll Interval (segundos)</label>
+        <input name="listas_webhook_poll_interval"
+               type="number" min="1" max="60"
+               value="{{ cfg.get('listas_webhook_poll_interval', '5') }}"
+               class="w-full px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono">
+        <div class="text-xs text-zinc-500 mt-1">Intervalo entre cada verificação de webhook.</div>
+      </div>
+
+    </div>
+
+    <div class="pt-2">
+      <button type="submit"
+              class="px-6 py-3 rounded-xl bg-indigo-700 hover:bg-indigo-600 font-semibold text-sm transition-colors">
+        Salvar configuração
+      </button>
+    </div>
+
+  </div>
+</form>
+
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-4 text-xs text-zinc-400 space-y-1">
+  <div class="font-semibold text-zinc-300 mb-2">Como funciona a validação?</div>
+  <div>1. Um template é enviado para cada número via Meta Cloud API.</div>
+  <div>2. O webhook da Meta retorna o status de entrega.</div>
+  <div>3. Erro <em>"Business eligibility payment issue"</em> → número TEM WhatsApp.</div>
+  <div>4. Erro <em>"Message undeliverable"</em> → número NÃO TEM WhatsApp.</div>
+  <div class="mt-2 text-amber-400">⚠ O Webhook Logging deve estar ativado para a validação funcionar.</div>
+</div>
+{% endblock %}

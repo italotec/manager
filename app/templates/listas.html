@@ -1,0 +1,518 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-4">
+  <div>
+    <h1 class="text-xl font-bold">Listas</h1>
+    <p class="text-xs text-zinc-500 mt-0.5">Deduplique e valide números de WhatsApp</p>
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   STEP 1 · Upload / select file
+═══════════════════════════════════════════════════════════════════════════ #}
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <div>
+      <div class="text-sm font-semibold">1 · Arquivo de leads</div>
+      <div class="text-xs text-zinc-500">CSV ou XLSX com uma coluna de telefone.</div>
+    </div>
+    <form method="POST" action="{{ url_for('listas.upload_file') }}"
+          enctype="multipart/form-data"
+          class="flex items-center gap-2">
+      <label class="cursor-pointer px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">
+        + Upload CSV / XLSX
+        <input type="file" name="lista_file" accept=".csv,.xlsx" class="hidden"
+               onchange="this.closest('form').submit()">
+      </label>
+    </form>
+  </div>
+
+  {% if not upload_files %}
+    <div class="text-sm text-zinc-500 py-4 text-center border border-dashed border-zinc-800 rounded-xl">
+      Nenhum arquivo enviado ainda.
+    </div>
+  {% else %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="text-zinc-400">
+          <tr class="border-b border-zinc-800">
+            <th class="text-left py-2 pr-4">Sel</th>
+            <th class="text-left py-2">Arquivo</th>
+            <th class="text-left py-2">Linhas</th>
+            <th class="text-left py-2">Tamanho</th>
+            <th class="text-left py-2">Colunas</th>
+            <th class="text-left py-2"></th>
+          </tr>
+        </thead>
+        <tbody class="text-zinc-200">
+          {% for f in upload_files %}
+          <tr class="border-b border-zinc-900 hover:bg-zinc-900/50">
+            <td class="py-3 pr-4">
+              <input type="radio" name="file_select" value="{{ f.name }}"
+                     onchange="onFileSelect(this.value)"
+                     class="w-4 h-4 accent-cyan-500">
+            </td>
+            <td class="py-3 font-mono text-xs">{{ f.name }}</td>
+            <td class="py-3 text-zinc-400 text-xs">{{ f.row_count }}</td>
+            <td class="py-3 text-zinc-400 text-xs">{{ f.size_kb }} KB</td>
+            <td class="py-3 text-zinc-500 text-xs truncate max-w-xs">
+              {{ f.columns | join(", ") }}
+            </td>
+            <td class="py-3">
+              <form method="POST"
+                    action="{{ url_for('listas.delete_file', filename=f.name) }}"
+                    onsubmit="return confirm('Remover {{ f.name }}?')">
+                <button class="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-red-900/60 text-zinc-400 hover:text-red-300 text-xs transition-colors">
+                  Remover
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  {# column picker — shown after file is selected #}
+  <div id="columnPicker" class="hidden mt-4 pt-4 border-t border-zinc-800">
+    <div class="text-xs text-zinc-400 mb-2 font-semibold">Coluna de telefone:</div>
+    <select id="phoneColumnSelect"
+            class="px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-sm w-full max-w-sm">
+      <option value="">— selecione —</option>
+    </select>
+    <div id="previewTable" class="mt-3 overflow-x-auto hidden"></div>
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   STEP 2 · Mode + workers
+═══════════════════════════════════════════════════════════════════════════ #}
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-4">
+  <div class="text-sm font-semibold mb-3">2 · Modo de execução</div>
+
+  <div class="flex flex-col sm:flex-row gap-3 mb-4">
+    <label class="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-zinc-700 hover:border-cyan-700 has-[:checked]:border-cyan-500 has-[:checked]:bg-cyan-950/20 flex-1">
+      <input type="radio" name="mode" value="dedup_only" id="modeDedup"
+             class="w-4 h-4 accent-cyan-500" onchange="onModeChange()" checked>
+      <div>
+        <div class="text-sm font-semibold">Apenas Deduplicar</div>
+        <div class="text-xs text-zinc-400">Remove linhas duplicadas pela coluna de telefone. Rápido, sem API.</div>
+      </div>
+    </label>
+
+    <label class="flex items-center gap-3 cursor-pointer p-3 rounded-xl border border-zinc-700 hover:border-emerald-700 has-[:checked]:border-emerald-500 has-[:checked]:bg-emerald-950/20 flex-1">
+      <input type="radio" name="mode" value="dedup_validate" id="modeValidate"
+             class="w-4 h-4 accent-emerald-500" onchange="onModeChange()">
+      <div>
+        <div class="text-sm font-semibold">Deduplicar + Validar WhatsApp</div>
+        <div class="text-xs text-zinc-400">Deduplica e verifica quais números têm WhatsApp ativo via webhook.</div>
+      </div>
+    </label>
+  </div>
+
+  {# worker speed — only visible for validate mode #}
+  <div id="workerSection" class="hidden">
+    <div class="text-xs text-zinc-400 mb-2">Velocidade (threads simultâneas):</div>
+    <div class="flex flex-wrap gap-2 mb-2" id="workerPresets">
+      {% for w in [1, 5, 10, 20, 30] %}
+      <button type="button"
+              onclick="setWorkers({{ w }})"
+              class="worker-btn px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-mono transition-colors">
+        {{ w }}
+      </button>
+      {% endfor %}
+      <input type="number" id="workersCustom" min="1" max="100" value="10"
+             oninput="syncWorkerInput(this.value)"
+             class="w-16 px-2 py-1.5 rounded-lg bg-zinc-950 border border-zinc-800 text-xs font-mono text-center">
+    </div>
+    <div class="text-xs text-zinc-500">Configuração de WABA/template gerenciada pelo admin.</div>
+  </div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   STEP 3 · Start button
+═══════════════════════════════════════════════════════════════════════════ #}
+<div class="mb-4">
+  <button id="startBtn"
+          onclick="startJob()"
+          class="px-6 py-3 rounded-xl bg-cyan-700 hover:bg-cyan-600 font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+    Iniciar
+  </button>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   PROGRESS PANEL (shown when job is active/done)
+═══════════════════════════════════════════════════════════════════════════ #}
+<div id="progressPanel" class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-4 hidden">
+  <div class="flex items-center justify-between mb-3">
+    <div class="text-sm font-semibold">Progresso</div>
+    <div class="flex gap-2 items-center">
+      <span id="statusBadge"
+            class="px-2 py-0.5 rounded-lg text-xs font-mono bg-zinc-800 text-zinc-300">
+        —
+      </span>
+      <button id="stopBtn"
+              onclick="stopJob()"
+              class="hidden px-3 py-1.5 rounded-lg bg-red-900/60 hover:bg-red-800 text-red-300 text-xs transition-colors">
+        Parar
+      </button>
+    </div>
+  </div>
+
+  {# progress bar #}
+  <div class="w-full h-2 bg-zinc-800 rounded-full mb-3 overflow-hidden">
+    <div id="progressBar" class="h-2 bg-cyan-600 transition-all duration-500 rounded-full" style="width:0%"></div>
+  </div>
+
+  {# stats — dedup mode #}
+  <div id="statsDedup" class="hidden grid grid-cols-3 gap-3 mb-3">
+    <div class="rounded-xl bg-zinc-950 border border-zinc-800 p-3 text-center">
+      <div class="text-xs text-zinc-400 mb-1">Total</div>
+      <div id="statTotal" class="text-lg font-bold font-mono">0</div>
+    </div>
+    <div class="rounded-xl bg-zinc-950 border border-zinc-800 p-3 text-center">
+      <div class="text-xs text-zinc-400 mb-1">Únicos</div>
+      <div id="statUnicos" class="text-lg font-bold font-mono text-cyan-400">0</div>
+    </div>
+    <div class="rounded-xl bg-zinc-950 border border-zinc-800 p-3 text-center">
+      <div class="text-xs text-zinc-400 mb-1">Removidos</div>
+      <div id="statRemovidos" class="text-lg font-bold font-mono text-amber-400">0</div>
+    </div>
+  </div>
+
+  {# stats — validate mode #}
+  <div id="statsValidate" class="hidden grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
+    <div class="rounded-xl bg-zinc-950 border border-zinc-800 p-3 text-center">
+      <div class="text-xs text-zinc-400 mb-1">Total</div>
+      <div id="vStatTotal" class="text-lg font-bold font-mono">0</div>
+    </div>
+    <div class="rounded-xl bg-emerald-950/40 border border-emerald-800/50 p-3 text-center">
+      <div class="text-xs text-emerald-400 mb-1">Com WhatsApp</div>
+      <div id="vStatHasWa" class="text-lg font-bold font-mono text-emerald-400">0</div>
+    </div>
+    <div class="rounded-xl bg-red-950/40 border border-red-800/50 p-3 text-center">
+      <div class="text-xs text-red-400 mb-1">Sem WhatsApp</div>
+      <div id="vStatNoWa" class="text-lg font-bold font-mono text-red-400">0</div>
+    </div>
+    <div class="rounded-xl bg-amber-950/40 border border-amber-800/50 p-3 text-center">
+      <div class="text-xs text-amber-400 mb-1">Erros / Restantes</div>
+      <div id="vStatErrors" class="text-lg font-bold font-mono text-amber-400">0</div>
+    </div>
+  </div>
+
+  <div class="text-xs text-zinc-400 font-mono truncate" id="lastMessage">—</div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   DOWNLOAD PANEL (shown when done)
+═══════════════════════════════════════════════════════════════════════════ #}
+<div id="downloadPanel" class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-4 hidden">
+  <div class="text-sm font-semibold mb-3">Download de resultados</div>
+  <div id="downloadBtns" class="flex flex-wrap gap-3"></div>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   RECENT JOBS
+═══════════════════════════════════════════════════════════════════════════ #}
+{% if jobs %}
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-4">
+  <div class="text-sm font-semibold mb-3">Jobs recentes</div>
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-xs">
+      <thead class="text-zinc-400">
+        <tr class="border-b border-zinc-800">
+          <th class="text-left py-2 pr-4">#</th>
+          <th class="text-left py-2">Arquivo</th>
+          <th class="text-left py-2">Modo</th>
+          <th class="text-left py-2">Status</th>
+          <th class="text-left py-2">Com WA</th>
+          <th class="text-left py-2">Sem WA</th>
+          <th class="text-left py-2">Criado</th>
+          <th class="text-left py-2">Download</th>
+        </tr>
+      </thead>
+      <tbody class="text-zinc-300">
+        {% for j in jobs %}
+        <tr class="border-b border-zinc-900 hover:bg-zinc-900/50">
+          <td class="py-2 pr-4 font-mono text-zinc-500">{{ j.id }}</td>
+          <td class="py-2 font-mono truncate max-w-xs">{{ j.original_file }}</td>
+          <td class="py-2">
+            {% if j.mode == "dedup_only" %}
+              <span class="px-2 py-0.5 rounded-lg bg-zinc-800 text-cyan-400">Dedup</span>
+            {% else %}
+              <span class="px-2 py-0.5 rounded-lg bg-zinc-800 text-emerald-400">Validar</span>
+            {% endif %}
+          </td>
+          <td class="py-2">
+            {% if j.status == "done" %}
+              <span class="text-emerald-400">Concluído</span>
+            {% elif j.status == "running" or j.status == "queued" %}
+              <span class="text-amber-400">Em andamento</span>
+            {% elif j.status == "stopped" %}
+              <span class="text-zinc-400">Parado</span>
+            {% else %}
+              <span class="text-red-400">{{ j.status }}</span>
+            {% endif %}
+          </td>
+          <td class="py-2 text-emerald-400 font-mono">{{ j.has_whatsapp if j.mode != 'dedup_only' else '—' }}</td>
+          <td class="py-2 text-red-400 font-mono">{{ j.no_whatsapp if j.mode != 'dedup_only' else '—' }}</td>
+          <td class="py-2 text-zinc-500">{{ j.created_at.strftime('%d/%m %H:%M') }}</td>
+          <td class="py-2">
+            {% if j.status == "done" %}
+              {% set ext = j.original_file.rsplit('.', 1)[1] if '.' in j.original_file else 'xlsx' %}
+              {% if j.mode == "dedup_only" %}
+                <a href="{{ url_for('listas.download_result', job_id=j.id, kind='deduped') }}"
+                   class="px-2 py-1 rounded-lg bg-cyan-900/50 hover:bg-cyan-800 text-cyan-300 text-xs transition-colors">
+                  Deduplicado
+                </a>
+              {% else %}
+                <div class="flex gap-1 flex-wrap">
+                  <a href="{{ url_for('listas.download_result', job_id=j.id, kind='whatsapp') }}"
+                     class="px-2 py-1 rounded-lg bg-emerald-900/50 hover:bg-emerald-800 text-emerald-300 text-xs transition-colors">
+                    WA
+                  </a>
+                  <a href="{{ url_for('listas.download_result', job_id=j.id, kind='no_whatsapp') }}"
+                     class="px-2 py-1 rounded-lg bg-red-900/50 hover:bg-red-800 text-red-300 text-xs transition-colors">
+                    Sem WA
+                  </a>
+                  <a href="{{ url_for('listas.download_result', job_id=j.id, kind='errors') }}"
+                     class="px-2 py-1 rounded-lg bg-amber-900/50 hover:bg-amber-800 text-amber-300 text-xs transition-colors">
+                    Erros
+                  </a>
+                </div>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<script>
+// ── state ──────────────────────────────────────────────────────────────────
+let selectedFile   = null;
+let selectedColumn = null;
+let selectedMode   = "dedup_only";
+let maxWorkers     = 10;
+let activeJobId    = null;
+let pollInterval   = null;
+
+// ── file selection ─────────────────────────────────────────────────────────
+function onFileSelect(filename) {
+  selectedFile = filename;
+  selectedColumn = null;
+  document.getElementById("columnPicker").classList.remove("hidden");
+  document.getElementById("phoneColumnSelect").value = "";
+  document.getElementById("previewTable").classList.add("hidden");
+  document.getElementById("previewTable").innerHTML = "";
+
+  fetch(`/listas/file/${encodeURIComponent(filename)}/columns`)
+    .then(r => r.json())
+    .then(data => {
+      const sel = document.getElementById("phoneColumnSelect");
+      sel.innerHTML = '<option value="">— selecione —</option>';
+      (data.columns || []).forEach(col => {
+        const opt = document.createElement("option");
+        opt.value = col;
+        opt.textContent = col;
+        sel.appendChild(opt);
+      });
+      if (data.preview && data.preview.length) {
+        renderPreview(data.preview, data.columns);
+      }
+    });
+}
+
+document.getElementById("phoneColumnSelect").addEventListener("change", function() {
+  selectedColumn = this.value || null;
+});
+
+function renderPreview(rows, cols) {
+  const box = document.getElementById("previewTable");
+  let html = '<div class="text-xs text-zinc-500 mb-1">Prévia (2 linhas):</div>';
+  html += '<table class="text-xs border-collapse w-full">';
+  html += '<thead><tr class="text-zinc-400">';
+  cols.forEach(c => {
+    html += `<th class="border border-zinc-800 px-2 py-1 text-left font-normal">${c}</th>`;
+  });
+  html += '</tr></thead><tbody>';
+  rows.forEach(row => {
+    html += '<tr>';
+    cols.forEach(c => {
+      html += `<td class="border border-zinc-800 px-2 py-1 text-zinc-300">${row[c] ?? ''}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  box.innerHTML = html;
+  box.classList.remove("hidden");
+}
+
+// ── mode ───────────────────────────────────────────────────────────────────
+function onModeChange() {
+  selectedMode = document.querySelector('input[name="mode"]:checked').value;
+  const ws = document.getElementById("workerSection");
+  if (selectedMode === "dedup_validate") {
+    ws.classList.remove("hidden");
+  } else {
+    ws.classList.add("hidden");
+  }
+}
+
+// ── workers ────────────────────────────────────────────────────────────────
+function setWorkers(n) {
+  maxWorkers = n;
+  document.getElementById("workersCustom").value = n;
+  document.querySelectorAll(".worker-btn").forEach(btn => {
+    btn.classList.toggle("bg-cyan-700", parseInt(btn.textContent) === n);
+    btn.classList.toggle("bg-zinc-800", parseInt(btn.textContent) !== n);
+  });
+}
+
+function syncWorkerInput(val) {
+  const n = Math.max(1, Math.min(100, parseInt(val) || 1));
+  maxWorkers = n;
+  document.querySelectorAll(".worker-btn").forEach(btn => {
+    btn.classList.toggle("bg-cyan-700", parseInt(btn.textContent) === n);
+    btn.classList.toggle("bg-zinc-800", parseInt(btn.textContent) !== n);
+  });
+}
+
+// ── start ──────────────────────────────────────────────────────────────────
+function startJob() {
+  if (!selectedFile) { alert("Selecione um arquivo."); return; }
+  if (!selectedColumn) { alert("Selecione a coluna de telefone."); return; }
+
+  document.getElementById("startBtn").disabled = true;
+
+  fetch("/listas/start", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({
+      filename:     selectedFile,
+      phone_column: selectedColumn,
+      mode:         selectedMode,
+      max_workers:  maxWorkers,
+    }),
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.error) { alert(data.error); document.getElementById("startBtn").disabled = false; return; }
+    activeJobId = data.job_id;
+    showProgress(selectedMode);
+    startPolling();
+  })
+  .catch(e => { alert("Erro: " + e); document.getElementById("startBtn").disabled = false; });
+}
+
+// ── progress UI ────────────────────────────────────────────────────────────
+function showProgress(mode) {
+  document.getElementById("progressPanel").classList.remove("hidden");
+  document.getElementById("downloadPanel").classList.add("hidden");
+  document.getElementById("stopBtn").classList.toggle("hidden", mode === "dedup_only");
+  document.getElementById("statsDedup").classList.toggle("hidden", mode !== "dedup_only");
+  document.getElementById("statsValidate").classList.toggle("hidden", mode === "dedup_only");
+}
+
+function startPolling() {
+  if (pollInterval) clearInterval(pollInterval);
+  pollInterval = setInterval(pollJob, 2000);
+  pollJob();
+}
+
+function pollJob() {
+  if (!activeJobId) return;
+  fetch(`/listas/job/${activeJobId}/status`)
+    .then(r => r.json())
+    .then(updateUI)
+    .catch(() => {});
+}
+
+function updateUI(data) {
+  if (data.error) return;
+
+  const status = data.status;
+  const mode   = data.mode;
+  const pct    = data.pct || 0;
+
+  document.getElementById("progressBar").style.width = pct + "%";
+  document.getElementById("lastMessage").textContent = data.last_message || "—";
+
+  const badge = document.getElementById("statusBadge");
+  const labels = {queued: "na fila", running: "processando", done: "concluído", error: "erro", stopped: "parado"};
+  badge.textContent = labels[status] || status;
+
+  if (mode === "dedup_only") {
+    document.getElementById("statTotal").textContent    = data.total;
+    document.getElementById("statUnicos").textContent   = data.total;   // total after dedup = unicos
+    // We don't get dup count separately — show from last_message or 0
+    document.getElementById("statRemovidos").textContent = "—";
+  } else {
+    document.getElementById("vStatTotal").textContent  = data.total;
+    document.getElementById("vStatHasWa").textContent  = data.has_wa;
+    document.getElementById("vStatNoWa").textContent   = data.no_wa;
+    document.getElementById("vStatErrors").textContent = data.errors;
+  }
+
+  const terminal = ["done", "error", "stopped"];
+  if (terminal.includes(status)) {
+    clearInterval(pollInterval);
+    pollInterval = null;
+    document.getElementById("stopBtn").classList.add("hidden");
+    document.getElementById("startBtn").disabled = false;
+    if (status === "done") showDownloads(activeJobId, mode);
+  }
+}
+
+function showDownloads(jobId, mode) {
+  const panel = document.getElementById("downloadPanel");
+  const btns  = document.getElementById("downloadBtns");
+  panel.classList.remove("hidden");
+
+  if (mode === "dedup_only") {
+    btns.innerHTML = `
+      <a href="/listas/job/${jobId}/download/deduped"
+         class="px-4 py-2 rounded-xl bg-cyan-700 hover:bg-cyan-600 text-sm font-semibold transition-colors">
+        Baixar Lista Deduplicada
+      </a>`;
+  } else {
+    btns.innerHTML = `
+      <a href="/listas/job/${jobId}/download/whatsapp"
+         class="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-semibold transition-colors">
+        Baixar COM WhatsApp
+      </a>
+      <a href="/listas/job/${jobId}/download/no_whatsapp"
+         class="px-4 py-2 rounded-xl bg-red-700 hover:bg-red-600 text-sm font-semibold transition-colors">
+        Baixar SEM WhatsApp
+      </a>
+      <a href="/listas/job/${jobId}/download/errors"
+         class="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-sm font-semibold transition-colors">
+        Baixar Erros
+      </a>`;
+  }
+}
+
+function stopJob() {
+  if (!activeJobId) return;
+  fetch(`/listas/job/${activeJobId}/stop`, {method: "POST"})
+    .then(r => r.json())
+    .then(d => { if (!d.ok) alert("Job não está ativo."); });
+}
+
+// Resume polling if page reloaded with an active job
+{% for j in jobs %}
+{% if j.status in ('running', 'queued') %}
+(function() {
+  activeJobId = {{ j.id }};
+  showProgress("{{ j.mode }}");
+  startPolling();
+})();
+{% endif %}
+{% endfor %}
+</script>
+{% endblock %}

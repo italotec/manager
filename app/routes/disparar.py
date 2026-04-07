@@ -259,6 +259,7 @@ def start_disparo():
     if max_workers != 0:
         max_workers = max(1, min(max_workers, 500))  # 0 = async MAX mode
     skip_log          = bool(data.get("skip_log"))
+    max_leads         = int(data.get("max_leads") or 0)   # 0 = no limit
     waba_id           = (data.get("waba_id") or "").strip()
     has_header        = data.get("has_header", True)
 
@@ -283,6 +284,7 @@ def start_disparo():
         skip_log,
         waba_id,
         has_header,
+        max_leads,
     )
     return jsonify({"job_id": job_id})
 
