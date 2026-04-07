@@ -102,7 +102,7 @@ def file_columns(filename):
     if not os.path.exists(path):
         return jsonify({"error": "not found"}), 404
     try:
-        columns, _, preview = _read_file_info(path)
+        columns, _, preview = _read_file_info(path, stop_after_preview=True)
         return jsonify({"columns": columns, "preview": preview})
     except Exception as exc:
         return jsonify({"error": str(exc)}), 500
