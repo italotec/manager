@@ -75,8 +75,13 @@ def _read_file(path: str) -> tuple[list[dict], str]:
     ext = os.path.splitext(path)[1].lower()
     if ext == ".xlsx":
         import openpyxl
-        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        # Do NOT use read_only=True — it is unreliable for files from
+        # non-Excel apps (Google Sheets, LibreOffice) and can return ws=None.
+        wb = openpyxl.load_workbook(path, data_only=True)
         ws = wb.active
+        if ws is None:
+            wb.close()
+            return [], ext
         all_rows = list(ws.iter_rows(values_only=True))
         wb.close()
         if not all_rows:
@@ -91,6 +96,44 @@ def _read_file(path: str) -> tuple[list[dict], str]:
             reader = csv.DictReader(f)
             rows = list(reader)
         return rows, ".csv"
+
+
+def _read_file_info(path: str) -> tuple[list[str], int]:
+    """
+    Efficiently return (column_names, row_count) without loading all data
+    into memory. Used for the file listing on the main page.
+    """
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".xlsx":
+        import openpyxl
+        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+        ws = wb.active
+        if ws is None:
+            # Fallback: open without read_only
+            wb.close()
+            wb = openpyxl.load_workbook(path, data_only=True)
+            ws = wb.active
+        if ws is None:
+            wb.close()
+            return [], 0
+        headers: list[str] = []
+        row_count = 0
+        for i, row in enumerate(ws.iter_rows(values_only=True)):
+            if i == 0:
+                headers = [str(c) if c is not None else "" for c in row]
+            else:
+                row_count += 1
+        wb.close()
+        return headers, row_count
+    else:
+        with open(path, "r", encoding="utf-8-sig", newline="") as f:
+            reader = csv.reader(f)
+            headers_row = next(reader, None)
+            if headers_row is None:
+                return [], 0
+            headers = headers_row
+            row_count = sum(1 for _ in reader)
+        return headers, row_count
 
 
 def _write_file(rows: list[dict], path: str, ext: str) -> None:

@@ -16,6 +16,7 @@ from ..services.listas_service import (
     get_live_state,
     request_stop,
     _read_file,
+    _read_file_info,
 )
 
 bp = Blueprint("listas", __name__, url_prefix="/listas")
@@ -47,9 +48,7 @@ def listas_page():
             continue
         path = os.path.join(d, fn)
         try:
-            rows, _ = _read_file(path)
-            row_count = len(rows)
-            columns = list(rows[0].keys()) if rows else []
+            columns, row_count = _read_file_info(path)
         except Exception:
             row_count = 0
             columns = []
@@ -104,8 +103,8 @@ def file_columns(filename):
     if not os.path.exists(path):
         return jsonify({"error": "not found"}), 404
     try:
+        columns, _ = _read_file_info(path)
         rows, _ = _read_file(path)
-        columns = list(rows[0].keys()) if rows else []
         preview = rows[:2]
         return jsonify({"columns": columns, "preview": preview})
     except Exception as exc:
