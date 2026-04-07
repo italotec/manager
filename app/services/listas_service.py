@@ -70,15 +70,30 @@ def result_path(user_id: int, job_id: int, kind: str, ext: str) -> str:
 
 # ── file I/O helpers ──────────────────────────────────────────────────────────
 
+def _best_xlsx_sheet(wb):
+    """
+    Return the sheet with the most rows.
+    wb.active is unreliable — it points to whatever sheet was last active when
+    the file was saved, which can be an empty summary/dashboard sheet.
+    """
+    best = None
+    best_rows = -1
+    for ws in wb.worksheets:
+        # ws.max_row is available even in read_only mode
+        n = ws.max_row or 0
+        if n > best_rows:
+            best_rows = n
+            best = ws
+    return best
+
+
 def _read_file(path: str) -> tuple[list[dict], str]:
     """Return (rows_as_dicts, ext). ext is '.csv' or '.xlsx'."""
     ext = os.path.splitext(path)[1].lower()
     if ext == ".xlsx":
         import openpyxl
-        # Do NOT use read_only=True — it is unreliable for files from
-        # non-Excel apps (Google Sheets, LibreOffice) and can return ws=None.
         wb = openpyxl.load_workbook(path, data_only=True)
-        ws = wb.active
+        ws = _best_xlsx_sheet(wb)
         if ws is None:
             wb.close()
             return [], ext
@@ -107,13 +122,12 @@ def _read_file_info(path: str, preview_rows: int = 2) -> tuple[list[str], int, l
     ext = os.path.splitext(path)[1].lower()
     if ext == ".xlsx":
         import openpyxl
-        wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-        ws = wb.active
-        if ws is None:
-            wb.close()
-            # Fallback: open without read_only
-            wb = openpyxl.load_workbook(path, data_only=True)
-            ws = wb.active
+        # Do NOT use read_only=True — it misreports max_row/max_col and skips
+        # rows for files that use inline strings (t="str") instead of shared
+        # strings. Common in files exported from Google Sheets, LibreOffice,
+        # and certain CSV-to-XLSX tools.
+        wb = openpyxl.load_workbook(path, data_only=True)
+        ws = _best_xlsx_sheet(wb)
         if ws is None:
             wb.close()
             return [], 0, []
