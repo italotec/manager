@@ -27,6 +27,9 @@ class Config:
     # Cost: R$8 per OTP received
     OTP_COST_CENTS = int(os.getenv("OTP_COST_CENTS", "800"))
 
+    # AdsPower local API
+    ADSPOWER_BASE = os.getenv("ADSPOWER_BASE", "http://local.adspower.net:50325")
+
     # Proxies (optional)
     # format: ip:port:user:pass separated by commas
     PROXIES_RAW = [p.strip() for p in os.getenv("PROXIES_RAW", "").split(",") if p.strip()]

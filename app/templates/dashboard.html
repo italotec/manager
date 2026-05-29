@@ -129,6 +129,7 @@
             <th class="text-left py-2">Travada</th>
             <th class="text-left py-2">Último Disparo</th>
             <th class="text-left py-2">Status</th>
+            <th class="text-left py-2">Limite</th>
             <th class="py-2 w-10"></th>
           </tr>
         </thead>
@@ -232,9 +233,37 @@
               {% endif %}
             </td>
 
-            {# action buttons: remarks / copy / trash #}
+            {# Limite — whatsapp_business_manager_messaging_limit from phone node #}
+            <td class="py-3">
+              {% set raw = row.messaging_limit_tier %}
+              {% if raw %}
+                {% set tier_label = '∞' if raw == 'TIER_UNLIMITED' else raw.replace('TIER_', '') %}
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-zinc-700/60 text-zinc-300">{{ tier_label }}</span>
+              {% else %}
+                <span class="text-zinc-500">—</span>
+              {% endif %}
+            </td>
+
+            {# action buttons: adspower / remarks / copy / trash #}
             <td class="py-3 text-right">
               <div class="inline-flex items-center gap-0.5">
+                {# adspower open button (only when profile is linked) #}
+                {% if row.adspower_profile_id %}
+                  <span data-open-pid="{{ row.adspower_profile_id }}"
+                        class="hidden w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0"
+                        style="box-shadow:0 0 6px rgba(52,211,153,0.8)"
+                        title="Perfil aberto no AdsPower"></span>
+                  <button type="button"
+                          title="Abrir no AdsPower"
+                          onclick="openAdsPowerProfile(event, '{{ row.waba_id }}')"
+                          class="p-1.5 rounded-lg text-zinc-700 group-hover:text-zinc-400 hover:!text-emerald-400 hover:bg-emerald-950/40 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <rect x="2" y="3" width="20" height="14" rx="2"></rect>
+                      <path d="M8 21h8"></path><path d="M12 17v4"></path>
+                    </svg>
+                  </button>
+                {% endif %}
                 {# remarks / notes button #}
                 <button type="button"
                         title="{{ row.remarks if row.remarks else 'Adicionar observação' }}"
@@ -1072,6 +1101,36 @@ async function submitRegisterPhones() {
     btn.textContent = "Registrar";
   }
 }
+
+async function openAdsPowerProfile(event, wabaId) {
+  const btn = event.currentTarget;
+  const dot = btn.previousElementSibling;
+  if (dot?.dataset.openPid) dot.classList.remove("hidden");
+
+  try {
+    const res = await fetch(`/wabas/${wabaId}/open-adspower`, { method: "POST" });
+    const d = await res.json();
+    if (!d.ok) {
+      if (dot?.dataset.openPid) dot.classList.add("hidden");
+      alert("Erro ao abrir perfil: " + (d.error || "?"));
+    }
+  } catch (e) {
+    if (dot?.dataset.openPid) dot.classList.add("hidden");
+    alert("Erro de rede: " + e);
+  }
+}
+
+// Poll AdsPower open-profile status every 10 seconds
+setInterval(async () => {
+  try {
+    const r = await fetch("/open-profiles");
+    const s = await r.json();
+    const open = new Set(s.open_profile_ids || []);
+    document.querySelectorAll("[data-open-pid]").forEach(el => {
+      el.classList.toggle("hidden", !open.has(el.dataset.openPid));
+    });
+  } catch {}
+}, 10000);
 </script>
 
 {% endblock %}

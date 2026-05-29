@@ -45,6 +45,13 @@ def get_waba_name(api_version: str, token: str, waba_id: str):
     name = info.get("name")
     return name, None
 
+def get_phone_messaging_limit(api_version: str, token: str, phone_id: str):
+    url = f"https://graph.facebook.com/{api_version}/{phone_id}?fields=whatsapp_business_manager_messaging_limit"
+    status, j, snippet = _get(url, token)
+    if status != 200 or not isinstance(j, dict) or "error" in j:
+        return None
+    return j.get("whatsapp_business_manager_messaging_limit")
+
 def get_waba_analytics(api_version: str, token: str, waba_id: str,
                        start_ts: int, end_ts: int, granularity: str = "DAY"):
     """Fetch WABA analytics between two unix timestamps."""

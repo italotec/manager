@@ -2,6 +2,7 @@ Flask==3.0.3
 Flask-Login==0.6.3
 Flask-SQLAlchemy==3.1.1
 Werkzeug==3.0.3
+flask-sock>=0.7
 requests==2.32.3
 openpyxl>=3.1
 aiohttp>=3.9

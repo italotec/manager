@@ -23,6 +23,7 @@ from ..json_store import (
 )
 from ..services.meta import (
     get_waba_name,
+    get_phone_messaging_limit,
     get_phone_numbers,
     get_phone_numbers_health,
     get_templates,
@@ -75,6 +76,8 @@ def dashboard():
             "ever_had_erro_generic": snap.get("ever_had_erro_generic", False),
             "ultimo_disparo": snap.get("ultimo_disparo") or "",
             "remarks": data.get("remarks") or "",
+            "adspower_profile_id": data.get("adspower_profile_id") or "",
+            "messaging_limit_tier": snap.get("messaging_limit_tier"),
         })
 
     job_id = request.args.get("job", "")
@@ -175,6 +178,10 @@ def sync_now():
         if health_label == "ERRO GENERIC":
             ever_erro_generic = True
 
+        messaging_limit_tier = None
+        if phones:
+            messaging_limit_tier = get_phone_messaging_limit(api_version, token, phones[0].get("id"))
+
         update_snapshot(
             current_user.id,
             waba_id,
@@ -185,6 +192,7 @@ def sync_now():
             status_label=_effective_status(health_label),
             last_sync_at=int(time.time()),
             ever_had_erro_generic=ever_erro_generic,
+            messaging_limit_tier=messaging_limit_tier,
         )
         synced += 1
 
@@ -365,6 +373,47 @@ def regenerate_api_key():
     db.session.commit()
     flash("Nova chave de API gerada com sucesso.", "success")
     return redirect(url_for("dashboard.api_page"))
+
+
+@bp.route("/open-profiles")
+@login_required
+def open_profiles():
+    from .agent_ws import is_agent_connected, get_open_profiles as agent_open_profiles
+    if is_agent_connected(current_user.id):
+        return jsonify({"open_profile_ids": list(agent_open_profiles(current_user.id))})
+    from ..services.browser_status_poller import get_open_profiles
+    return jsonify({"open_profile_ids": list(get_open_profiles())})
+
+
+@bp.route("/wabas/<waba_id>/open-adspower", methods=["POST"])
+@login_required
+def open_adspower(waba_id):
+    bms = load_user_bms(current_user.id)
+    entry = bms.get(str(waba_id))
+    if not isinstance(entry, dict):
+        return jsonify({"ok": False, "error": "WABA não encontrada."}), 404
+
+    profile_id = (entry.get("adspower_profile_id") or "").strip()
+    if not profile_id:
+        return jsonify({"ok": False, "error": "Esta WABA não tem um perfil AdsPower vinculado."}), 400
+
+    from .agent_ws import is_agent_connected, push_to_agent
+    if is_agent_connected(current_user.id):
+        push_to_agent(current_user.id, {
+            "type": "open_browser",
+            "profile_id": profile_id,
+            "cmd_id": None,
+        })
+        return jsonify({"ok": True})
+
+    try:
+        from ..services.adspower import AdsPowerClient
+        from ..services.browser_status_poller import register_open
+        AdsPowerClient(current_app.config["ADSPOWER_BASE"]).open_browser(profile_id)
+        register_open(profile_id)
+        return jsonify({"ok": True})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)[:400]}), 500
 
 
 @bp.route("/register-phones", methods=["POST"])

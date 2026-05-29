@@ -1,11 +1,13 @@
 from flask import Flask, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, current_user, logout_user
+from flask_sock import Sock
 from .config import Config
 
 db = SQLAlchemy()
 login_manager = LoginManager()
 login_manager.login_view = "auth.login_get"
+sock = Sock()
 
 def create_app():
     app = Flask(__name__)
@@ -13,6 +15,7 @@ def create_app():
 
     db.init_app(app)
     login_manager.init_app(app)
+    sock.init_app(app)
 
     # Blueprints
     from .routes.auth import bp as auth_bp
@@ -27,6 +30,8 @@ def create_app():
     from .routes.listas import bp as listas_bp
     from .routes.api import bp as api_bp
     from .routes.docs import bp as docs_bp
+    from .routes.agent_ws import bp as agent_ws_bp, handle_ws
+    from .routes.account import bp as account_bp
 
     app.register_blueprint(billing_bp)
     app.register_blueprint(auth_bp)
@@ -40,6 +45,12 @@ def create_app():
     app.register_blueprint(listas_bp)
     app.register_blueprint(api_bp)
     app.register_blueprint(docs_bp)
+    app.register_blueprint(agent_ws_bp)
+    app.register_blueprint(account_bp)
+
+    @sock.route("/agent/ws")
+    def agent_ws_route(ws):
+        handle_ws(ws)
 
     # Make balance available to all templates
     @app.context_processor
@@ -65,10 +76,13 @@ def create_app():
         db.session.execute(db.text("PRAGMA journal_mode=WAL"))
         db.session.commit()
 
-        # Add api_key column to existing DBs (create_all won't add new columns)
+        # Add new columns to existing DBs (create_all won't add new columns)
         cols = [c["name"] for c in db.inspect(db.engine).get_columns("user")]
         if "api_key" not in cols:
             db.session.execute(db.text("ALTER TABLE user ADD COLUMN api_key VARCHAR(64)"))
+            db.session.commit()
+        if "agent_token" not in cols:
+            db.session.execute(db.text("ALTER TABLE user ADD COLUMN agent_token VARCHAR(64)"))
             db.session.commit()
 
         # Clean up jobs that were left "running"/"queued" by a previous restart

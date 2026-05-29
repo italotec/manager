@@ -24,6 +24,7 @@ Your API key is shown on the dashboard under **Chave de API**.
 |-------|------|----------|-------------|
 | `waba_id` | string | yes | WhatsApp Business Account ID |
 | `token` | string | yes | Meta access token for this WABA |
+| `adspower_profile_id` | string | no | AdsPower profile ID to link with this BM; when set, an "Open in AdsPower" button appears on the dashboard |
 
 ```json
 {
@@ -40,10 +41,13 @@ Your API key is shown on the dashboard under **Chave de API**.
 {
   "ok": true,
   "waba_id": "123456789",
+  "adspower_profile_id": "user_12345",
   "webhook_subscribed": true,
   "webhook_error": null
 }
 ```
+
+`adspower_profile_id` is `null` when the field was not sent in the request.
 
 - `webhook_subscribed` — `true` if the webhook subscription call to Meta succeeded.
 - `webhook_error` — `null` on success, or a string describing the Meta API error. The BM is saved regardless of webhook subscription outcome.

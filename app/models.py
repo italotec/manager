@@ -24,6 +24,7 @@ class User(db.Model, UserMixin):
     is_banned = db.Column(db.Boolean, default=False, nullable=False)  # NEW
 
     api_key = db.Column(db.String(64), unique=True, nullable=True, index=True)
+    agent_token = db.Column(db.String(64), unique=True, nullable=True, index=True)
 
     wabas = db.relationship("Waba", backref="user", lazy=True, cascade="all, delete-orphan")
 

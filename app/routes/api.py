@@ -49,6 +49,7 @@ def add_business_manager():
 
     waba_id = str(body.get("waba_id") or "").strip()
     token = str(body.get("token") or "").strip()
+    adspower_profile_id = str(body.get("adspower_profile_id") or "").strip()
 
     if not waba_id:
         return jsonify({"ok": False, "error": "waba_id is required."}), 400
@@ -56,13 +57,14 @@ def add_business_manager():
         return jsonify({"ok": False, "error": "token is required."}), 400
 
     ensure_user_bms_file(user.id)
-    upsert_waba(user.id, waba_id=waba_id, token=token)
+    upsert_waba(user.id, waba_id=waba_id, token=token, adspower_profile_id=adspower_profile_id)
 
     webhook_ok, webhook_err = subscribe_waba_webhook(Config.META_API_VERSION, token, waba_id)
 
     return jsonify({
         "ok": True,
         "waba_id": waba_id,
+        "adspower_profile_id": adspower_profile_id or None,
         "webhook_subscribed": webhook_ok,
         "webhook_error": webhook_err,
     }), 201
