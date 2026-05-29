@@ -1,9 +1,21 @@
 import os
+from datetime import timedelta
 
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///app.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # Session / login persistence — keeps the user logged in across
+    # browser restarts and dev-server reloads (fixes constant logouts).
+    PERMANENT_SESSION_LIFETIME = timedelta(days=30)
+    REMEMBER_COOKIE_DURATION = timedelta(days=30)
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = "Lax"
+    REMEMBER_COOKIE_SAMESITE = "Lax"
+    # Cookies must work over plain http on localhost, so don't force Secure.
+    SESSION_COOKIE_SECURE = False
+    REMEMBER_COOKIE_SECURE = False
 
     # SMS24H
     SMS24H_API_KEY = os.getenv("SMS24H_API_KEY", "0a8b463bee4645a9cfccb45cde49472b")

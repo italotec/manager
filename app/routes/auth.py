@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from flask_login import login_user, logout_user, login_required, current_user
 from ..models import User
 
@@ -24,7 +24,8 @@ def login_post():
         flash("Sua conta está banida. Fale com o suporte.", "error")
         return redirect(url_for("auth.login_get"))
 
-    login_user(user)
+    session.permanent = True
+    login_user(user, remember=True)
     return redirect(url_for("dashboard.dashboard"))
 
 @bp.route("/logout")

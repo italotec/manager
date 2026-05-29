@@ -23,6 +23,28 @@
   </div>
 </div>
 
+{# ── mode toggle ── #}
+<div class="mb-4 flex items-center gap-3">
+  <button type="button" id="btnModeSingle"
+          onclick="setMode('single')"
+          class="mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors
+                 border-indigo-500 bg-indigo-700 text-white">
+    BM único
+  </button>
+  <button type="button" id="btnModeMulti"
+          onclick="setMode('multi')"
+          class="mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors
+                 border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800">
+    Múltiplos BMs
+  </button>
+  <span class="text-xs text-zinc-600">Selecione vários BMs e arquivos de leads para um único disparo combinado.</span>
+</div>
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   SINGLE-BM mode wrapper
+═══════════════════════════════════════════════════════════════════════════ #}
+<div id="singleModeSection">
+
 {# ═══════════════════════════════════════════════════════════════════════════
    STEP 1 · CSV
 ═══════════════════════════════════════════════════════════════════════════ #}
@@ -336,6 +358,253 @@
     </table>
   </div>
 </div>
+
+</div>{# end #singleModeSection #}
+
+{# ═══════════════════════════════════════════════════════════════════════════
+   MULTI-BM MODE
+═══════════════════════════════════════════════════════════════════════════ #}
+<div id="multiModeSection" class="hidden">
+
+  {# ── MULTI STEP 1: files ── #}
+  <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-4">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <div class="text-sm font-semibold">1 · Bases de leads</div>
+        <div class="text-xs text-zinc-500">Selecione um ou mais arquivos. Para cada arquivo você vai mapear a coluna de telefone e os campos do template.</div>
+      </div>
+      <form method="POST" action="{{ url_for('disparar.upload_csv') }}"
+            enctype="multipart/form-data" class="flex items-center gap-2">
+        <label class="cursor-pointer px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">
+          + Upload CSV / XLSX
+          <input type="file" name="csv_file" accept=".csv,.xlsx" class="hidden"
+                 onchange="this.closest('form').submit()">
+        </label>
+      </form>
+    </div>
+
+    {% if not csv_files %}
+      <div class="text-sm text-zinc-500 py-4 text-center border border-dashed border-zinc-800 rounded-xl">
+        Nenhum CSV enviado ainda.
+      </div>
+    {% else %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+          <thead class="text-zinc-400">
+            <tr class="border-b border-zinc-800">
+              <th class="text-left py-2 pr-4">Sel</th>
+              <th class="text-left py-2">Arquivo</th>
+              <th class="text-left py-2">Linhas</th>
+              <th class="text-left py-2">Enviados</th>
+              <th class="text-left py-2">Tamanho</th>
+            </tr>
+          </thead>
+          <tbody class="text-zinc-200">
+            {% for csv in csv_files %}
+            <tr class="border-b border-zinc-900 hover:bg-zinc-900/50">
+              <td class="py-3 pr-4">
+                <input type="checkbox" name="multi_csv_select" value="{{ csv.name }}"
+                       onchange="onMultiCsvChange()"
+                       class="multi-csv-check w-4 h-4 accent-indigo-500">
+              </td>
+              <td class="py-3 font-mono text-xs">{{ csv.name }}</td>
+              <td class="py-3 text-zinc-400 text-xs">{{ csv.row_count }}</td>
+              <td class="py-3 text-xs">
+                {% if csv.sent_pct == 100 %}
+                  <span class="text-emerald-400 font-semibold">{{ csv.sent_pct }}%</span>
+                {% elif csv.sent_pct > 0 %}
+                  <span class="text-amber-400 font-semibold">{{ csv.sent_pct }}%</span>
+                {% else %}
+                  <span class="text-zinc-500">0%</span>
+                {% endif %}
+                <span class="text-zinc-600 ml-1">({{ csv.sent_count }}/{{ csv.row_count }})</span>
+              </td>
+              <td class="py-3 text-zinc-400 text-xs">{{ csv.size_kb }} KB</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    {# Per-file mapping panels injected by JS #}
+    <div id="multiFileMappings" class="mt-3 space-y-3"></div>
+  </div>
+
+  {# ── MULTI STEP 2: BMs + template ── #}
+  <div id="multiConfigSection" class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-4 opacity-40 pointer-events-none transition-opacity duration-200">
+    <div class="text-sm font-semibold mb-3">2 · BMs e template</div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+      {# Left: BM checklist + overage #}
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs text-zinc-400 font-medium">Business Managers</label>
+          <p class="text-xs text-zinc-600 mb-2">Apenas BMs com limite de envio definido são listados. BMs UNLIMITED devem ser disparados individualmente.</p>
+          <div class="space-y-1 max-h-64 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950 p-2">
+            {% for w in wabas %}
+              {% if w.tier and w.tier != 'TIER_UNLIMITED' %}
+                {% for ph in w.phones %}
+                <label class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-900 cursor-pointer multi-bm-row"
+                       data-waba-id="{{ w.waba_id }}"
+                       data-phone-number-id="{{ ph.phone_number_id }}"
+                       data-token="{{ w.token }}"
+                       data-name="{{ w.name }}"
+                       data-tier="{{ w.tier }}">
+                  <input type="checkbox" class="multi-bm-check w-4 h-4 accent-indigo-500"
+                         onchange="onMultiBmChange()">
+                  <div class="flex-1 min-w-0">
+                    <div class="text-xs font-semibold text-zinc-200 truncate">{{ w.name }}</div>
+                    <div class="text-xs text-zinc-500 font-mono truncate">{{ ph.display }}</div>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-md border border-zinc-700 bg-zinc-800 text-xs font-mono text-zinc-300 shrink-0">
+                    {{ w.tier.replace('TIER_', '') if w.tier else '—' }}
+                  </span>
+                </label>
+                {% endfor %}
+                {% if not w.phones %}
+                <label class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-900 cursor-pointer multi-bm-row opacity-50"
+                       data-waba-id="{{ w.waba_id }}"
+                       data-phone-number-id=""
+                       data-token="{{ w.token }}"
+                       data-name="{{ w.name }}"
+                       data-tier="{{ w.tier }}">
+                  <input type="checkbox" class="multi-bm-check w-4 h-4 accent-indigo-500" disabled>
+                  <div class="flex-1 min-w-0">
+                    <div class="text-xs font-semibold text-zinc-400 truncate">{{ w.name }} (sem telefone)</div>
+                  </div>
+                  <span class="px-2 py-0.5 rounded-md border border-zinc-700 bg-zinc-800 text-xs font-mono text-zinc-500 shrink-0">
+                    {{ w.tier.replace('TIER_', '') if w.tier else '—' }}
+                  </span>
+                </label>
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+
+        <div>
+          <label class="text-xs text-zinc-400 font-medium">Sobra de envio (%)</label>
+          <div class="flex items-center gap-2 mt-1">
+            <input id="multiOveragePct" type="number" min="0" max="100" step="1" value="10"
+                   oninput="refreshBatchPreview()"
+                   class="w-24 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-700 outline-none focus:border-zinc-500 text-xs font-mono text-center">
+            <span class="text-xs text-zinc-500">% a mais que o limite do tier (ex: TIER_1K + 10% = 1.100 leads)</span>
+          </div>
+        </div>
+
+        <div>
+          <label class="flex items-center gap-2 cursor-pointer text-sm text-zinc-300">
+            <input type="checkbox" id="multiSkipLog" class="accent-amber-500 w-4 h-4" onchange="refreshBatchPreview()">
+            Não registrar
+          </label>
+          <p class="text-xs text-zinc-600 mt-0.5">Não filtra o sent_log.txt e não salva enviados.</p>
+        </div>
+
+        <div>
+          <label class="text-xs text-zinc-400 font-medium">Threads simultâneas por BM</label>
+          <div class="mt-1 flex items-center gap-2 flex-wrap">
+            {% for n in [1, 2, 3, 5, 10, 20] %}
+            <button type="button"
+                    onclick="setMultiWorkers({{ n }})"
+                    data-workers="{{ n }}"
+                    class="multi-workers-btn px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs font-mono transition-colors">
+              {{ n }}
+            </button>
+            {% endfor %}
+            <button type="button"
+                    onclick="setMultiWorkers(0)"
+                    data-workers="0"
+                    class="multi-workers-btn px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-xs font-mono transition-colors text-emerald-400">
+              MAX
+            </button>
+          </div>
+          <p class="text-xs text-zinc-600 mt-1">O orçamento global de concorrência distribui automaticamente entre todos os BMs.</p>
+          <input type="hidden" id="multiWorkersValue" value="1">
+        </div>
+      </div>
+
+      {# Right: template config #}
+      <div class="space-y-4">
+        <div>
+          <label class="text-xs text-zinc-400 font-medium">Templates</label>
+          <div class="mt-1 flex gap-2">
+            <button type="button" id="btnTplSame" onclick="setTemplateMode('same')"
+                    class="tpl-mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-indigo-500 bg-indigo-700 text-white">
+              Mesmo template
+            </button>
+            <button type="button" id="btnTplDiff" onclick="setTemplateMode('different')"
+                    class="tpl-mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800">
+              Templates diferentes
+            </button>
+          </div>
+        </div>
+
+        {# Per-BM template pickers — rendered in both modes by JS #}
+        <div id="perBmTemplateRows" class="space-y-3">
+          {# Injected by JS when BMs are selected #}
+        </div>
+
+        {# Global param mapping — visible in "same" mode only #}
+        <div id="tplSamePanel" class="space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="text-xs text-zinc-400">Parâmetros do template (mapeamento único para todos os BMs)</label>
+            <button type="button" onclick="addMultiParamRow()"
+                    class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold">
+              + Adicionar
+            </button>
+          </div>
+          <div id="multiParamRows" class="space-y-2"></div>
+          <p class="text-xs text-zinc-600">Coluna CSV = nome canônico que você mapeou no passo 1.</p>
+        </div>
+
+        {# Hint shown in "different" mode (no extra content — params are per-BM) #}
+        <div id="tplDiffPanel" class="hidden">
+          <p class="text-xs text-zinc-500">Cada BM tem seu próprio template e mapeamento de parâmetros abaixo.</p>
+        </div>
+      </div>
+    </div>
+
+    {# Allocation preview #}
+    <div id="batchPreviewBox" class="hidden mt-4 rounded-xl border border-zinc-700 bg-zinc-950 p-3 text-xs space-y-1"></div>
+
+    {# Start button #}
+    <div class="mt-5 flex items-center gap-4">
+      <button type="button" id="btnBatchStart" onclick="startBatch()"
+              class="px-6 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 font-semibold text-sm">
+        Disparar para todos os BMs
+      </button>
+      <span class="text-xs text-zinc-500">Cada BM recebe sua fatia de leads e dispara em background.</span>
+    </div>
+  </div>
+
+  {# ── MULTI STEP 3: batch log ── #}
+  <div id="batchLogSection" class="hidden rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4">
+    <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <div class="text-sm font-semibold">3 · Log em tempo real — múltiplos BMs</div>
+      <div class="flex items-center gap-2 flex-wrap text-xs">
+        <span class="px-3 py-1 rounded-lg bg-zinc-800">Pool: <b id="batchStatPool">0</b></span>
+        <span class="px-3 py-1 rounded-lg bg-emerald-950/50 border border-emerald-800/50 text-emerald-300">Enviados: <b id="batchStatSent">0</b></span>
+        <span class="px-3 py-1 rounded-lg bg-red-950/50 border border-red-800/50 text-red-300">Falhas: <b id="batchStatFailed">0</b></span>
+        <span class="px-3 py-1 rounded-lg bg-zinc-800 text-zinc-400">Pulados: <b id="batchStatSkipped">0</b></span>
+        <span id="batchStatStatus" class="px-3 py-1 rounded-lg bg-zinc-800 text-zinc-300 font-semibold">—</span>
+      </div>
+    </div>
+    <div class="w-full h-2 bg-zinc-800 rounded-full overflow-hidden mb-3">
+      <div id="batchProgressBar" class="h-2 bg-emerald-600 transition-all duration-500 w-0"></div>
+    </div>
+    <div class="flex items-center gap-3 mb-3">
+      <button type="button" id="btnBatchStop" onclick="stopBatch()"
+              class="px-4 py-2 rounded-xl bg-red-900 hover:bg-red-800 text-sm font-semibold hidden">
+        Parar tudo
+      </button>
+    </div>
+    {# Per-BM rows #}
+    <div id="batchBmRows" class="space-y-2 mb-3"></div>
+  </div>
+
+</div>{# end #multiModeSection #}
 
 {# ═══════════════════════════════════════════════════════════════════════════
    JAVASCRIPT
@@ -743,6 +1012,700 @@ function escHtml(str) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// MULTI-BM MODE JS
+// ══════════════════════════════════════════════════════════════════════════════
+
+// ── mode toggle ───────────────────────────────────────────────────────────────
+let _currentMode = 'single';
+
+function setMode(mode) {
+  _currentMode = mode;
+  const single = document.getElementById('singleModeSection');
+  const multi  = document.getElementById('multiModeSection');
+  const btnS   = document.getElementById('btnModeSingle');
+  const btnM   = document.getElementById('btnModeMulti');
+
+  if (mode === 'single') {
+    single.classList.remove('hidden');
+    multi.classList.add('hidden');
+    btnS.className = 'mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-indigo-500 bg-indigo-700 text-white';
+    btnM.className = 'mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800';
+  } else {
+    single.classList.add('hidden');
+    multi.classList.remove('hidden');
+    btnM.className = 'mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-indigo-500 bg-indigo-700 text-white';
+    btnS.className = 'mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800';
+  }
+}
+
+// ── multi state ───────────────────────────────────────────────────────────────
+let _multiSelectedFiles = {};   // filename → {columns, has_header}
+let _multiSelectedBms   = [];   // [{waba_id, phone_number_id, token, name, tier}]
+let _multiTemplateMode  = 'same';
+let _multiWorkers       = 1;
+let _activeBatchId      = null;
+let _batchPollTimer     = null;
+let _perBmTemplates     = {};   // waba_id → [{name, language, ...}] (loaded on demand)
+let _canonicalFields    = [];   // derived from param rows for file mapping
+
+// ── file checkbox ─────────────────────────────────────────────────────────────
+async function onMultiCsvChange() {
+  const checks = document.querySelectorAll('.multi-csv-check:checked');
+  const selected = Array.from(checks).map(c => c.value);
+
+  // Remove mappings for unchecked files
+  Object.keys(_multiSelectedFiles).forEach(fn => {
+    if (!selected.includes(fn)) {
+      delete _multiSelectedFiles[fn];
+      const el = document.getElementById('multiFileMap_' + CSS.escape(fn));
+      if (el) el.remove();
+    }
+  });
+
+  // Add mapping panels for newly selected files
+  for (const fn of selected) {
+    if (_multiSelectedFiles[fn]) continue;
+    let cols = [];
+    try {
+      const res = await fetch('/disparar/csv/' + encodeURIComponent(fn) + '/columns?has_header=1');
+      if (res.ok) { const d = await res.json(); cols = d.columns || []; }
+    } catch(e) {}
+    _multiSelectedFiles[fn] = { columns: cols, has_header: true };
+    renderFileMapping(fn, cols);
+  }
+
+  unlockMultiConfig();
+  refreshBatchPreview();
+}
+
+function renderFileMapping(filename, columns) {
+  const container = document.getElementById('multiFileMappings');
+  const colOpts = columns.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+
+  const div = document.createElement('div');
+  div.id = 'multiFileMap_' + filename;
+  div.className = 'rounded-xl border border-zinc-700 bg-zinc-950 p-3 space-y-2';
+  div.innerHTML = `
+    <div class="flex items-center justify-between">
+      <span class="font-mono text-xs text-zinc-300">${escHtml(filename)}</span>
+      <label class="flex items-center gap-1.5 text-xs text-zinc-400 cursor-pointer">
+        <input type="checkbox" class="w-3.5 h-3.5 accent-indigo-500 file-no-header"
+               data-filename="${escHtml(filename)}" onchange="onFileHeaderChange('${escHtml(filename)}')">
+        Sem cabeçalho
+      </label>
+    </div>
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-zinc-500 w-24 shrink-0">Coluna telefone</span>
+      <select class="flex-1 px-2 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-xs outline-none file-phone-col"
+              data-filename="${escHtml(filename)}" onchange="refreshBatchPreview()">
+        ${colOpts}
+      </select>
+    </div>
+    <div class="file-extra-fields space-y-1.5" data-filename="${escHtml(filename)}"></div>
+  `;
+  container.appendChild(div);
+  refreshFileMappingFields(filename);
+}
+
+function onFileHeaderChange(filename) {
+  const cb = document.querySelector(`.file-no-header[data-filename="${filename}"]`);
+  const has_header = cb ? !cb.checked : true;
+  _multiSelectedFiles[filename].has_header = has_header;
+
+  // Re-fetch columns with new has_header setting
+  fetch('/disparar/csv/' + encodeURIComponent(filename) + '/columns?has_header=' + (has_header ? '1' : '0'))
+    .then(r => r.json()).then(d => {
+      const cols = d.columns || [];
+      _multiSelectedFiles[filename].columns = cols;
+      // Rebuild phone-col select
+      const sel = document.querySelector(`.file-phone-col[data-filename="${filename}"]`);
+      if (sel) sel.innerHTML = cols.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+      refreshFileMappingFields(filename);
+      refreshBatchPreview();
+    }).catch(() => {});
+}
+
+function refreshFileMappingFields(filename) {
+  const container = document.querySelector(`.file-extra-fields[data-filename="${filename}"]`);
+  if (!container) return;
+  const cols = (_multiSelectedFiles[filename] || {}).columns || [];
+  const colOpts = '<option value="">— coluna —</option>' + cols.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+
+  // One row per canonical param field from the current param mapping
+  const fields = getCanonicalFields();
+  container.innerHTML = fields.map(cf => `
+    <div class="flex items-center gap-2">
+      <span class="text-xs text-zinc-500 w-24 shrink-0 font-mono">${escHtml(cf)}</span>
+      <select class="flex-1 px-2 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-xs outline-none file-field-col"
+              data-filename="${escHtml(filename)}" data-field="${escHtml(cf)}">
+        ${colOpts}
+      </select>
+    </div>
+  `).join('');
+}
+
+function getCanonicalFields() {
+  // Gather param names from multi param rows
+  const names = [];
+  document.querySelectorAll('#multiParamRows .multi-param-name').forEach(inp => {
+    const v = inp.value.trim();
+    if (v) names.push(v);
+  });
+  // Also from per-BM configs
+  document.querySelectorAll('.per-bm-param-name').forEach(inp => {
+    const v = inp.value.trim();
+    if (v && !names.includes(v)) names.push(v);
+  });
+  return names;
+}
+
+// ── BM checkbox ───────────────────────────────────────────────────────────────
+function onMultiBmChange() {
+  // Snapshot existing per-BM template selections before rebuilding the list
+  const savedTpl = {};
+  _multiSelectedBms.forEach(bm => {
+    const nameEl = document.getElementById('perBmTplName_' + bm.waba_id);
+    const langEl = document.getElementById('perBmTplLang_' + bm.waba_id);
+    const boxEl  = document.getElementById('perBmTplBox_'  + bm.waba_id);
+    if (nameEl && nameEl.value) {
+      savedTpl[bm.waba_id] = {
+        name:     nameEl.value,
+        language: langEl ? langEl.value : 'en',
+        label:    boxEl  ? boxEl.textContent : nameEl.value,
+      };
+    }
+  });
+
+  _multiSelectedBms = [];
+  document.querySelectorAll('.multi-bm-row').forEach(row => {
+    const cb = row.querySelector('.multi-bm-check');
+    if (cb && cb.checked && !cb.disabled) {
+      _multiSelectedBms.push({
+        waba_id:          row.dataset.wabaId,
+        phone_number_id:  row.dataset.phoneNumberId,
+        token:            row.dataset.token,
+        name:             row.dataset.name,
+        tier_str:         row.dataset.tier,
+      });
+    }
+  });
+
+  // Always re-render per-BM rows; pass saved selections to restore them
+  renderPerBmTemplateRows(savedTpl);
+  unlockMultiConfig();
+  refreshBatchPreview();
+}
+
+function unlockMultiConfig() {
+  const hasFiles = Object.keys(_multiSelectedFiles).length > 0;
+  const hasBms   = _multiSelectedBms.length > 0;
+  const section  = document.getElementById('multiConfigSection');
+  if (hasFiles || hasBms) {
+    section.classList.remove('opacity-40', 'pointer-events-none');
+  }
+}
+
+// ── workers ───────────────────────────────────────────────────────────────────
+function setMultiWorkers(val) {
+  const v = parseInt(val);
+  if (isNaN(v) || v < 0) return;
+  _multiWorkers = v;
+  document.getElementById('multiWorkersValue').value = v;
+  document.querySelectorAll('.multi-workers-btn').forEach(btn => {
+    const active = parseInt(btn.dataset.workers) === v;
+    btn.classList.toggle('bg-indigo-700', active);
+    btn.classList.toggle('border-indigo-500', active);
+    btn.classList.toggle('text-white', active);
+    btn.classList.toggle('bg-zinc-900', !active);
+    btn.classList.toggle('border-zinc-700', !active);
+  });
+}
+
+// ── template mode ─────────────────────────────────────────────────────────────
+function setTemplateMode(mode) {
+  _multiTemplateMode = mode;
+  const samePanel = document.getElementById('tplSamePanel');
+  const diffPanel = document.getElementById('tplDiffPanel');
+  const btnS = document.getElementById('btnTplSame');
+  const btnD = document.getElementById('btnTplDiff');
+
+  if (mode === 'same') {
+    samePanel.classList.remove('hidden');
+    diffPanel.classList.add('hidden');
+    btnS.className = 'tpl-mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-indigo-500 bg-indigo-700 text-white';
+    btnD.className = 'tpl-mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800';
+  } else {
+    samePanel.classList.add('hidden');
+    diffPanel.classList.remove('hidden');
+    btnD.className = 'tpl-mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-indigo-500 bg-indigo-700 text-white';
+    btnS.className = 'tpl-mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800';
+  }
+  // Re-render per-BM pickers with the new mode (show/hide params section per BM)
+  renderPerBmTemplateRows();
+}
+
+// ── per-BM template rows (used in both modes) ─────────────────────────────────
+// savedTpl: optional {waba_id: {name, language, label}} to restore after rebuild
+function renderPerBmTemplateRows(savedTpl) {
+  savedTpl = savedTpl || {};
+  const showParams = _multiTemplateMode === 'different';
+  const container  = document.getElementById('perBmTemplateRows');
+  container.innerHTML = '';
+
+  _multiSelectedBms.forEach(bm => {
+    const saved = savedTpl[bm.waba_id] || {};
+    const tplLabel = saved.label || '— selecione um template —';
+    const tplSelected = !!saved.name;
+
+    const div = document.createElement('div');
+    div.id = 'perBmTpl_' + bm.waba_id;
+    div.className = 'rounded-xl border border-zinc-700 bg-zinc-950 p-3 space-y-2';
+
+    // Header row: BM name + fetch button + (same mode) "apply name to all" button
+    const applyAllBtn = !showParams
+      ? `<button type="button" onclick="applyTemplateNameToAll('${escHtml(bm.waba_id)}')"
+                class="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-400">
+           Aplicar nome a todos
+         </button>`
+      : '';
+
+    div.innerHTML = `
+      <div class="flex items-center justify-between gap-2 flex-wrap">
+        <span class="text-xs font-semibold text-zinc-200">${escHtml(bm.name)}</span>
+        <div class="flex items-center gap-2">
+          ${applyAllBtn}
+          <button type="button" onclick="fetchPerBmTemplates('${escHtml(bm.waba_id)}', '${escHtml(bm.token)}')"
+                  class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold">
+            Buscar templates
+          </button>
+        </div>
+      </div>
+      <div id="perBmTplBox_${escHtml(bm.waba_id)}"
+           class="px-3 py-2 rounded-lg bg-zinc-900 border ${tplSelected ? 'border-indigo-600 text-zinc-200 font-mono' : 'border-zinc-800 text-zinc-500'} text-xs cursor-pointer"
+           onclick="togglePerBmPicker('${escHtml(bm.waba_id)}')">
+        ${escHtml(tplLabel)}
+      </div>
+      <input type="hidden" id="perBmTplName_${escHtml(bm.waba_id)}" value="${escHtml(saved.name || '')}">
+      <input type="hidden" id="perBmTplLang_${escHtml(bm.waba_id)}" value="${escHtml(saved.language || 'en')}">
+      <div id="perBmPickerPanel_${escHtml(bm.waba_id)}" class="hidden rounded-lg border border-zinc-700 bg-zinc-950 overflow-hidden">
+        <div id="perBmPickerList_${escHtml(bm.waba_id)}" class="max-h-40 overflow-y-auto divide-y divide-zinc-800"></div>
+      </div>
+      ${showParams ? `
+      <div>
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs text-zinc-500">Parâmetros</span>
+          <button type="button" onclick="addPerBmParamRow('${escHtml(bm.waba_id)}')"
+                  class="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-xs">+ param</button>
+        </div>
+        <div id="perBmParams_${escHtml(bm.waba_id)}" class="space-y-1.5"></div>
+      </div>` : ''}
+    `;
+    container.appendChild(div);
+  });
+}
+
+// "Apply name to all" — in same mode only: find template with exact same name in
+// every other BM that has already loaded templates; skip BMs without a loaded list.
+function applyTemplateNameToAll(sourceWabaId) {
+  const srcName = (document.getElementById('perBmTplName_' + sourceWabaId) || {}).value || '';
+  if (!srcName) { alert('Selecione um template neste BM primeiro.'); return; }
+
+  _multiSelectedBms.forEach(bm => {
+    if (bm.waba_id === sourceWabaId) return;
+    const tpls = _perBmTemplates[bm.waba_id] || [];
+    const match = tpls.find(t => t.name === srcName && t.status === 'APPROVED');
+    if (!match) return;
+    const nameEl = document.getElementById('perBmTplName_' + bm.waba_id);
+    const langEl = document.getElementById('perBmTplLang_' + bm.waba_id);
+    const boxEl  = document.getElementById('perBmTplBox_'  + bm.waba_id);
+    if (nameEl) nameEl.value = match.name;
+    if (langEl) langEl.value = match.language || 'en';
+    if (boxEl)  { boxEl.textContent = match.name; boxEl.className = 'px-3 py-2 rounded-lg bg-zinc-900 border border-indigo-600 text-xs text-zinc-200 font-mono cursor-pointer'; }
+  });
+}
+
+async function fetchPerBmTemplates(wabaId, token) {
+  try {
+    const res  = await fetch('/disparar/waba/' + encodeURIComponent(wabaId) + '/templates');
+    const data = await res.json();
+    _perBmTemplates[wabaId] = data.templates || [];
+    renderMultiTemplatePicker(
+      _perBmTemplates[wabaId],
+      'perBmPickerList_' + wabaId,
+      (name, row) => selectPerBmTemplate(wabaId, name, row)
+    );
+    document.getElementById('perBmPickerPanel_' + wabaId).classList.remove('hidden');
+  } catch(e) { alert('Erro: ' + e); }
+}
+
+function togglePerBmPicker(wabaId) {
+  const panel = document.getElementById('perBmPickerPanel_' + wabaId);
+  if (!panel) return;
+  panel.classList.toggle('hidden');
+}
+
+function selectPerBmTemplate(wabaId, name, rowEl) {
+  const tpls = _perBmTemplates[wabaId] || [];
+  const tpl  = tpls.find(t => t.name === name);
+  document.getElementById('perBmTplName_' + wabaId).value = name;
+  document.getElementById('perBmTplLang_' + wabaId).value = tpl ? (tpl.language || 'en') : 'en';
+  const box = document.getElementById('perBmTplBox_' + wabaId);
+  box.textContent = name;
+  box.className = 'px-3 py-2 rounded-lg bg-zinc-900 border border-indigo-600 text-xs text-zinc-200 font-mono cursor-pointer';
+  document.getElementById('perBmPickerPanel_' + wabaId).classList.add('hidden');
+}
+
+function addPerBmParamRow(wabaId) {
+  const container = document.getElementById('perBmParams_' + wabaId);
+  const id = 'pbp_' + wabaId + '_' + Date.now();
+  const canonicals = getCanonicalFields();
+  const colOpts = '<option value="">— campo —</option>' +
+    canonicals.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+  const div = document.createElement('div');
+  div.id = id;
+  div.className = 'flex items-center gap-2';
+  div.innerHTML = `
+    <input type="text" placeholder="parameter_name"
+           class="flex-1 px-2 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 outline-none text-xs font-mono per-bm-param-name">
+    <span class="text-zinc-600 text-xs">→</span>
+    <select class="flex-1 px-2 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 outline-none text-xs per-bm-param-col">
+      ${colOpts}
+    </select>
+    <button type="button" onclick="document.getElementById('${id}').remove()"
+            class="px-1.5 py-1.5 rounded bg-zinc-800 hover:bg-red-900/50 text-zinc-500 hover:text-red-300 text-xs">✕</button>
+  `;
+  container.appendChild(div);
+}
+
+// ── shared template picker renderer ──────────────────────────────────────────
+// Registry so onclick can call the right handler without serializing closures.
+const _tplPickerHandlers = {};
+
+function renderMultiTemplatePicker(templates, listId, onSelect) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  _tplPickerHandlers[listId] = onSelect;  // store handler by listId
+
+  if (!templates.length) {
+    list.innerHTML = '<div class="px-4 py-3 text-xs text-zinc-500">Nenhum template encontrado.</div>';
+    return;
+  }
+  list.innerHTML = templates.map(t => {
+    const approved = t.status === 'APPROVED';
+    const catColor = t.category === 'MARKETING' ? 'text-purple-400 bg-purple-950/40 border-purple-800/50'
+                   : t.category === 'UTILITY'   ? 'text-blue-400 bg-blue-950/40 border-blue-800/50'
+                   :                              'text-zinc-400 bg-zinc-800 border-zinc-700';
+    const stColor  = t.status === 'APPROVED' ? 'text-emerald-400 bg-emerald-950/40 border-emerald-800/50'
+                   : t.status === 'PAUSED'   ? 'text-yellow-400 bg-yellow-950/40 border-yellow-800/50'
+                   :                           'text-red-400 bg-red-950/40 border-red-800/50';
+    const rowCls = approved
+      ? 'px-3 py-2.5 flex items-start gap-3 cursor-pointer hover:bg-zinc-900 transition-colors multi-template-row'
+      : 'px-3 py-2.5 flex items-start gap-3 opacity-40 cursor-not-allowed select-none';
+    const safeListId = listId.replace(/'/g, "\\'");
+    const safeName   = t.name.replace(/'/g, "\\'");
+    return `
+      <div class="${rowCls}" data-name="${escHtml(t.name)}"
+           ${approved ? `onclick="_tplPickerHandlers['${safeListId}']('${safeName}', this)"` : ''}>
+        <div class="flex-1 min-w-0">
+          <div class="font-mono text-xs text-zinc-200 font-semibold truncate">${escHtml(t.name)}</div>
+          ${t.body ? `<div class="text-xs text-zinc-500 mt-0.5 truncate">${escHtml(t.body)}</div>` : ''}
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0 mt-0.5">
+          <span class="px-1.5 py-0.5 rounded border text-xs font-semibold ${catColor}">${escHtml(t.category)}</span>
+          <span class="px-1.5 py-0.5 rounded border text-xs font-semibold ${stColor}">${escHtml(t.status)}</span>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── same-mode param rows ──────────────────────────────────────────────────────
+let _multiParamRowId = 0;
+function addMultiParamRow(name = '', col = '') {
+  _multiParamRowId++;
+  const id = 'mpr' + _multiParamRowId;
+  const canonicals = getCanonicalFields();
+  const colOpts = '<option value="">— campo —</option>' +
+    canonicals.map(c => `<option value="${escHtml(c)}"${c===col?' selected':''}>${escHtml(c)}</option>`).join('');
+  const div = document.createElement('div');
+  div.id = id;
+  div.className = 'flex items-center gap-2';
+  div.innerHTML = `
+    <input type="text" placeholder="parameter_name"
+           class="flex-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-xs font-mono multi-param-name"
+           value="${escHtml(name)}" oninput="onMultiParamNameChange()">
+    <span class="text-zinc-600 text-xs">→</span>
+    <select class="flex-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-xs multi-param-col">
+      ${colOpts}
+    </select>
+    <button type="button" onclick="document.getElementById('${id}').remove(); onMultiParamNameChange()"
+            class="px-2 py-2 rounded-lg bg-zinc-800 hover:bg-red-900/50 text-zinc-500 hover:text-red-300 text-xs">✕</button>
+  `;
+  document.getElementById('multiParamRows').appendChild(div);
+}
+
+function onMultiParamNameChange() {
+  // Update all file mapping panels to reflect new canonical fields
+  Object.keys(_multiSelectedFiles).forEach(fn => refreshFileMappingFields(fn));
+}
+
+// ── preview / allocation ──────────────────────────────────────────────────────
+let _previewDebounce = null;
+function refreshBatchPreview() {
+  clearTimeout(_previewDebounce);
+  _previewDebounce = setTimeout(_doRefreshPreview, 600);
+}
+
+async function _doRefreshPreview() {
+  const filesSpec = buildFilesSpec();
+  const wabasSpec = buildWabasSpec();
+  if (!filesSpec.length || !wabasSpec.length) {
+    document.getElementById('batchPreviewBox').classList.add('hidden');
+    return;
+  }
+  const overage = parseFloat(document.getElementById('multiOveragePct').value) || 0;
+  const skipLog = document.getElementById('multiSkipLog').checked;
+  try {
+    const res = await fetch('/disparar/batch/preview', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({files_spec: filesSpec, wabas_spec: wabasSpec, overage_pct: overage, skip_log: skipLog}),
+    });
+    const d = await res.json();
+    renderBatchPreview(d);
+  } catch(e) {}
+}
+
+function renderBatchPreview(d) {
+  const box = document.getElementById('batchPreviewBox');
+  if (!d || d.error === 'insufficient_leads') {
+    box.innerHTML = '<span class="text-red-400">Leads insuficientes para preencher o primeiro BM com a sobra configurada.</span>';
+    box.classList.remove('hidden');
+    return;
+  }
+  const lines = [];
+  lines.push(`<span class="text-zinc-300">Pool: <b>${d.pool_size}</b> leads únicos</span>`);
+  lines.push(`<span class="text-zinc-300">Capacidade total: <b>${d.total_capacity}</b></span>`);
+  if (d.leftover > 0)
+    lines.push(`<span class="text-amber-400">Sobra não enviada nesta rodada: <b>${d.leftover}</b> (próximo disparo)</span>`);
+  if (d.stripped && d.stripped.length)
+    lines.push(`<span class="text-yellow-400">BMs retirados (leads insuficientes): ${d.stripped.map(s => escHtml(s.name)).join(', ')}</span>`);
+  if (d.assignments && d.assignments.length) {
+    lines.push('<div class="mt-1 space-y-0.5">');
+    d.assignments.forEach(a => {
+      lines.push(`<div class="text-zinc-400 pl-2">&#x2022; ${escHtml(a.name)} <span class="text-zinc-600">(${a.tier_str ? a.tier_str.replace('TIER_','') : '?'})</span> → <b class="text-zinc-200">${a.quota}</b> leads</div>`);
+    });
+    lines.push('</div>');
+  }
+  box.innerHTML = lines.join('');
+  box.classList.remove('hidden');
+}
+
+// ── collect payload helpers ───────────────────────────────────────────────────
+function buildFilesSpec() {
+  return Object.entries(_multiSelectedFiles).map(([filename, info]) => {
+    const phoneSel = document.querySelector(`.file-phone-col[data-filename="${filename}"]`);
+    const phone_col = phoneSel ? phoneSel.value : '';
+    const field_map = {};
+    document.querySelectorAll(`.file-field-col[data-filename="${filename}"]`).forEach(sel => {
+      if (sel.value) field_map[sel.dataset.field] = sel.value;
+    });
+    return {filename, has_header: info.has_header, phone_col, field_map};
+  });
+}
+
+function buildWabasSpec() {
+  return _multiSelectedBms.map(bm => ({
+    waba_id: bm.waba_id,
+    phone_number_id: bm.phone_number_id,
+    token: bm.token,
+    name: bm.name,
+    tier_str: bm.tier_str,
+  }));
+}
+
+function buildTemplatesCfg() {
+  if (_multiTemplateMode === 'same') {
+    // Shared param_map; per-BM template names (names vary per BM)
+    const paramMap = [];
+    document.querySelectorAll('#multiParamRows > div').forEach(row => {
+      const nm  = row.querySelector('.multi-param-name').value.trim();
+      const col = row.querySelector('.multi-param-col').value;
+      if (nm) paramMap.push({name: nm, column: col});
+    });
+    const perBm = {};
+    _multiSelectedBms.forEach(bm => {
+      perBm[bm.waba_id] = {
+        template_name:     (document.getElementById('perBmTplName_' + bm.waba_id) || {}).value || '',
+        template_language: (document.getElementById('perBmTplLang_' + bm.waba_id) || {}).value || 'en',
+      };
+    });
+    return { param_map: paramMap, per_bm: perBm };
+  } else {
+    return _multiSelectedBms.map(bm => {
+      const paramMap = [];
+      document.querySelectorAll(`#perBmParams_${bm.waba_id} > div`).forEach(row => {
+        const nm  = row.querySelector('.per-bm-param-name').value.trim();
+        const col = row.querySelector('.per-bm-param-col').value;
+        if (nm) paramMap.push({name: nm, column: col});
+      });
+      return {
+        waba_id:           bm.waba_id,
+        template_name:     (document.getElementById('perBmTplName_' + bm.waba_id) || {}).value || '',
+        template_language: (document.getElementById('perBmTplLang_' + bm.waba_id) || {}).value || 'en',
+        param_map:         paramMap,
+      };
+    });
+  }
+}
+
+// ── start batch ───────────────────────────────────────────────────────────────
+async function startBatch() {
+  const filesSpec = buildFilesSpec();
+  const wabasSpec = buildWabasSpec();
+  if (!filesSpec.length)  { alert('Selecione pelo menos um arquivo.'); return; }
+  if (!wabasSpec.length)  { alert('Selecione pelo menos um BM.'); return; }
+
+  const templatesCfg = buildTemplatesCfg();
+
+  // Both modes require every selected BM to have a template name chosen
+  const missingTpl = _multiSelectedBms.filter(bm => {
+    const nm = (document.getElementById('perBmTplName_' + bm.waba_id) || {}).value || '';
+    return !nm.trim();
+  });
+  if (missingTpl.length) {
+    alert('Selecione o template para: ' + missingTpl.map(b => b.name).join(', '));
+    return;
+  }
+
+  const overage    = parseFloat(document.getElementById('multiOveragePct').value) || 0;
+  const skipLog    = document.getElementById('multiSkipLog').checked;
+  const maxWorkers = parseInt(document.getElementById('multiWorkersValue').value) || 1;
+
+  const btn = document.getElementById('btnBatchStart');
+  btn.disabled = true;
+  btn.textContent = 'Iniciando…';
+
+  const res = await fetch('/disparar/batch/start', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      files_spec:    filesSpec,
+      wabas_spec:    wabasSpec,
+      template_mode: _multiTemplateMode,
+      templates_cfg: templatesCfg,
+      overage_pct:   overage,
+      max_workers:   maxWorkers,
+      skip_log:      skipLog,
+    }),
+  });
+  const json = await res.json();
+  if (!res.ok || json.error) {
+    alert('Erro: ' + (json.error || res.status));
+    btn.disabled = false;
+    btn.textContent = 'Disparar para todos os BMs';
+    return;
+  }
+
+  _activeBatchId = json.batch_id;
+
+  // Render initial BM rows
+  const logSection = document.getElementById('batchLogSection');
+  logSection.classList.remove('hidden');
+  document.getElementById('btnBatchStop').classList.remove('hidden');
+  btn.textContent = 'Em andamento…';
+
+  renderBatchBmRows(json.children);
+  if (json.stripped && json.stripped.length) {
+    alert('BMs removidos por leads insuficientes: ' + json.stripped.map(s => s.name).join(', '));
+  }
+
+  startBatchPolling();
+}
+
+// ── batch polling ─────────────────────────────────────────────────────────────
+function startBatchPolling() {
+  if (_batchPollTimer) clearInterval(_batchPollTimer);
+  _batchPollTimer = setInterval(pollBatch, 2000);
+  pollBatch();
+}
+
+async function pollBatch() {
+  if (!_activeBatchId) return;
+  const res = await fetch('/disparar/batch/' + _activeBatchId + '/status');
+  if (!res.ok) return;
+  const d = await res.json();
+
+  document.getElementById('batchStatPool').textContent    = d.pool_size || 0;
+  document.getElementById('batchStatSent').textContent    = d.sent;
+  document.getElementById('batchStatFailed').textContent  = d.failed;
+  document.getElementById('batchStatSkipped').textContent = d.skipped;
+  document.getElementById('batchProgressBar').style.width = (d.pct || 0) + '%';
+
+  const stEl = document.getElementById('batchStatStatus');
+  stEl.textContent = d.status;
+  stEl.className = 'px-3 py-1 rounded-lg font-semibold text-xs ' + statusColor(d.status);
+
+  updateBatchBmRows(d.children || []);
+
+  if (d.status === 'done' || d.status === 'error' || d.status === 'stopped') {
+    clearInterval(_batchPollTimer);
+    _batchPollTimer = null;
+    document.getElementById('btnBatchStop').classList.add('hidden');
+    const btn = document.getElementById('btnBatchStart');
+    btn.disabled = false;
+    btn.textContent = 'Disparar novamente';
+    document.getElementById('batchProgressBar').style.width = '100%';
+  }
+}
+
+function renderBatchBmRows(children) {
+  const container = document.getElementById('batchBmRows');
+  container.innerHTML = '';
+  children.forEach(c => {
+    const div = document.createElement('div');
+    div.id = 'bmRow_' + c.job_id;
+    div.className = 'rounded-xl border border-zinc-800 bg-zinc-950 px-4 py-3 text-xs';
+    div.innerHTML = `
+      <div class="flex items-center justify-between mb-1">
+        <span class="font-semibold text-zinc-200">${escHtml(c.name)}</span>
+        <span id="bmStatus_${c.job_id}" class="px-2 py-0.5 rounded font-semibold bg-zinc-800 text-zinc-300">queued</span>
+      </div>
+      <div class="flex items-center gap-3 text-zinc-500">
+        <span>Quota: <b class="text-zinc-300">${c.quota}</b></span>
+        <span>Enviados: <b id="bmSent_${c.job_id}" class="text-emerald-400">0</b></span>
+        <span>Falhas: <b id="bmFailed_${c.job_id}" class="text-red-400">0</b></span>
+        <span>Pulados: <b id="bmSkipped_${c.job_id}" class="text-zinc-400">0</b></span>
+      </div>
+      <div id="bmMsg_${c.job_id}" class="mt-1 text-zinc-600 truncate"></div>
+    `;
+    container.appendChild(div);
+  });
+}
+
+function updateBatchBmRows(children) {
+  children.forEach(c => {
+    const stEl = document.getElementById('bmStatus_' + c.job_id);
+    if (stEl) { stEl.textContent = c.status; stEl.className = 'px-2 py-0.5 rounded font-semibold text-xs ' + statusColor(c.status); }
+    const sentEl    = document.getElementById('bmSent_'    + c.job_id); if (sentEl)    sentEl.textContent    = c.sent;
+    const failedEl  = document.getElementById('bmFailed_'  + c.job_id); if (failedEl)  failedEl.textContent  = c.failed;
+    const skippedEl = document.getElementById('bmSkipped_' + c.job_id); if (skippedEl) skippedEl.textContent = c.skipped;
+    const msgEl     = document.getElementById('bmMsg_'     + c.job_id); if (msgEl)     msgEl.textContent     = c.last_message || '';
+  });
+}
+
+// ── stop batch ────────────────────────────────────────────────────────────────
+async function stopBatch() {
+  if (!_activeBatchId) return;
+  await fetch('/disparar/batch/' + _activeBatchId + '/stop', {method: 'POST'});
+  document.getElementById('btnBatchStop').disabled = true;
+  document.getElementById('btnBatchStop').textContent = 'Parando…';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  setMultiWorkers(1);
+});
 </script>
 
 {% endblock %}

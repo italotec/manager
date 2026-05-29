@@ -241,13 +241,15 @@ async def _run_async_jobs(state, pending, phone_col, phone_number_id, token,
 
         await asyncio.gather(*[_task(row) for row in pending])
 
-    # Batch write all logs after all requests complete
+    # Batch write all logs after all requests complete — use LOCK so concurrent
+    # multi-BM child jobs don't interleave writes to sent_path.
     if results:
         if not skip_log:
             sent_phones = [p for p, ok, _, _ in results if ok]
             if sent_phones:
-                with open(sent_path, "a", encoding="utf-8") as sf:
-                    sf.write("\n".join(sent_phones) + "\n")
+                with LOCK:
+                    with open(sent_path, "a", encoding="utf-8") as sf:
+                        sf.write("\n".join(sent_phones) + "\n")
         with open(log_path, "a", encoding="utf-8") as lf:
             for phone, success, msg, ts in results:
                 lf.write(json.dumps({
@@ -268,7 +270,8 @@ def _run_disparo(app, job_id: int, user_id: int,
                  skip_log: bool = False,
                  waba_id: str = "",
                  has_header: bool = True,
-                 max_leads: int = 0):
+                 max_leads: int = 0,
+                 preloaded_rows: list | None = None):
     """
     Runs in a single daemon thread (the 'orchestrator').
     All counters live in RAM (_live_jobs). DB is only written at start and end.
@@ -313,12 +316,15 @@ def _run_disparo(app, job_id: int, user_id: int,
         with open(sent_path, "r", encoding="utf-8") as f:
             already_sent = {ln.strip() for ln in f if ln.strip()}
 
-    # Read CSV / XLSX
-    try:
-        rows = _read_rows(csv_path, has_header=has_header)
-    except Exception as exc:
-        _finish("error", f"Erro ao ler arquivo: {exc}")
-        return
+    # Use preloaded rows (multi-BM mode) or read from disk
+    if preloaded_rows is not None:
+        rows = preloaded_rows
+    else:
+        try:
+            rows = _read_rows(csv_path, has_header=has_header)
+        except Exception as exc:
+            _finish("error", f"Erro ao ler arquivo: {exc}")
+            return
 
     if rows and phone_col not in rows[0]:
         _finish("error", f"Coluna '{phone_col}' não encontrada no CSV.")
@@ -439,7 +445,8 @@ def start_disparo_job(app, user_id: int, csv_filename: str,
                       skip_log: bool = False,
                       waba_id: str = "",
                       has_header: bool = True,
-                      max_leads: int = 0) -> int:
+                      max_leads: int = 0,
+                      preloaded_rows: list | None = None) -> int:
     csv_path = os.path.join(csvs_dir(user_id), csv_filename)
 
     with app.app_context():
@@ -452,7 +459,8 @@ def start_disparo_job(app, user_id: int, csv_filename: str,
         target=_run_disparo,
         args=(app, job_id, user_id, csv_path, phone_col,
               phone_number_id, token, template_name, template_language,
-              param_map, max_workers, skip_log, waba_id, has_header, max_leads),
+              param_map, max_workers, skip_log, waba_id, has_header, max_leads,
+              preloaded_rows),
         daemon=True,
     )
     t.start()

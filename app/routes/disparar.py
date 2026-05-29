@@ -25,6 +25,16 @@ from ..services.disparar_service import (
     request_stop,
     _read_rows,
 )
+from ..services.disparo_multi import (
+    start_batch,
+    batch_status as _batch_status,
+    batch_stop as _batch_stop,
+    build_pool,
+    allocate,
+    _resolve_tier,
+    tier_to_int,
+    TIER_VALUES,
+)
 
 bp = Blueprint("disparar", __name__)
 
@@ -63,11 +73,13 @@ def _wabas_with_phones(user_id: int) -> list:
         if reg and not any(ph["phone_number_id"] == reg for ph in phones):
             phones.append({"phone_number_id": reg, "display": reg})
 
+        tier = snap.get("messaging_limit_tier") or ""
         result.append({
             "waba_id": waba_id,
             "name": snap.get("waba_name") or waba_id,
             "token": token,
             "phones": phones,
+            "tier": tier,
         })
     return result
 
@@ -367,3 +379,118 @@ def stop_job(job_id):
         return jsonify({"ok": True})
     # Fallback: job might not be live (already finished or stuck)
     return jsonify({"ok": False, "msg": "Job not running"})
+
+
+# ── batch preview ─────────────────────────────────────────────────────────────
+
+@bp.route("/disparar/batch/preview", methods=["POST"])
+@login_required
+def batch_preview():
+    """
+    Given files_spec, wabas_spec, and overage_pct, returns allocation preview:
+    pool_size, per-BM quota, stripped list, leftover — without starting any job.
+    """
+    data = request.get_json(silent=True) or {}
+    files_spec   = data.get("files_spec", [])
+    wabas_spec   = data.get("wabas_spec", [])
+    overage_pct  = float(data.get("overage_pct", 0))
+    skip_log     = bool(data.get("skip_log", False))
+
+    if not files_spec or not wabas_spec:
+        return jsonify({"error": "files_spec and wabas_spec required"}), 400
+
+    # Resolve tiers in-place
+    resolved = []
+    for spec in wabas_spec:
+        tier = _resolve_tier(current_user.id, spec.get("waba_id", ""), spec.get("token", ""))
+        if tier_to_int(tier) is None:
+            continue
+        resolved.append({**spec, "tier_str": tier})
+
+    if not resolved:
+        return jsonify({"error": "Nenhum BM com limite de envio válido encontrado."}), 400
+
+    pool = build_pool(current_user.id, files_spec, skip_log)
+    alloc = allocate(resolved, len(pool), overage_pct)
+
+    return jsonify({
+        "pool_size":      alloc["pool_size"],
+        "total_capacity": alloc["total_capacity"],
+        "leftover":       alloc["leftover"],
+        "stripped":       alloc["stripped"],
+        "assignments": [
+            {
+                "waba_id":  a["waba_id"],
+                "name":     a["name"],
+                "tier_str": a.get("tier_str"),
+                "quota":    a["quota"],
+            }
+            for a in alloc["assignments"]
+        ],
+        "error": alloc.get("error"),
+    })
+
+
+# ── batch start ───────────────────────────────────────────────────────────────
+
+@bp.route("/disparar/batch/start", methods=["POST"])
+@login_required
+def batch_start():
+    data = request.get_json(silent=True) or {}
+
+    files_spec     = data.get("files_spec", [])
+    wabas_spec     = data.get("wabas_spec", [])
+    template_mode  = (data.get("template_mode") or "same").strip()
+    templates_cfg  = data.get("templates_cfg", {})
+    overage_pct    = float(data.get("overage_pct", 0))
+    _w             = data.get("max_workers")
+    max_workers    = int(_w) if _w is not None else 1
+    if max_workers != 0:
+        max_workers = max(1, min(max_workers, 500))
+    skip_log       = bool(data.get("skip_log", False))
+
+    if not files_spec:
+        return jsonify({"error": "Selecione pelo menos um arquivo."}), 400
+    if not wabas_spec:
+        return jsonify({"error": "Selecione pelo menos um BM."}), 400
+
+    result = start_batch(
+        app=current_app._get_current_object(),
+        user_id=current_user.id,
+        wabas_spec=wabas_spec,
+        files_spec=files_spec,
+        template_mode=template_mode,
+        templates_cfg=templates_cfg,
+        overage_pct=overage_pct,
+        max_workers=max_workers,
+        skip_log=skip_log,
+    )
+
+    if result.get("error") == "insufficient_leads":
+        return jsonify({"error": "Leads insuficientes para preencher nem o primeiro BM com a sobra configurada."}), 400
+    if result.get("error") == "no_valid_bms":
+        return jsonify({"error": "Nenhum BM selecionado tem limite de envio definido. Sincronize o Dashboard."}), 400
+    if result.get("error"):
+        return jsonify({"error": result["error"]}), 400
+
+    return jsonify(result)
+
+
+# ── batch status ──────────────────────────────────────────────────────────────
+
+@bp.route("/disparar/batch/<batch_id>/status")
+@login_required
+def batch_status_route(batch_id):
+    status = _batch_status(current_user.id, batch_id)
+    if status is None:
+        return jsonify({"error": "not found"}), 404
+    return jsonify(status)
+
+
+# ── batch stop ────────────────────────────────────────────────────────────────
+
+@bp.route("/disparar/batch/<batch_id>/stop", methods=["POST"])
+@login_required
+def batch_stop_route(batch_id):
+    ok = _batch_stop(current_user.id, batch_id)
+    return jsonify({"ok": ok})
