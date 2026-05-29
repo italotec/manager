@@ -25,6 +25,8 @@ def create_app():
     from .routes.waba_detail import bp as waba_detail_bp
     from .routes.webhook import bp as webhook_bp
     from .routes.listas import bp as listas_bp
+    from .routes.api import bp as api_bp
+    from .routes.docs import bp as docs_bp
 
     app.register_blueprint(billing_bp)
     app.register_blueprint(auth_bp)
@@ -36,6 +38,8 @@ def create_app():
     app.register_blueprint(waba_detail_bp)
     app.register_blueprint(webhook_bp)
     app.register_blueprint(listas_bp)
+    app.register_blueprint(api_bp)
+    app.register_blueprint(docs_bp)
 
     # Make balance available to all templates
     @app.context_processor
@@ -61,6 +65,12 @@ def create_app():
         db.session.execute(db.text("PRAGMA journal_mode=WAL"))
         db.session.commit()
 
+        # Add api_key column to existing DBs (create_all won't add new columns)
+        cols = [c["name"] for c in db.inspect(db.engine).get_columns("user")]
+        if "api_key" not in cols:
+            db.session.execute(db.text("ALTER TABLE user ADD COLUMN api_key VARCHAR(64)"))
+            db.session.commit()
+
         # Clean up jobs that were left "running"/"queued" by a previous restart
         from .models import DisparoJob, ListaJob
         stuck = DisparoJob.query.filter(DisparoJob.status.in_(["running", "queued"])).all()
@@ -76,11 +86,21 @@ def create_app():
 
         # Seed admin df/df
         from .models import User
+        import secrets as _secrets
         admin = User.query.filter_by(username="df").first()
         if not admin:
             admin = User(username="df", is_admin=True, is_banned=False, balance_cents=0)
             admin.set_password("df")
             db.session.add(admin)
+            db.session.commit()
+
+        # Backfill api_key for any user that doesn't have one yet
+        users_without_key = User.query.filter(
+            (User.api_key == None) | (User.api_key == "")  # noqa: E711
+        ).all()
+        for u in users_without_key:
+            u.api_key = _secrets.token_urlsafe(32)
+        if users_without_key:
             db.session.commit()
 
     return app

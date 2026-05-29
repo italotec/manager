@@ -10,3 +10,9 @@ instance/users/
 *.log
 sent_log.txt
 
+# Secrets / local config
+.env
+.mcp.json
+
+# Pip artifacts
+=*

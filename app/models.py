@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime
 from zoneinfo import ZoneInfo
 from flask_login import UserMixin
@@ -22,7 +23,12 @@ class User(db.Model, UserMixin):
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     is_banned = db.Column(db.Boolean, default=False, nullable=False)  # NEW
 
+    api_key = db.Column(db.String(64), unique=True, nullable=True, index=True)
+
     wabas = db.relationship("Waba", backref="user", lazy=True, cascade="all, delete-orphan")
+
+    def generate_api_key(self):
+        self.api_key = secrets.token_urlsafe(32)
 
     def set_password(self, pw: str):
         self.password_hash = generate_password_hash(pw)

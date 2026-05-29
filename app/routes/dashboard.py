@@ -11,6 +11,7 @@ from flask import (
     jsonify,
 )
 from flask_login import login_required, current_user
+from .. import db
 from werkzeug.utils import secure_filename
 
 from ..json_store import (
@@ -35,6 +36,13 @@ from ..services.meta import (
 bp = Blueprint("dashboard", __name__)
 
 API_BLOCKED_MARK = "API access blocked."
+
+
+@bp.route("/api-settings")
+@login_required
+def api_page():
+    return render_template("api.html", title="API")
+
 
 @bp.route("/", methods=["GET"])
 @login_required
@@ -348,6 +356,15 @@ def delete_wabas():
 
     save_user_bms(current_user.id, bms)
     return jsonify({"deleted": deleted})
+
+
+@bp.route("/regenerate-api-key", methods=["POST"])
+@login_required
+def regenerate_api_key():
+    current_user.generate_api_key()
+    db.session.commit()
+    flash("Nova chave de API gerada com sucesso.", "success")
+    return redirect(url_for("dashboard.api_page"))
 
 
 @bp.route("/register-phones", methods=["POST"])

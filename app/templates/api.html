@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="max-w-2xl space-y-6">
+
+  <div>
+    <div class="text-xl font-semibold mb-1">API</div>
+    <div class="text-sm text-zinc-400">
+      Use sua chave para integrar com a API pública.
+      <a href="{{ url_for('docs.index') }}" class="text-indigo-400 hover:text-indigo-300 underline ml-1">Ver documentação →</a>
+    </div>
+  </div>
+
+  {# ── API key card ── #}
+  <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-5 space-y-4">
+    <div>
+      <div class="text-sm font-semibold mb-1">Chave de API</div>
+      <div class="text-xs text-zinc-500 mb-3">
+        Envie esta chave no header <code class="text-zinc-300">Authorization: Bearer &lt;chave&gt;</code>
+        ou <code class="text-zinc-300">X-API-Key: &lt;chave&gt;</code>.
+      </div>
+
+      <div class="flex items-center gap-2 flex-wrap">
+        <code id="apiKeyValue"
+              class="flex-1 text-xs bg-zinc-800 px-4 py-3 rounded-xl text-zinc-300 select-all break-all min-w-0">{{ current_user.api_key }}</code>
+        <button type="button"
+                onclick="copyKey()"
+                class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs shrink-0">
+          Copiar
+        </button>
+      </div>
+      <div id="copyMsg" class="text-xs text-emerald-400 mt-2 hidden">Copiado!</div>
+    </div>
+
+    <div class="border-t border-zinc-800 pt-4">
+      <div class="text-xs text-zinc-500 mb-3">
+        Gerar uma nova chave invalida a chave atual imediatamente.
+      </div>
+      <form method="POST" action="{{ url_for('dashboard.regenerate_api_key') }}"
+            onsubmit="return confirm('Gerar nova chave? A chave atual deixará de funcionar.')">
+        <button type="submit"
+                class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">
+          Regenerar chave
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {# ── Quick-start ── #}
+  <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-5">
+    <div class="text-sm font-semibold mb-3">Exemplo rápido</div>
+    <pre class="text-xs bg-zinc-950 border border-zinc-800 rounded-xl p-4 overflow-x-auto text-zinc-300">curl -X POST {{ request.host_url }}api/v1/business-managers \
+  -H "Authorization: Bearer &lt;sua-chave&gt;" \
+  -H "Content-Type: application/json" \
+  -d '{"waba_id": "123456789", "token": "EAAxxxxxx..."}'</pre>
+    <a href="{{ url_for('docs.index') }}"
+       class="inline-block mt-3 text-xs text-indigo-400 hover:text-indigo-300 underline">
+      Ver todos os endpoints →
+    </a>
+  </div>
+
+</div>
+
+<script>
+function copyKey() {
+  const key = document.getElementById('apiKeyValue').textContent.trim();
+  navigator.clipboard.writeText(key).then(() => {
+    const msg = document.getElementById('copyMsg');
+    msg.classList.remove('hidden');
+    setTimeout(() => msg.classList.add('hidden'), 2000);
+  });
+}
+</script>
+
+{% endblock %}

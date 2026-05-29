@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+
+<style>
+  .prose h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 1rem; color: #f4f4f5; }
+  .prose h2 { font-size: 1.2rem; font-weight: 600; margin-top: 1.5rem; margin-bottom: 0.5rem; color: #e4e4e7; border-bottom: 1px solid #3f3f46; padding-bottom: 0.25rem; }
+  .prose h3 { font-size: 1rem; font-weight: 600; margin-top: 1.25rem; margin-bottom: 0.4rem; color: #d4d4d8; }
+  .prose p  { margin-bottom: 0.75rem; color: #a1a1aa; line-height: 1.65; }
+  .prose a  { color: #818cf8; text-decoration: underline; }
+  .prose a:hover { color: #a5b4fc; }
+  .prose code { background: #27272a; color: #d4d4d8; padding: 0.15rem 0.4rem; border-radius: 0.3rem; font-size: 0.8rem; }
+  .prose pre  { background: #18181b; border: 1px solid #3f3f46; border-radius: 0.75rem; padding: 1rem; overflow-x: auto; margin-bottom: 1rem; }
+  .prose pre code { background: none; padding: 0; color: #d4d4d8; font-size: 0.78rem; }
+  .prose ul, .prose ol { padding-left: 1.4rem; margin-bottom: 0.75rem; color: #a1a1aa; }
+  .prose li { margin-bottom: 0.25rem; }
+  .prose table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: 0.85rem; }
+  .prose th { background: #27272a; color: #d4d4d8; padding: 0.5rem 0.75rem; text-align: left; border: 1px solid #3f3f46; }
+  .prose td { padding: 0.5rem 0.75rem; border: 1px solid #3f3f46; color: #a1a1aa; }
+  .prose tr:nth-child(even) td { background: #1c1c1e; }
+  .prose blockquote { border-left: 3px solid #3f3f46; padding-left: 0.75rem; color: #71717a; margin: 0.75rem 0; }
+  .prose hr { border-color: #3f3f46; margin: 1.5rem 0; }
+</style>
+
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6 prose max-w-none">
+  {{ content|safe }}
+</div>
+
+{% endblock %}
