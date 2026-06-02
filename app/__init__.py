@@ -32,6 +32,7 @@ def create_app():
     from .routes.docs import bp as docs_bp
     from .routes.agent_ws import bp as agent_ws_bp, handle_ws
     from .routes.account import bp as account_bp
+    from .routes.cartoes import bp as cartoes_bp
 
     app.register_blueprint(billing_bp)
     app.register_blueprint(auth_bp)
@@ -47,6 +48,7 @@ def create_app():
     app.register_blueprint(docs_bp)
     app.register_blueprint(agent_ws_bp)
     app.register_blueprint(account_bp)
+    app.register_blueprint(cartoes_bp)
 
     @sock.route("/agent/ws")
     def agent_ws_route(ws):

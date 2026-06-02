@@ -77,6 +77,18 @@
         </svg>
       </button>
 
+      <!-- Add card button -->
+      <button type="button"
+              title="Adicionar cartão de crédito às WABAs selecionadas"
+              onclick="openCardModal()"
+              class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-yellow-900/60 text-zinc-400 hover:text-yellow-300 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="1" y="4" width="22" height="16" rx="2" ry="2"/>
+          <line x1="1" y1="10" x2="23" y2="10"/>
+        </svg>
+      </button>
+
       <button type="button" onclick="openModal()"
               class="px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">
         + Adicionar WABA
@@ -1131,6 +1143,156 @@ setInterval(async () => {
     });
   } catch {}
 }, 10000);
+
+// ── Card bulk-add ──────────────────────────────────────────────────────────
+function openCardModal() {
+  const checks = Array.from(document.querySelectorAll('input[name="waba_ids"]:checked'));
+  if (!checks.length) { alert("Selecione ao menos 1 WABA."); return; }
+  _cardWabaIds = checks.map(c => c.value);
+  document.getElementById("cardModal").classList.remove("hidden");
+  document.getElementById("cardModalStatus").textContent =
+    _cardWabaIds.length + " WABA(s) selecionada(s).";
+  document.getElementById("cardResultBox").classList.add("hidden");
+  document.getElementById("cardResultBox").innerHTML = "";
+  document.getElementById("cardModalErr").classList.add("hidden");
+  document.getElementById("cardStopBtn").classList.add("hidden");
+  document.getElementById("cardStartBtn").classList.remove("hidden");
+  document.getElementById("cardStartBtn").disabled = false;
+  document.getElementById("cardStartBtn").textContent = "Adicionar Cartões";
+}
+function closeCardModal() {
+  document.getElementById("cardModal").classList.add("hidden");
+  if (_cardJobId) clearInterval(_cardPollInterval);
+  _cardJobId = null;
+}
+
+let _cardWabaIds = [], _cardJobId = null, _cardPollInterval = null;
+
+async function startCardJob() {
+  const btn = document.getElementById("cardStartBtn");
+  btn.disabled = true;
+  btn.textContent = "Iniciando…";
+  document.getElementById("cardModalErr").classList.add("hidden");
+  document.getElementById("cardResultBox").innerHTML = "";
+  document.getElementById("cardResultBox").classList.add("hidden");
+
+  try {
+    const r = await fetch("{{ url_for('cartoes.bulk_add_start') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ waba_ids: _cardWabaIds }),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      const errEl = document.getElementById("cardModalErr");
+      errEl.textContent = d.error || "Erro desconhecido";
+      errEl.classList.remove("hidden");
+      btn.disabled = false;
+      btn.textContent = "Adicionar Cartões";
+      return;
+    }
+    _cardJobId = d.job_id;
+    btn.classList.add("hidden");
+    document.getElementById("cardStopBtn").classList.remove("hidden");
+    document.getElementById("cardResultBox").classList.remove("hidden");
+    document.getElementById("cardModalStatus").textContent = "Processando…";
+    _cardPollInterval = setInterval(pollCardJob, 2000);
+  } catch (e) {
+    const errEl = document.getElementById("cardModalErr");
+    errEl.textContent = "Erro de rede: " + e;
+    errEl.classList.remove("hidden");
+    btn.disabled = false;
+    btn.textContent = "Adicionar Cartões";
+  }
+}
+
+async function stopCardJob() {
+  if (!_cardJobId) return;
+  await fetch(`/cartoes/job/${_cardJobId}/stop`, { method: "POST" });
+  document.getElementById("cardStopBtn").disabled = true;
+  document.getElementById("cardStopBtn").textContent = "Parando…";
+}
+
+async function pollCardJob() {
+  if (!_cardJobId) return;
+  try {
+    const r = await fetch(`/cartoes/job/${_cardJobId}`);
+    const d = await r.json();
+
+    const statusEl = document.getElementById("cardModalStatus");
+    const box = document.getElementById("cardResultBox");
+
+    const done = d.done || 0, total = d.total || 0;
+    const pct = total ? Math.round(done / total * 100) : 0;
+    statusEl.textContent = `${done}/${total} (${pct}%) — ✅ ${d.success || 0}  ❌ ${d.failed || 0}`;
+
+    // Render result rows
+    let html = "";
+    for (const row of (d.results || [])) {
+      const icon = row.ok ? "✅" : "❌";
+      const cardTag = row.card_last4 !== "—"
+        ? `<span class="font-mono text-zinc-400">•••• ${row.card_last4}</span>`
+        : "";
+      html += `<div class="flex items-start gap-2 py-1 border-b border-zinc-800/60 text-xs">
+        <span class="w-5 shrink-0">${icon}</span>
+        <div>
+          <span class="text-zinc-200">${row.waba_name || row.waba_id}</span>
+          ${cardTag}
+          ${!row.ok ? `<div class="text-red-400">${row.msg}</div>` : ""}
+        </div>
+      </div>`;
+    }
+    box.innerHTML = html;
+
+    if (d.status === "done" || d.status === "stopped" || d.status === "error") {
+      clearInterval(_cardPollInterval);
+      document.getElementById("cardStopBtn").classList.add("hidden");
+      const doneBtn = document.getElementById("cardDoneBtn");
+      doneBtn.classList.remove("hidden");
+      statusEl.textContent += d.status === "done" ? " — Concluído" : " — Parado";
+    }
+  } catch {}
+}
 </script>
+
+<!-- ── Card bulk-add modal ─────────────────────────────────────────────────── -->
+<div id="cardModal" class="fixed inset-0 z-40 bg-black/60 flex items-center justify-center hidden">
+  <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-base font-bold">Adicionar Cartão às WABAs</h2>
+      <button onclick="closeCardModal()" class="text-zinc-500 hover:text-zinc-300">✕</button>
+    </div>
+
+    <p id="cardModalStatus" class="text-sm text-zinc-400 mb-3"></p>
+
+    <p class="text-xs text-zinc-500 mb-4">
+      O sistema vai selecionar cartões disponíveis aleatoriamente (até 5 usos por cartão) e
+      processar <b>5 perfis por vez</b>. Se não houver cartões suficientes, as WABAs restantes
+      receberão um erro de disponibilidade.
+    </p>
+
+    <div id="cardModalErr" class="hidden mb-3 px-3 py-2 rounded-xl bg-red-950/50 border border-red-800 text-red-300 text-sm"></div>
+
+    <div id="cardResultBox"
+         class="hidden mb-4 max-h-60 overflow-y-auto bg-zinc-950/60 rounded-xl border border-zinc-800 px-3 py-2 space-y-0.5">
+    </div>
+
+    <div class="flex justify-end gap-2">
+      <button onclick="closeCardModal()" class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">Fechar</button>
+      <button id="cardStopBtn" onclick="stopCardJob()"
+              class="hidden px-4 py-2 rounded-xl bg-red-900/60 hover:bg-red-800/60 text-sm text-red-300 border border-red-800/40">
+        Parar
+      </button>
+      <button id="cardDoneBtn" onclick="closeCardModal()"
+              class="hidden px-4 py-2 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-sm">
+        OK
+      </button>
+      <button id="cardStartBtn" onclick="startCardJob()"
+              class="px-4 py-2 rounded-xl bg-yellow-700 hover:bg-yellow-600 text-sm font-semibold">
+        Adicionar Cartões
+      </button>
+    </div>
+  </div>
+</div>
 
 {% endblock %}

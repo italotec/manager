@@ -1,6 +1,7 @@
 import json
 import queue
 import threading
+import uuid
 from dataclasses import dataclass, field
 
 from flask import Blueprint, request, jsonify
@@ -28,6 +29,40 @@ _agents: dict[int, AgentSession] = {}
 
 _open_browsers: dict[int, set[str]] = {}
 _open_browsers_lock = threading.Lock()
+
+# ── Command/result correlation (request-response over the WS) ─────────────────
+
+_pending: dict[str, queue.Queue] = {}
+_pending_lock = threading.Lock()
+
+
+def send_command_and_wait(user_id: int, msg: dict, timeout: float = 120.0) -> dict:
+    """Push a command to the agent and block until it replies (or times out).
+
+    The caller must set msg["type"]; this function injects a unique cmd_id and
+    registers a reply queue before sending so no race with the receive loop.
+    """
+    if not is_agent_connected(user_id):
+        return {"ok": False, "error": "agente não conectado"}
+
+    cmd_id = str(uuid.uuid4())
+    msg = {**msg, "cmd_id": cmd_id}
+    reply_q: queue.Queue = queue.Queue()
+
+    with _pending_lock:
+        _pending[cmd_id] = reply_q
+
+    try:
+        if not push_to_agent(user_id, msg):
+            return {"ok": False, "error": "agente desconectou antes do envio"}
+        try:
+            result = reply_q.get(timeout=timeout)
+        except queue.Empty:
+            return {"ok": False, "error": "timeout — agente não respondeu"}
+        return result
+    finally:
+        with _pending_lock:
+            _pending.pop(cmd_id, None)
 
 
 def get_open_profiles(user_id: int) -> set[str]:
@@ -71,6 +106,12 @@ def _handle_agent_message(user_id: int, data: str):
     msg_type = msg.get("type", "")
     if msg_type == "browser_status":
         _handle_browser_status(user_id, msg.get("open_profile_ids", []))
+    elif msg_type == "card_result":
+        cmd_id = msg.get("cmd_id", "")
+        with _pending_lock:
+            q = _pending.get(cmd_id)
+        if q:
+            q.put(msg)
     # "ping" and unknown types → silently ignored
 
 

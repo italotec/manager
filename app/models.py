@@ -158,3 +158,66 @@ class Proxy(db.Model):
     proxy_type = db.Column(db.String(16),  default="http", nullable=False)  # http / socks5
     label      = db.Column(db.String(128), default="", nullable=False)
     created_at = db.Column(db.DateTime,    default=_now_sp, nullable=False)
+
+
+class Card(db.Model):
+    """Credit/debit card stored per user for bulk WABA billing attachment."""
+    import json as _json
+
+    id            = db.Column(db.Integer,     primary_key=True)
+    user_id       = db.Column(db.Integer,     db.ForeignKey("user.id"), nullable=False, index=True)
+    number        = db.Column(db.String(20),  nullable=False)   # full PAN, plaintext
+    exp_month     = db.Column(db.String(2),   nullable=False)   # "6"
+    exp_year      = db.Column(db.String(4),   nullable=False)   # "2032"
+    csc           = db.Column(db.String(4),   nullable=False)
+    holder_name   = db.Column(db.String(128), nullable=False, default="")
+    brand         = db.Column(db.String(16),  nullable=False, default="unknown")
+    bin           = db.Column(db.String(8),   nullable=False, default="")
+    last4         = db.Column(db.String(4),   nullable=False, default="")
+    # JSON list of waba_id strings (distinct WABAs this card has been attached to)
+    used_waba_ids = db.Column(db.Text,        nullable=False, default="[]")
+    status        = db.Column(db.String(16),  nullable=False, default="active")  # active|overused|invalid
+    last_error    = db.Column(db.Text,        nullable=False, default="")
+    created_at    = db.Column(db.DateTime,    default=_now_sp, nullable=False)
+
+    @property
+    def usage_count(self):
+        import json
+        try:
+            return len(json.loads(self.used_waba_ids or "[]"))
+        except Exception:
+            return 0
+
+    @property
+    def remaining(self):
+        return max(0, 5 - self.usage_count)
+
+    @property
+    def is_available(self):
+        return self.status == "active" and self.remaining > 0
+
+    def mark_used(self, waba_id: str):
+        import json
+        try:
+            ids = json.loads(self.used_waba_ids or "[]")
+        except Exception:
+            ids = []
+        if waba_id not in ids:
+            ids.append(waba_id)
+        self.used_waba_ids = json.dumps(ids)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "brand": self.brand,
+            "last4": self.last4,
+            "bin": self.bin,
+            "exp_month": self.exp_month,
+            "exp_year": self.exp_year,
+            "holder_name": self.holder_name,
+            "usage_count": self.usage_count,
+            "remaining": self.remaining,
+            "status": self.status,
+            "last_error": self.last_error,
+            "created_at": self.created_at.strftime("%d/%m/%Y") if self.created_at else "",
+        }
