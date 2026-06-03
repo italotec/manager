@@ -112,6 +112,7 @@ def _run_job(app, job_id: int, user_id: int, assignments: list, bms: dict):
         cmd = {
             "type": "add_card",
             "profile_id": profile_id,
+            "waba_id": waba_id,
             "card": {
                 "number": card.number,
                 "exp_month": card.exp_month,
