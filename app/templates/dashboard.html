@@ -89,6 +89,20 @@
         </svg>
       </button>
 
+      <!-- Add templates button -->
+      <button type="button"
+              title="Adicionar templates às WABAs selecionadas"
+              onclick="openTplModal()"
+              class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-purple-900/60 text-zinc-400 hover:text-purple-300 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+          <line x1="12" y1="18" x2="12" y2="12"/>
+          <line x1="9" y1="15" x2="15" y2="15"/>
+        </svg>
+      </button>
+
       <button type="button" onclick="openModal()"
               class="px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">
         + Adicionar WABA
@@ -1294,5 +1308,190 @@ async function pollCardJob() {
     </div>
   </div>
 </div>
+
+<!-- ── Templates bulk-add modal ────────────────────────────────────────────── -->
+<div id="tplModal" class="fixed inset-0 z-40 bg-black/60 flex items-center justify-center hidden">
+  <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-base font-bold">Adicionar Templates às WABAs</h2>
+      <button onclick="closeTplModal()" class="text-zinc-500 hover:text-zinc-300">✕</button>
+    </div>
+
+    <p id="tplModalStatus" class="text-sm text-zinc-400 mb-3"></p>
+
+    <div class="space-y-3 mb-4">
+      <div>
+        <label class="text-xs text-zinc-400 block mb-1">Modelo de template</label>
+        <select id="tplModelSelect"
+                class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-purple-500">
+          <option value="">Carregando modelos…</option>
+        </select>
+      </div>
+      <div>
+        <label class="text-xs text-zinc-400 block mb-1">Quantidade de templates por WABA</label>
+        <input id="tplQuantity" type="number" min="1" max="500" value="1"
+               class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-purple-500">
+        <div class="text-[10px] text-zinc-600 mt-0.5">Ex: nome=promo, qtd=3 → promo01, promo02, promo03 em cada WABA.</div>
+      </div>
+    </div>
+
+    <div id="tplModalErr" class="hidden mb-3 px-3 py-2 rounded-xl bg-red-950/50 border border-red-800 text-red-300 text-sm"></div>
+
+    <div id="tplResultBox"
+         class="hidden mb-4 max-h-60 overflow-y-auto bg-zinc-950/60 rounded-xl border border-zinc-800 px-3 py-2 space-y-0.5">
+    </div>
+
+    <div class="flex justify-end gap-2">
+      <button onclick="closeTplModal()" class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">Fechar</button>
+      <button id="tplStopBtn" onclick="stopTplJob()"
+              class="hidden px-4 py-2 rounded-xl bg-red-900/60 hover:bg-red-800/60 text-sm text-red-300 border border-red-800/40">
+        Parar
+      </button>
+      <button id="tplDoneBtn" onclick="closeTplModal()"
+              class="hidden px-4 py-2 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-sm">
+        OK
+      </button>
+      <button id="tplStartBtn" onclick="startTplJob()"
+              class="px-4 py-2 rounded-xl bg-purple-700 hover:bg-purple-600 text-sm font-semibold">
+        Adicionar Templates
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Templates bulk modal ──────────────────────────────────────────────────────
+let _tplWabaIds = [], _tplJobId = null, _tplPollInterval = null;
+
+async function openTplModal() {
+  const checks = Array.from(document.querySelectorAll('input[name="waba_ids"]:checked'));
+  if (!checks.length) { alert("Selecione ao menos 1 WABA."); return; }
+  _tplWabaIds = checks.map(c => c.value);
+
+  const modal = document.getElementById("tplModal");
+  modal.classList.remove("hidden");
+  document.getElementById("tplModalStatus").textContent = _tplWabaIds.length + " WABA(s) selecionada(s).";
+  document.getElementById("tplResultBox").classList.add("hidden");
+  document.getElementById("tplResultBox").innerHTML = "";
+  document.getElementById("tplModalErr").classList.add("hidden");
+  document.getElementById("tplStopBtn").classList.add("hidden");
+  document.getElementById("tplDoneBtn").classList.add("hidden");
+  document.getElementById("tplStartBtn").classList.remove("hidden");
+  document.getElementById("tplStartBtn").disabled = false;
+  document.getElementById("tplStartBtn").textContent = "Adicionar Templates";
+
+  // Load models
+  try {
+    const r = await fetch("/templates/list");
+    const d = await r.json();
+    const sel = document.getElementById("tplModelSelect");
+    sel.innerHTML = "";
+    if (!d.models || !d.models.length) {
+      sel.innerHTML = '<option value="">Nenhum modelo disponível — crie um em Templates</option>';
+    } else {
+      d.models.forEach(m => {
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.textContent = `${m.name} (${m.category} / ${m.language})`;
+        sel.appendChild(opt);
+      });
+    }
+  } catch(e) {
+    document.getElementById("tplModelSelect").innerHTML = '<option value="">Erro ao carregar modelos</option>';
+  }
+}
+
+function closeTplModal() {
+  document.getElementById("tplModal").classList.add("hidden");
+  if (_tplPollInterval) clearInterval(_tplPollInterval);
+  _tplJobId = null;
+}
+
+async function startTplJob() {
+  const modelId  = document.getElementById("tplModelSelect").value;
+  const quantity = parseInt(document.getElementById("tplQuantity").value) || 1;
+  if (!modelId) { alert("Selecione um modelo de template."); return; }
+  if (quantity < 1 || quantity > 500) { alert("Quantidade inválida (1–500)."); return; }
+
+  const btn = document.getElementById("tplStartBtn");
+  btn.disabled = true; btn.textContent = "Iniciando…";
+  document.getElementById("tplModalErr").classList.add("hidden");
+  document.getElementById("tplResultBox").innerHTML = "";
+  document.getElementById("tplResultBox").classList.add("hidden");
+
+  try {
+    const r = await fetch("/templates/bulk-create-start", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({model_id: +modelId, quantity, waba_ids: _tplWabaIds}),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      const err = document.getElementById("tplModalErr");
+      err.textContent = d.error || "Erro desconhecido";
+      err.classList.remove("hidden");
+      btn.disabled = false; btn.textContent = "Adicionar Templates";
+      return;
+    }
+    _tplJobId = d.job_id;
+    btn.classList.add("hidden");
+    document.getElementById("tplStopBtn").classList.remove("hidden");
+    document.getElementById("tplResultBox").classList.remove("hidden");
+    document.getElementById("tplModalStatus").textContent = "Processando…";
+    _tplPollInterval = setInterval(pollTplJob, 2000);
+  } catch(e) {
+    const err = document.getElementById("tplModalErr");
+    err.textContent = "Erro de rede: " + e;
+    err.classList.remove("hidden");
+    btn.disabled = false; btn.textContent = "Adicionar Templates";
+  }
+}
+
+async function pollTplJob() {
+  if (!_tplJobId) return;
+  try {
+    const r = await fetch(`/templates/job/${_tplJobId}`);
+    const d = await r.json();
+
+    const statusEl = document.getElementById("tplModalStatus");
+    const box = document.getElementById("tplResultBox");
+
+    const done  = d.done  || 0;
+    const total = d.total || 0;
+    const pct   = total ? Math.round(done / total * 100) : 0;
+    let statusText = `${done}/${total} (${pct}%) — ✅ ${d.success || 0}  ❌ ${d.failed || 0}`;
+    if (d.queued > 0) statusText += `  ⏳ na fila (rate limit): ${d.queued}`;
+    statusEl.textContent = statusText;
+
+    let html = "";
+    for (const row of (d.results || [])) {
+      const icon = row.ok ? "✅" : "❌";
+      html += `<div class="flex items-start gap-2 py-1 border-b border-zinc-800/60 last:border-0 text-xs">
+        <span class="w-5 shrink-0">${icon}</span>
+        <div class="flex-1 min-w-0">
+          <span class="text-zinc-200">${escHtml(row.waba_name || row.waba_id)}</span>
+          <span class="text-zinc-500 font-mono ml-1">${escHtml(row.name)}</span>
+          ${!row.ok ? `<div class="text-red-400 truncate">${escHtml(row.msg)}</div>` : ""}
+        </div>
+      </div>`;
+    }
+    box.innerHTML = html;
+
+    if (d.status === "done" || d.status === "stopped" || d.status === "error") {
+      clearInterval(_tplPollInterval);
+      document.getElementById("tplStopBtn").classList.add("hidden");
+      document.getElementById("tplDoneBtn").classList.remove("hidden");
+      statusEl.textContent += d.status === "done" ? " — Concluído" : " — Parado";
+    }
+  } catch {}
+}
+
+async function stopTplJob() {
+  if (!_tplJobId) return;
+  await fetch(`/templates/job/${_tplJobId}/stop`, {method: "POST"});
+  document.getElementById("tplStopBtn").disabled = true;
+  document.getElementById("tplStopBtn").textContent = "Parando…";
+}
+</script>
 
 {% endblock %}

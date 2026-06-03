@@ -333,7 +333,7 @@ def _parse_card(card: dict) -> dict:
     }
 
 
-def _click_first(page, getters, timeout=8000) -> bool:
+def _click_first(page, getters, timeout=90000) -> bool:
     for g in getters:
         try:
             loc = g(page).first
@@ -387,7 +387,7 @@ def add_card_via_cdp(page, card: dict, business_id: str, waba_id: str = "", log=
             f"?business_id={business_id}&placement=whatsapp_ads"
             + (f"&asset_id={waba_id}" if waba_id else "")
         )
-        page.goto(billing_url, wait_until="domcontentloaded", timeout=60_000)
+        page.goto(billing_url, wait_until="domcontentloaded", timeout=90_000)
         try:
             page.wait_for_load_state("networkidle", timeout=15_000)
         except Exception:
@@ -395,7 +395,7 @@ def add_card_via_cdp(page, card: dict, business_id: str, waba_id: str = "", log=
 
         # ── Step 2: Extract WABA payment account from redirected URL ──────────
         waba_account = ""
-        final_url = page.url()
+        final_url = page.url
         m_url = re.search(r'[?&]payment_account_id=(\d+)', final_url)
         if m_url:
             waba_account = m_url.group(1)
@@ -455,7 +455,7 @@ def add_card_via_cdp(page, card: dict, business_id: str, waba_id: str = "", log=
             lambda p: p.get_by_role("button", name="Adicionar"),
             lambda p: p.get_by_role("button", name="Add"),
             lambda p: p.get_by_role("button", name=re.compile(r"^(Adicionar|Add|Agregar|Ajouter)$", re.I)),
-        ], timeout=10000)
+        ])
         log(f"[CARD] billing_btn_opened={btn_opened}")
         page.wait_for_timeout(1500)
 
@@ -463,8 +463,8 @@ def add_card_via_cdp(page, card: dict, business_id: str, waba_id: str = "", log=
         # The dialog's last button is always "Avançar/Next" — language-agnostic.
         try:
             dialog = page.locator('[role="dialog"][aria-modal="true"]')
-            dialog.wait_for(state="visible", timeout=8000)
-            dialog.locator('div[role="button"], button').last().click()
+            dialog.wait_for(state="visible", timeout=90000)
+            dialog.locator('div[role="button"], button').last.click()
             page.wait_for_timeout(3000)
             log(f"[CARD] advanced to card form (BillingPTTUtils loaded)")
         except Exception as e:

@@ -241,6 +241,51 @@ def create_template(api_version: str, token: str, waba_id: str, payload: dict):
         return None, str(e)[:800]
 
 
+_RL_CODES = {4, 80007, 130429, 131056, 368}
+
+
+def create_template_rl(api_version: str, token: str, waba_id: str, payload: dict):
+    """Like create_template but also signals rate-limiting.
+
+    Returns (result, err, rate_limited, retry_after_seconds).
+    retry_after_seconds is 0 when not rate-limited; caller should apply 4^retry_count backoff.
+    """
+    url = f"https://graph.facebook.com/{api_version}/{waba_id}/message_templates"
+    try:
+        r = requests.post(
+            url,
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=payload,
+            timeout=30,
+        )
+        try:
+            j = r.json()
+        except Exception:
+            j = None
+
+        # Detect rate limiting
+        if r.status_code == 429:
+            retry_after = int(r.headers.get("Retry-After", 0) or 0)
+            return None, f"HTTP 429", True, retry_after
+
+        if isinstance(j, dict) and "error" in j:
+            err = j["error"]
+            code = err.get("code") if isinstance(err, dict) else None
+            is_transient = bool(err.get("is_transient")) if isinstance(err, dict) else False
+            msg = (err.get("message") or "") if isinstance(err, dict) else str(err)
+            if code in _RL_CODES or is_transient or "rate limit" in msg.lower() or "too many" in msg.lower():
+                retry_after = int(r.headers.get("Retry-After", 0) or 0)
+                return None, f"Meta error {code}: {msg[:300]}", True, retry_after
+            return None, f"Meta error: {str(j.get('error'))[:800]}", False, 0
+
+        if r.status_code not in (200, 201) or not isinstance(j, dict):
+            return None, f"HTTP {r.status_code}: {(r.text or '')[:800]}", False, 0
+
+        return j, None, False, 0
+    except Exception as e:
+        return None, str(e)[:800], False, 0
+
+
 def templates_status_summary(templates: list[dict]) -> dict:
     out = {"APPROVED": 0, "PAUSED": 0, "DISABLED": 0, "OTHER": 0}
     for t in templates:

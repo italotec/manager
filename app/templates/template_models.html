@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 py-6 space-y-5">
+
+  <!-- ── Header ──────────────────────────────────────────────────────────────── -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold">Templates</h1>
+      <p class="text-xs text-zinc-500 mt-0.5">Crie modelos de template para usar em múltiplas WABAs.</p>
+    </div>
+    <button onclick="openAddModal()"
+            class="px-4 py-2 rounded-xl bg-purple-700 hover:bg-purple-600 text-sm font-semibold transition-colors">
+      + Novo modelo
+    </button>
+  </div>
+
+  <!-- ── Bulk bar ─────────────────────────────────────────────────────────────── -->
+  <div id="bulkBar" class="hidden flex items-center gap-3">
+    <span id="bulkCount" class="text-sm text-zinc-400"></span>
+    <button onclick="deleteSelected()"
+            class="px-3 py-1.5 rounded-lg bg-red-900/60 hover:bg-red-800/60 text-sm text-red-300 border border-red-800/40">
+      Excluir selecionados
+    </button>
+  </div>
+
+  <!-- ── Models table ─────────────────────────────────────────────────────────── -->
+  <div class="rounded-2xl border border-zinc-800 overflow-hidden">
+    <table class="w-full text-sm">
+      <thead class="bg-zinc-900 text-zinc-400 text-xs">
+        <tr>
+          <th class="w-10 px-3 py-3 text-left">
+            <input type="checkbox" id="selectAll" class="w-4 h-4 accent-purple-500"
+                   onchange="toggleAll(this.checked)">
+          </th>
+          <th class="px-3 py-3 text-left">Nome base</th>
+          <th class="px-3 py-3 text-left">Categoria</th>
+          <th class="px-3 py-3 text-left">Idioma</th>
+          <th class="px-3 py-3 text-left">Criado em</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-zinc-800/60">
+        {% for m in models %}
+        <tr class="hover:bg-zinc-800/30 transition-colors">
+          <td class="px-3 py-3">
+            <input type="checkbox" name="model_ids" value="{{ m.id }}" class="w-4 h-4 accent-purple-500">
+          </td>
+          <td class="px-3 py-3 font-mono text-zinc-200">{{ m.name }}</td>
+          <td class="px-3 py-3">
+            <span class="px-2 py-0.5 rounded-lg text-xs
+              {% if m.category == 'MARKETING' %}bg-yellow-900/40 text-yellow-300 border border-yellow-800/40
+              {% elif m.category == 'UTILITY' %}bg-blue-900/40 text-blue-300 border border-blue-800/40
+              {% else %}bg-zinc-800 text-zinc-400{% endif %}">
+              {{ m.category }}
+            </span>
+          </td>
+          <td class="px-3 py-3 text-zinc-400 font-mono text-xs">{{ m.language }}</td>
+          <td class="px-3 py-3 text-zinc-500 text-xs">{{ m.created_at }}</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="5" class="px-3 py-8 text-center text-zinc-500 text-sm">
+            Nenhum modelo criado ainda. Clique em "Novo modelo" para começar.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- ── Add model modal ───────────────────────────────────────────────────────── -->
+<div id="addModal" class="fixed inset-0 z-50 bg-black/60 hidden items-center justify-center p-4">
+  <div class="w-full max-w-2xl rounded-2xl border border-zinc-700 bg-zinc-900 p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-base font-bold">Novo modelo de template</div>
+        <div class="text-xs text-zinc-500 mt-0.5">O modelo é salvo localmente e pode ser aplicado a múltiplas WABAs.</div>
+      </div>
+      <button onclick="closeAddModal()" class="text-zinc-400 hover:text-zinc-100 text-xl leading-none">&times;</button>
+    </div>
+
+    <!-- Name -->
+    <div>
+      <label class="block text-xs text-zinc-400 mb-1">Nome base <span class="text-red-400">*</span></label>
+      <input id="m-name" type="text" placeholder="ex: promo"
+             class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-purple-500"
+             oninput="this.value=this.value.toLowerCase().replace(/[^a-z0-9_]/g,'_')">
+      <div class="text-[10px] text-zinc-600 mt-0.5">Apenas letras minúsculas, números e underscore. Ex: "promo" → nomes gerados: promo01, promo02…</div>
+    </div>
+
+    <!-- Category + Language -->
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Categoria <span class="text-red-400">*</span></label>
+        <select id="m-category" class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-purple-500">
+          <option value="UTILITY">UTILITY</option>
+          <option value="MARKETING">MARKETING</option>
+          <option value="AUTHENTICATION">AUTHENTICATION</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Idioma <span class="text-red-400">*</span></label>
+        <select id="m-language" class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-purple-500">
+          <option value="pt_BR">pt_BR</option>
+          <option value="en">en</option>
+          <option value="es">es</option>
+          <option value="es_AR">es_AR</option>
+          <option value="fr">fr</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Header (optional) -->
+    <div>
+      <label class="flex items-center gap-2 cursor-pointer text-xs text-zinc-400 mb-1">
+        <input type="checkbox" id="m-use-header" class="accent-purple-500"
+               onchange="document.getElementById('m-header-fields').classList.toggle('hidden', !this.checked)">
+        Incluir HEADER (texto)
+      </label>
+      <div id="m-header-fields" class="hidden">
+        <input id="m-header" type="text" placeholder="Texto do cabeçalho"
+               class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-purple-500">
+      </div>
+    </div>
+
+    <!-- Body -->
+    <div>
+      <label class="block text-xs text-zinc-400 mb-1">BODY <span class="text-red-400">*</span></label>
+      <textarea id="m-body" rows="4" placeholder="Texto da mensagem. Use {{1}}, {{2}} para variáveis."
+                oninput="detectMBodyVars()"
+                class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm font-mono focus:outline-none focus:border-purple-500 resize-y"></textarea>
+    </div>
+
+    <!-- Body variable examples -->
+    <div id="m-body-examples-section" class="hidden space-y-2">
+      <div class="text-xs text-zinc-400">Exemplos das variáveis (obrigatório quando há <code class="text-purple-300">{{N}}</code>)</div>
+      <div id="m-body-example-fields" class="space-y-1.5"></div>
+    </div>
+
+    <!-- Footer (optional) -->
+    <div>
+      <label class="flex items-center gap-2 cursor-pointer text-xs text-zinc-400 mb-1">
+        <input type="checkbox" id="m-use-footer" class="accent-purple-500"
+               onchange="document.getElementById('m-footer-fields').classList.toggle('hidden', !this.checked)">
+        Incluir FOOTER
+      </label>
+      <div id="m-footer-fields" class="hidden">
+        <input id="m-footer" type="text" placeholder="Texto do rodapé"
+               class="w-full px-3 py-2 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-purple-500">
+      </div>
+    </div>
+
+    <!-- Buttons (optional) -->
+    <div>
+      <div class="flex items-center justify-between mb-1">
+        <label class="text-xs text-zinc-400">Botões (opcional)</label>
+        <button type="button" onclick="mAddButton()" class="text-xs px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700">+ Adicionar</button>
+      </div>
+      <div id="m-btn-list" class="space-y-2"></div>
+    </div>
+
+    <div id="m-result"></div>
+
+    <div class="flex justify-end gap-2 pt-1">
+      <button onclick="closeAddModal()" class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">Cancelar</button>
+      <button onclick="submitAddModel()"
+              class="px-5 py-2 rounded-xl bg-purple-700 hover:bg-purple-600 text-sm font-semibold">
+        Salvar modelo
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Toast ─────────────────────────────────────────────────────────────────── -->
+<div id="toast" class="fixed bottom-4 right-4 z-50 hidden px-4 py-2 rounded-xl text-sm shadow-xl"></div>
+
+<script>
+// ── selection ─────────────────────────────────────────────────────────────────
+function toggleAll(checked) {
+  document.querySelectorAll('input[name="model_ids"]').forEach(cb => cb.checked = checked);
+  updateBulkBar();
+}
+document.querySelectorAll('input[name="model_ids"]').forEach(cb => cb.addEventListener("change", updateBulkBar));
+function updateBulkBar() {
+  const sel = Array.from(document.querySelectorAll('input[name="model_ids"]:checked'));
+  const bar = document.getElementById("bulkBar");
+  if (!bar) return;
+  if (sel.length > 0) {
+    bar.classList.remove("hidden");
+    bar.classList.add("flex");
+    document.getElementById("bulkCount").textContent = sel.length + " selecionado(s)";
+  } else {
+    bar.classList.add("hidden");
+    bar.classList.remove("flex");
+  }
+}
+
+async function deleteSelected() {
+  const ids = Array.from(document.querySelectorAll('input[name="model_ids"]:checked')).map(c => +c.value);
+  if (!ids.length) return;
+  if (!confirm(`Excluir ${ids.length} modelo(s)?`)) return;
+  const r = await fetch("{{ url_for('templates.delete_models') }}", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({model_ids: ids}),
+  });
+  const d = await r.json();
+  if (d.ok) location.reload();
+  else showToast("Erro: " + (d.error || "?"), "error");
+}
+
+// ── modal ─────────────────────────────────────────────────────────────────────
+function openAddModal() {
+  document.getElementById("addModal").classList.remove("hidden");
+  document.getElementById("addModal").classList.add("flex");
+}
+function closeAddModal() {
+  document.getElementById("addModal").classList.add("hidden");
+  document.getElementById("addModal").classList.remove("flex");
+}
+document.getElementById("addModal").addEventListener("click", e => {
+  if (e.target.id === "addModal") closeAddModal();
+});
+
+// ── body variable detection ───────────────────────────────────────────────────
+function detectMBodyVars() {
+  const text = document.getElementById("m-body").value;
+  const matches = [...new Set((text.match(/\{\{(\d+)\}\}/g) || []))];
+  matches.sort((a, b) => parseInt(a.match(/\d+/)) - parseInt(b.match(/\d+/)));
+  const section = document.getElementById("m-body-examples-section");
+  const fields  = document.getElementById("m-body-example-fields");
+  if (!matches.length) { section.classList.add("hidden"); fields.innerHTML = ""; return; }
+  section.classList.remove("hidden");
+  const existing = [...fields.querySelectorAll("input")].map(i => i.value);
+  fields.innerHTML = "";
+  matches.forEach((m, idx) => {
+    const n = m.match(/\d+/)[0];
+    const inp = document.createElement("input");
+    inp.type = "text";
+    inp.placeholder = `Exemplo para ${m}`;
+    inp.value = existing[idx] || "";
+    inp.className = "w-full px-3 py-1.5 rounded-xl bg-zinc-800 border border-zinc-700 text-sm focus:outline-none focus:border-purple-500";
+    const wrap = document.createElement("div");
+    wrap.className = "flex items-center gap-2";
+    const label = document.createElement("span");
+    label.className = "text-xs text-zinc-500 w-8 shrink-0";
+    label.textContent = '{{' + n + '}}';
+    wrap.appendChild(label);
+    wrap.appendChild(inp);
+    fields.appendChild(wrap);
+  });
+}
+
+// ── buttons ───────────────────────────────────────────────────────────────────
+function mAddButton() {
+  const list = document.getElementById("m-btn-list");
+  const idx  = list.children.length;
+  const row  = document.createElement("div");
+  row.className = "flex items-center gap-2";
+  row.innerHTML = `
+    <select data-btn-type onchange="mToggleBtnUrl(this)" class="px-2 py-1.5 rounded-xl bg-zinc-800 border border-zinc-700 text-xs focus:outline-none">
+      <option value="QUICK_REPLY">Resposta rápida</option>
+      <option value="URL">URL</option>
+    </select>
+    <input data-btn-text type="text" placeholder="Texto do botão" class="flex-1 px-2 py-1.5 rounded-xl bg-zinc-800 border border-zinc-700 text-xs focus:outline-none">
+    <input data-btn-url type="text" placeholder="URL" class="hidden flex-1 px-2 py-1.5 rounded-xl bg-zinc-800 border border-zinc-700 text-xs focus:outline-none">
+    <button type="button" onclick="this.parentElement.remove()" class="text-red-400 hover:text-red-300 text-lg leading-none">&times;</button>`;
+  list.appendChild(row);
+}
+function mToggleBtnUrl(sel) {
+  const row = sel.parentElement;
+  row.querySelector("[data-btn-url]").classList.toggle("hidden", sel.value !== "URL");
+}
+
+// ── submit ────────────────────────────────────────────────────────────────────
+async function submitAddModel() {
+  const name     = document.getElementById("m-name").value.trim();
+  const category = document.getElementById("m-category").value;
+  const language = document.getElementById("m-language").value;
+  const bodyText = document.getElementById("m-body").value.trim();
+
+  if (!name || !bodyText) {
+    showMResult("error", "Nome e BODY são obrigatórios.");
+    return;
+  }
+
+  const useHeader  = document.getElementById("m-use-header").checked;
+  const headerText = useHeader ? document.getElementById("m-header").value.trim() : "";
+  const useFooter  = document.getElementById("m-use-footer").checked;
+  const footerText = useFooter ? document.getElementById("m-footer").value.trim() : "";
+
+  const bodyExamples = [...document.querySelectorAll("#m-body-example-fields input")].map(i => i.value.trim());
+
+  const buttons = [];
+  document.querySelectorAll("#m-btn-list > div").forEach(row => {
+    const type = row.querySelector("[data-btn-type]").value;
+    const text = row.querySelector("[data-btn-text]").value.trim();
+    const url  = row.querySelector("[data-btn-url]").value.trim();
+    if (text) buttons.push({type, text, url});
+  });
+
+  const payload = {name, category, language, body_text: bodyText, body_examples: bodyExamples,
+                   header_type: "TEXT", header_text: headerText, footer_text: footerText, buttons};
+
+  const btn = document.querySelector("#addModal button[onclick='submitAddModel()']");
+  btn.disabled = true; btn.textContent = "Salvando…";
+
+  try {
+    const r = await fetch("{{ url_for('templates.add_model') }}", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload),
+    });
+    const d = await r.json();
+    if (!d.ok) { showMResult("error", d.error || "Erro desconhecido"); }
+    else { showToast("Modelo salvo com sucesso!", "ok"); closeAddModal(); location.reload(); }
+  } catch(e) {
+    showMResult("error", "Erro de rede: " + e);
+  } finally {
+    btn.disabled = false; btn.textContent = "Salvar modelo";
+  }
+}
+
+function showMResult(type, msg) {
+  const el = document.getElementById("m-result");
+  el.className = `rounded-xl px-3 py-2 text-sm ${type === "ok" ? "bg-emerald-900/40 text-emerald-300" : "bg-red-900/40 text-red-300"}`;
+  el.textContent = msg;
+}
+
+// ── toast ─────────────────────────────────────────────────────────────────────
+function showToast(msg, type="ok") {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = `fixed bottom-4 right-4 z-50 px-4 py-2 rounded-xl text-sm shadow-xl ${type === "ok" ? "bg-emerald-900 text-emerald-200" : "bg-red-900 text-red-200"}`;
+  t.classList.remove("hidden");
+  setTimeout(() => t.classList.add("hidden"), 4000);
+}
+</script>
+{% endblock %}

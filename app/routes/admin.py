@@ -278,6 +278,32 @@ _LISTAS_KEYS = [
 ]
 
 
+@bp.route("/card-config", methods=["GET"])
+@login_required
+def card_config():
+    row = db.session.get(AppSetting, "LINK_MAX_CONCURRENCY")
+    value = row.value if row else "5"
+    return render_template("admin_card_config.html", value=value)
+
+
+@bp.route("/card-config", methods=["POST"])
+@login_required
+def card_config_save():
+    raw = (request.form.get("LINK_MAX_CONCURRENCY") or "5").strip()
+    try:
+        val = str(max(1, int(raw)))
+    except (ValueError, TypeError):
+        val = "5"
+    row = db.session.get(AppSetting, "LINK_MAX_CONCURRENCY")
+    if row:
+        row.value = val
+    else:
+        db.session.add(AppSetting(key="LINK_MAX_CONCURRENCY", value=val))
+    db.session.commit()
+    flash("Configuração de Cartões salva.", "success")
+    return redirect(url_for("admin.card_config"))
+
+
 @bp.route("/listas-config", methods=["GET"])
 @login_required
 def listas_config():

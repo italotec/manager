@@ -3,7 +3,7 @@
 Job flow:
 1. Receive a list of waba_ids selected by the user.
 2. Assign a card to each WABA (random, respecting the 5-distinct-WABA cap).
-3. Dispatch add_card commands to the WebSocket agent, 5 at a time.
+3. Dispatch add_card commands to the WebSocket agent, LINK_MAX_CONCURRENCY at a time (default 5).
 4. Handle results, update card usage/status in DB.
 """
 from __future__ import annotations
@@ -30,6 +30,16 @@ def _next_job_id() -> int:
 
 def get_job(job_id: int) -> Optional[dict]:
     return _live_jobs.get(job_id)
+
+
+def _max_concurrency() -> int:
+    from ..models import AppSetting
+    from .. import db
+    row = db.session.get(AppSetting, "LINK_MAX_CONCURRENCY")
+    try:
+        return max(1, int((row.value if row else "5") or 5))
+    except (ValueError, TypeError):
+        return 5
 
 
 def assign_cards(user_id: int, waba_ids: list[str]) -> list[tuple[str, Optional[object]]]:
@@ -122,7 +132,7 @@ def _run_job(app, job_id: int, user_id: int, assignments: list, bms: dict):
             },
         }
 
-        res = send_command_and_wait(user_id, cmd, timeout=180.0)
+        res = send_command_and_wait(user_id, cmd, timeout=300.0)
 
         return {
             "waba_id": waba_id,
@@ -136,8 +146,7 @@ def _run_job(app, job_id: int, user_id: int, assignments: list, bms: dict):
         }
 
     with app.app_context():
-        # Process in batches of 5 concurrent workers
-        with ThreadPoolExecutor(max_workers=5) as pool:
+        with ThreadPoolExecutor(max_workers=_max_concurrency()) as pool:
             future_to_item = {
                 pool.submit(_process_one, waba_id, card): (waba_id, card)
                 for waba_id, card in assignments

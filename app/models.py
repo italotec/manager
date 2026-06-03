@@ -160,6 +160,26 @@ class Proxy(db.Model):
     created_at = db.Column(db.DateTime,    default=_now_sp, nullable=False)
 
 
+class TemplateModel(db.Model):
+    """Reusable WhatsApp message-template definition (model library)."""
+    id           = db.Column(db.Integer,     primary_key=True)
+    user_id      = db.Column(db.Integer,     db.ForeignKey("user.id"), nullable=False, index=True)
+    name         = db.Column(db.String(128), nullable=False)   # base name, e.g. "template"
+    category     = db.Column(db.String(32),  nullable=False, default="UTILITY")
+    language     = db.Column(db.String(16),  nullable=False, default="pt_BR")
+    payload_json = db.Column(db.Text,        nullable=False, default="{}")
+    created_at   = db.Column(db.DateTime,    default=_now_sp, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id":         self.id,
+            "name":       self.name,
+            "category":   self.category,
+            "language":   self.language,
+            "created_at": self.created_at.strftime("%d/%m/%Y") if self.created_at else "",
+        }
+
+
 class Card(db.Model):
     """Credit/debit card stored per user for bulk WABA billing attachment."""
     import json as _json
