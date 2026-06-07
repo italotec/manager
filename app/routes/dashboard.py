@@ -19,24 +19,15 @@ from ..json_store import (
     load_user_bms,
     save_user_bms,
     save_waba_remarks,
-    update_snapshot,
 )
-from ..services.meta import (
-    get_waba_name,
-    get_phone_messaging_limit,
-    get_phone_numbers,
-    get_phone_numbers_health,
-    get_templates,
-    templates_status_summary,
-    evaluate_health,
-    pick_test_template,
-    send_test_message,
-    register_number,
+from ..services.meta import register_number
+from ..services.sync_service import (
+    start_sync_job,
+    get_job as get_sync_job,
+    request_stop as sync_request_stop,
 )
 
 bp = Blueprint("dashboard", __name__)
-
-API_BLOCKED_MARK = "API access blocked."
 
 
 @bp.route("/api-settings")
@@ -74,6 +65,7 @@ def dashboard():
             "last_error": snap.get("last_error") or "",
             "last_add_phone_error": data.get("last_add_phone_error") or "",
             "ever_had_erro_generic": snap.get("ever_had_erro_generic", False),
+            "disparou": bool(snap.get("disparou_at")) and (time.time() - (snap.get("disparou_at") or 0)) < 86400,
             "ultimo_disparo": snap.get("ultimo_disparo") or "",
             "remarks": data.get("remarks") or "",
             "adspower_profile_id": data.get("adspower_profile_id") or "",
@@ -88,119 +80,32 @@ def dashboard():
         job_id=job_id,
     )
 
-@bp.route("/sync", methods=["POST"])
+@bp.route("/sync-start", methods=["POST"])
 @login_required
-def sync_now():
+def sync_start():
     ensure_user_bms_file(current_user.id)
     bms = load_user_bms(current_user.id)
-    api_version = current_app.config["META_API_VERSION"]
-
     if not bms:
-        flash("Você não tem WABAs cadastrados.", "error")
-        return redirect(url_for("dashboard.dashboard"))
+        return jsonify({"ok": False, "error": "Você não tem WABAs cadastrados."}), 400
+    api_version = current_app.config["META_API_VERSION"]
+    job_id = start_sync_job(current_user.id, api_version)
+    return jsonify({"ok": True, "job_id": job_id})
 
-    synced = 0
-    blocked = 0
-    errors = 0
 
-    for key, data in bms.items():
-        if not isinstance(data, dict):
-            continue
+@bp.route("/sync/job/<int:job_id>")
+@login_required
+def sync_job_status(job_id: int):
+    state = get_sync_job(job_id)
+    if state is None:
+        return jsonify({"error": "Job não encontrado"}), 404
+    return jsonify(state)
 
-        waba_id = str(data.get("waba_id") or "").strip()
-        token = (data.get("token") or "").strip()
-        if not waba_id or not token:
-            continue
 
-        waba_name, err_name = get_waba_name(api_version, token, waba_id)
-        phones, err_phones = get_phone_numbers(api_version, token, waba_id)
-        templates, err_tpl = get_templates(api_version, token, waba_id)
-
-        all_errors = " ".join(e for e in (err_name, err_phones, err_tpl) if e)
-
-        # Keep previously saved name when API is blocked
-        prev_snap = data.get("snapshot", {}) or {}
-        prev_name = prev_snap.get("waba_name") or "—"
-
-        # Statuses set by the external webhook tool — API sync must not overwrite them.
-        # Exception: "DESATIVADA" is NOT protected so the API can recover it to "OK"
-        # when the health check no longer shows it as disabled.
-        _WEBHOOK_PROTECTED = {"PERMANENTE", "ANALISANDO", "RESTRITA"}
-        current_status = prev_snap.get("status_label", "")
-
-        def _effective_status(api_status: str) -> str:
-            """Return api_status unless the current status is webhook-protected."""
-            return current_status if current_status in _WEBHOOK_PROTECTED else api_status
-
-        if API_BLOCKED_MARK in all_errors:
-            update_snapshot(
-                current_user.id,
-                waba_id,
-                waba_name=waba_name or prev_name,
-                phone_numbers=[],
-                template_counts={"APPROVED": 0, "PAUSED": 0, "DISABLED": 0, "OTHER": 0},
-                last_error="",
-                status_label=_effective_status("Developers Travado"),
-                last_sync_at=int(time.time()),
-            )
-            blocked += 1
-            continue
-
-        if all_errors:
-            update_snapshot(
-                current_user.id,
-                waba_id,
-                waba_name=waba_name or "—",
-                phone_numbers=phones or [],
-                template_counts=templates_status_summary(templates or []),
-                last_error=all_errors[:900],
-                status_label=_effective_status("Erro"),
-                last_sync_at=int(time.time()),
-            )
-            errors += 1
-            continue
-
-        # Fetch health status
-        health_phones, _ = get_phone_numbers_health(api_version, token, waba_id)
-        health_label = evaluate_health(health_phones) if health_phones else "OK"
-
-        # Send test message to detect generic errors (ERRO GENERIC > PROBLEMA CARTÃO)
-        if health_label in ("OK", "PROBLEMA CARTÃO") and phones and templates:
-            test_tpl = pick_test_template(templates)
-            first_phone_id = phones[0].get("id") if phones else None
-            if test_tpl and first_phone_id:
-                test_ok, test_resp = send_test_message(token, first_phone_id, test_tpl)
-                if not test_ok and "#135000" in test_resp:
-                    health_label = "ERRO GENERIC"
-
-        # ── tracking fields ──────────────────────────────────────────────
-        ever_erro_generic = prev_snap.get("ever_had_erro_generic", False)
-        if health_label == "ERRO GENERIC":
-            ever_erro_generic = True
-
-        messaging_limit_tier = None
-        if phones:
-            messaging_limit_tier = get_phone_messaging_limit(api_version, token, phones[0].get("id"))
-
-        update_snapshot(
-            current_user.id,
-            waba_id,
-            waba_name=waba_name or "—",
-            phone_numbers=phones or [],
-            template_counts=templates_status_summary(templates or []),
-            last_error="",
-            status_label=_effective_status(health_label),
-            last_sync_at=int(time.time()),
-            ever_had_erro_generic=ever_erro_generic,
-            messaging_limit_tier=messaging_limit_tier,
-        )
-        synced += 1
-
-    flash(
-        f"Atualizado • OK: {synced} • Developers travado: {blocked} • Erros: {errors}",
-        "success" if synced else "error",
-    )
-    return redirect(url_for("dashboard.dashboard"))
+@bp.route("/sync/job/<int:job_id>/stop", methods=["POST"])
+@login_required
+def sync_job_stop(job_id: int):
+    sync_request_stop(job_id)
+    return jsonify({"ok": True})
 
 @bp.route("/export-selected", methods=["POST"])
 @login_required

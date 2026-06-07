@@ -1,19 +1,49 @@
+import time
 import requests
 
 def _auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
-def _get(url: str, token: str):
-    try:
-        r = requests.get(url, headers=_auth_headers(token), timeout=30)
-        txt = (r.text or "").strip()
+_RL_CODES = {4, 80007, 130429, 131056, 368}
+
+def _get(url: str, token: str, max_retries: int = 3, backoff_base: float = 4.0, backoff_cap: float = 60.0):
+    """GET with exponential-backoff retry on 429 / transient Meta errors."""
+    attempt = 0
+    while True:
         try:
-            j = r.json()
-        except Exception:
-            j = None
-        return r.status_code, j, txt[:800]
-    except Exception as e:
-        return None, None, str(e)[:800]
+            r = requests.get(url, headers=_auth_headers(token), timeout=30)
+            txt = (r.text or "").strip()
+            try:
+                j = r.json()
+            except Exception:
+                j = None
+
+            # Detect rate-limiting / transient errors
+            rate_limited = False
+            retry_after = 0
+
+            if r.status_code == 429:
+                rate_limited = True
+                retry_after = int(r.headers.get("Retry-After", 0) or 0)
+            elif isinstance(j, dict) and "error" in j:
+                err = j["error"]
+                if isinstance(err, dict):
+                    code = err.get("code")
+                    is_transient = bool(err.get("is_transient"))
+                    msg = (err.get("message") or "").lower()
+                    if code in _RL_CODES or is_transient or "rate limit" in msg or "too many" in msg:
+                        rate_limited = True
+                        retry_after = int(r.headers.get("Retry-After", 0) or 0)
+
+            if rate_limited and attempt < max_retries:
+                sleep = retry_after if retry_after > 0 else min(backoff_base ** attempt, backoff_cap)
+                time.sleep(sleep)
+                attempt += 1
+                continue
+
+            return r.status_code, j, txt[:800]
+        except Exception as e:
+            return None, None, str(e)[:800]
 
 def subscribe_waba_webhook(api_version: str, token: str, waba_id: str):
     """Subscribe the app to webhook events for a WABA (POST /WABA-ID/subscribed_apps)."""
@@ -239,9 +269,6 @@ def create_template(api_version: str, token: str, waba_id: str, payload: dict):
         return j, None
     except Exception as e:
         return None, str(e)[:800]
-
-
-_RL_CODES = {4, 80007, 130429, 131056, 368}
 
 
 def create_template_rl(api_version: str, token: str, waba_id: str, payload: dict):

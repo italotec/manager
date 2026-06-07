@@ -102,3 +102,20 @@ def patch_snapshot(user_id: int, waba_id: str, **fields) -> None:
     entry["snapshot"] = snap
     data[key] = entry
     save_user_bms(user_id, data)
+
+
+def find_users_with_waba(waba_id: str) -> list:
+    """Return list of user_ids whose bms.json contains the given WABA id."""
+    key = str(waba_id).strip()
+    base = os.path.join(os.getcwd(), "instance", "users")
+    if not os.path.isdir(base):
+        return []
+    result = []
+    for name in os.listdir(base):
+        if not name.isdigit():
+            continue
+        user_id = int(name)
+        bms = load_user_bms(user_id)
+        if key in bms and isinstance(bms.get(key), dict):
+            result.append(user_id)
+    return result

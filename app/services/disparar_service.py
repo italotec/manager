@@ -4,6 +4,7 @@ import json
 import csv
 import asyncio
 import threading
+import time
 import uuid
 import random
 import string
@@ -17,9 +18,25 @@ from requests.adapters import HTTPAdapter
 
 from .. import db
 from ..models import DisparoJob
-from ..json_store import patch_snapshot
+from ..json_store import patch_snapshot, load_user_bms
 
 LOCK = threading.Lock()
+
+_WEBHOOK_PROTECTED = {"PERMANENTE", "ANALISANDO", "RESTRITA"}
+
+def _flag_erro_generic_if_needed(user_id: int, waba_id: str, state: dict, msg: str) -> None:
+    if not waba_id or state.get("erro_generic_marked"):
+        return
+    if "#135000" not in (msg or ""):
+        return
+    state["erro_generic_marked"] = True
+    snap = (load_user_bms(user_id).get(str(waba_id).strip()) or {}).get("snapshot") or {}
+    fields = {"ever_had_erro_generic": True}
+    if snap.get("status_label", "") not in _WEBHOOK_PROTECTED:
+        fields["status_label"] = "ERRO GENERIC"
+    patch_snapshot(user_id, waba_id, **fields)
+
+
 _tls = threading.local()
 
 
@@ -206,7 +223,7 @@ async def _send_template_async(session, phone, phone_number_id, token,
 
 async def _run_async_jobs(state, pending, phone_col, phone_number_id, token,
                           template_name, template_language, param_map, namespace,
-                          sent_path, log_path, skip_log):
+                          sent_path, log_path, skip_log, user_id=0, waba_id=""):
     import aiohttp as _aiohttp
     sem = asyncio.Semaphore(500)
     # Collect results in memory — no file I/O inside coroutines (would block event loop)
@@ -237,6 +254,7 @@ async def _run_async_jobs(state, pending, phone_col, phone_number_id, token,
                     state["sent"] += 1
                 else:
                     state["failed"] += 1
+                    _flag_erro_generic_if_needed(user_id, waba_id, state, msg)
                 state["last_message"] = f"{'✓' if success else '✗'} {phone}: {msg}"
 
         await asyncio.gather(*[_task(row) for row in pending])
@@ -298,12 +316,26 @@ def _run_disparo(app, job_id: int, user_id: int,
                 job.skipped = state["skipped"]
                 job.last_message = msg
                 db.session.commit()
-        # Stamp ultimo_disparo when the job ends (manually or automatically)
-        if waba_id and status in ("done", "stopped"):
-            patch_snapshot(
-                user_id, waba_id,
-                ultimo_disparo=datetime.now(_SP).strftime("%d/%m %H:%M"),
-            )
+        # Update 24h disparo event log and conditionally stamp ultimo_disparo
+        if waba_id and status in ("done", "stopped") and state["sent"] > 0:
+            with app.app_context():
+                bms = load_user_bms(user_id)
+                key = str(waba_id).strip()
+                snap = (bms.get(key) or {}).get("snapshot") or {}
+                events = [e for e in (snap.get("disparo_events") or [])
+                          if isinstance(e, dict)]
+
+            now_ts = int(time.time())
+            cutoff = now_ts - 86400
+            events.append({"ts": now_ts, "sent": state["sent"]})
+            events = [e for e in events if e.get("ts", 0) >= cutoff]
+
+            total_24h = sum(e.get("sent", 0) for e in events)
+            patch = {"disparo_events": events}
+            if total_24h >= 500:
+                patch["disparou_at"] = now_ts
+                patch["ultimo_disparo"] = datetime.now(_SP).strftime("%d/%m %H:%M")
+            patch_snapshot(user_id, waba_id, **patch)
         _live_jobs.pop(job_id, None)
 
     namespace = _random_namespace()
@@ -374,7 +406,7 @@ def _run_disparo(app, job_id: int, user_id: int,
                     _loop.run_until_complete(_run_async_jobs(
                         state, pending, phone_col, phone_number_id, token,
                         template_name, template_language, param_map, namespace,
-                        sent_path, log_path, skip_log,
+                        sent_path, log_path, skip_log, user_id, waba_id,
                     ))
                 finally:
                     _loop.close()
@@ -383,7 +415,7 @@ def _run_disparo(app, job_id: int, user_id: int,
                 asyncio.run(_run_async_jobs(
                     state, pending, phone_col, phone_number_id, token,
                     template_name, template_language, param_map, namespace,
-                    sent_path, log_path, skip_log,
+                    sent_path, log_path, skip_log, user_id, waba_id,
                 ))
             if state["stop_requested"]:
                 _finish("stopped", "Envio interrompido pelo usuário.")
@@ -414,6 +446,7 @@ def _run_disparo(app, job_id: int, user_id: int,
                                     sf.write(phone + "\n")
                     else:
                         state["failed"] += 1
+                        _flag_erro_generic_if_needed(user_id, waba_id, state, msg)
 
                     _append_log({
                         "ts":      datetime.now(_SP).strftime("%H:%M:%S"),

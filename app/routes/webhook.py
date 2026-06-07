@@ -1,9 +1,14 @@
 import json
 from flask import Blueprint, request, current_app, jsonify
 from .. import db
-from ..models import WebhookLog, AppSetting, User
-from ..json_store import load_user_bms, patch_snapshot
+from ..models import WebhookLog, AppSetting
+from ..json_store import load_user_bms, patch_snapshot, find_users_with_waba
 from ..services.chat_service import save_message, update_message_status
+from ..services.waba_events import (
+    apply_template_status_event,
+    apply_account_update,
+    apply_phone_quality_update,
+)
 
 bp = Blueprint("webhook", __name__)
 
@@ -46,8 +51,22 @@ def receive():
             continue
 
         for change in (entry.get("changes") or []):
+            field = change.get("field") or ""
             value = change.get("value") or {}
-            if change.get("field") != "messages":
+
+            if field == "message_template_status_update":
+                apply_template_status_event(waba_id, value)
+                continue
+
+            if field == "account_update":
+                apply_account_update(waba_id, value)
+                continue
+
+            if field == "phone_number_quality_update":
+                apply_phone_quality_update(waba_id, value)
+                continue
+
+            if field != "messages":
                 continue
 
             metadata       = value.get("metadata") or {}
@@ -155,11 +174,6 @@ def _handle_bms_status(profiles: list) -> None:
     Each dict must have an `asset_id` matching a stored WABA ID.
     Only updates status_label; never changes other snapshot fields.
     """
-    try:
-        user_ids = [row.id for row in db.session.query(User.id).all()]
-    except Exception:
-        return
-
     for profile in profiles:
         if not isinstance(profile, dict):
             continue
@@ -182,11 +196,8 @@ def _handle_bms_status(profiles: list) -> None:
         if new_status is None:
             continue  # no relevant flag set — leave status unchanged
 
-        # Update ALL users that have this WABA ID in their BMS
-        for user_id in user_ids:
-            bms = load_user_bms(user_id)
-            if asset_id in bms and isinstance(bms.get(asset_id), dict):
-                patch_snapshot(user_id, asset_id, status_label=new_status)
+        for user_id in find_users_with_waba(asset_id):
+            patch_snapshot(user_id, asset_id, status_label=new_status)
 
 
 def _maybe_log(payload: dict):
