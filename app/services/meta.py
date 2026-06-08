@@ -314,7 +314,7 @@ def create_template_rl(api_version: str, token: str, waba_id: str, payload: dict
 
 
 def templates_status_summary(templates: list[dict]) -> dict:
-    out = {"APPROVED": 0, "PAUSED": 0, "DISABLED": 0, "OTHER": 0}
+    out = {"APPROVED": 0, "PENDING": 0, "PAUSED": 0, "REJECTED": 0, "DISABLED": 0, "OTHER": 0}
     for t in templates:
         st = (t.get("status") or "").upper()
         if st in out:

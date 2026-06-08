@@ -239,11 +239,12 @@
             </td>
 
             <td class="py-3">
-              <span class="text-emerald-400">{{ row.t.APPROVED }}</span> /
-              <span class="text-yellow-400">{{ row.t.PAUSED }}</span> /
-              <span class="text-red-400">{{ row.t.DISABLED }}</span>
-              {% if row.t.OTHER %}
-                <span class="text-zinc-400"> / {{ row.t.OTHER }}</span>
+              <span class="text-emerald-400">{{ row.t.get('APPROVED', 0) }}</span> /
+              <span class="text-yellow-400">{{ row.t.get('PAUSED', 0) }}</span> /
+              <span class="text-red-400">{{ row.t.get('REJECTED', 0) + row.t.get('DISABLED', 0) }}</span> /
+              <span class="text-zinc-400">{{ row.t.get('PENDING', 0) }}</span>
+              {% if row.t.get('OTHER', 0) %}
+                <span class="text-zinc-600"> / {{ row.t.get('OTHER', 0) }}</span>
               {% endif %}
             </td>
 

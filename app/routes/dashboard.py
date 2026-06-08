@@ -12,6 +12,7 @@ from flask import (
 )
 from flask_login import login_required, current_user
 from .. import db
+from ..services.meta import templates_status_summary
 from werkzeug.utils import secure_filename
 
 from ..json_store import (
@@ -50,13 +51,21 @@ def dashboard():
         waba_id = str(data.get("waba_id") or "").strip()
         snap = data.get("snapshot", {}) or {}
 
+        tpl_map = snap.get("template_status_map")
+        t_counts = (
+            templates_status_summary(list(tpl_map.values()))
+            if isinstance(tpl_map, dict) and tpl_map
+            else snap.get("template_counts")
+        )
         rows.append({
             "waba_id": waba_id,
             "waba_name": snap.get("waba_name") or "—",
             "phone_numbers": snap.get("phone_numbers") or [],
-            "t": snap.get("template_counts") or {
+            "t": t_counts or {
                 "APPROVED": 0,
+                "PENDING": 0,
                 "PAUSED": 0,
+                "REJECTED": 0,
                 "DISABLED": 0,
                 "OTHER": 0,
             },

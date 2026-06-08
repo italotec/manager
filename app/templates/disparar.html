@@ -110,14 +110,21 @@
               {{ csv.columns | join(", ") }}
             </td>
             <td class="py-3 text-right">
-              <form method="POST"
-                    action="{{ url_for('disparar.delete_csv', filename=csv.name) }}"
-                    onsubmit="return confirm('Remover {{ csv.name }}?')">
-                <button type="submit"
-                        class="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-red-900/60 text-zinc-500 hover:text-red-300 text-xs">
-                  Remover
+              <div class="flex items-center justify-end gap-2">
+                <button type="button"
+                        onclick="openClearSentModal('{{ csv.name | e }}')"
+                        class="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-amber-900/60 text-zinc-500 hover:text-amber-300 text-xs">
+                  Limpar enviados
                 </button>
-              </form>
+                <form method="POST"
+                      action="{{ url_for('disparar.delete_csv', filename=csv.name) }}"
+                      onsubmit="return confirm('Remover {{ csv.name }}?')">
+                  <button type="submit"
+                          class="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-red-900/60 text-zinc-500 hover:text-red-300 text-xs">
+                    Remover
+                  </button>
+                </form>
+              </div>
             </td>
           </tr>
           {% endfor %}
@@ -397,6 +404,7 @@
               <th class="text-left py-2">Linhas</th>
               <th class="text-left py-2">Enviados</th>
               <th class="text-left py-2">Tamanho</th>
+              <th class="text-left py-2"></th>
             </tr>
           </thead>
           <tbody class="text-zinc-200">
@@ -420,6 +428,13 @@
                 <span class="text-zinc-600 ml-1">({{ csv.sent_count }}/{{ csv.row_count }})</span>
               </td>
               <td class="py-3 text-zinc-400 text-xs">{{ csv.size_kb }} KB</td>
+              <td class="py-3 text-right">
+                <button type="button"
+                        onclick="openClearSentModal('{{ csv.name | e }}')"
+                        class="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-amber-900/60 text-zinc-500 hover:text-amber-300 text-xs">
+                  Limpar enviados
+                </button>
+              </td>
             </tr>
             {% endfor %}
           </tbody>
@@ -1706,6 +1721,99 @@ async function stopBatch() {
 document.addEventListener('DOMContentLoaded', () => {
   setMultiWorkers(1);
 });
+
+// ── clear-sent modal ──────────────────────────────────────────────────────────
+let _clearSentFile = null;
+
+async function openClearSentModal(filename) {
+  _clearSentFile = filename;
+  document.getElementById('clearSentFilename').textContent = filename;
+  document.getElementById('clearSentNoHeader').checked = false;
+  document.getElementById('clearSentForm').action =
+    '/disparar/csv/' + encodeURIComponent(filename) + '/clear-sent';
+  await _loadClearSentColumns();
+  document.getElementById('clearSentModal').classList.remove('hidden');
+}
+
+function closeClearSentModal() {
+  document.getElementById('clearSentModal').classList.add('hidden');
+  _clearSentFile = null;
+}
+
+async function _loadClearSentColumns() {
+  if (!_clearSentFile) return;
+  const hasHeader = !document.getElementById('clearSentNoHeader').checked;
+  const sel = document.getElementById('clearSentPhoneCol');
+  sel.innerHTML = '<option value="">Carregando…</option>';
+  try {
+    const res = await fetch(
+      '/disparar/csv/' + encodeURIComponent(_clearSentFile) +
+      '/columns?has_header=' + (hasHeader ? '1' : '0')
+    );
+    if (res.ok) {
+      const d = await res.json();
+      const cols = d.columns || [];
+      sel.innerHTML = cols.length
+        ? cols.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('')
+        : '<option value="">Nenhuma coluna encontrada</option>';
+    } else {
+      sel.innerHTML = '<option value="">Erro ao carregar colunas</option>';
+    }
+  } catch(e) {
+    sel.innerHTML = '<option value="">Erro de rede</option>';
+  }
+}
+
+function onClearSentSubmit() {
+  const sel = document.getElementById('clearSentPhoneCol');
+  if (!sel.value) { alert('Selecione a coluna do telefone.'); return false; }
+  document.getElementById('clearSentHasHeader').value =
+    document.getElementById('clearSentNoHeader').checked ? '0' : '1';
+  return true;
+}
 </script>
+
+{# ── clear-sent modal ── #}
+<div id="clearSentModal"
+     class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+     onclick="if(event.target===this) closeClearSentModal()">
+  <div class="w-full max-w-sm rounded-2xl border border-zinc-700 bg-zinc-900 p-6 shadow-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <div class="text-sm font-semibold">Limpar enviados da lista</div>
+      <button type="button" onclick="closeClearSentModal()"
+              class="text-zinc-500 hover:text-zinc-200 text-lg leading-none">✕</button>
+    </div>
+    <p class="text-xs text-zinc-400 mb-4">
+      Remove da lista de já-enviados apenas os números presentes em
+      <span id="clearSentFilename" class="font-mono text-zinc-200 break-all"></span>.
+      Os demais ficam intactos.
+    </p>
+    <form id="clearSentForm" method="POST" onsubmit="return onClearSentSubmit()">
+      <input type="hidden" id="clearSentHasHeader" name="has_header" value="1">
+      <div class="mb-4">
+        <label class="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer mb-3">
+          <input type="checkbox" id="clearSentNoHeader"
+                 class="w-4 h-4 accent-indigo-500"
+                 onchange="_loadClearSentColumns()">
+          Arquivo sem cabeçalho
+        </label>
+        <label class="block text-xs text-zinc-400 mb-1">Coluna do telefone</label>
+        <select id="clearSentPhoneCol" name="phone_col"
+                class="w-full px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-700 outline-none focus:border-zinc-500 text-sm">
+        </select>
+      </div>
+      <div class="flex items-center justify-end gap-3">
+        <button type="button" onclick="closeClearSentModal()"
+                class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-300">
+          Cancelar
+        </button>
+        <button type="submit"
+                class="px-4 py-2 rounded-xl bg-amber-700 hover:bg-amber-600 text-sm font-semibold text-white">
+          Remover da lista
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
 
 {% endblock %}

@@ -252,6 +252,50 @@ def clear_sent_log():
     return redirect(url_for("disparar.disparar_page"))
 
 
+def _ordered_sent_lines(user_id: int) -> list:
+    sp = sent_log_path(user_id)
+    if not os.path.exists(sp):
+        return []
+    with open(sp, "r", encoding="utf-8") as f:
+        return [ln.strip() for ln in f if ln.strip()]
+
+
+@bp.route("/disparar/csv/<filename>/clear-sent", methods=["POST"])
+@login_required
+def clear_csv_sent(filename):
+    fn = secure_filename(filename)
+    path = os.path.join(csvs_dir(current_user.id), fn)
+    if not os.path.exists(path):
+        flash("CSV não encontrado.", "error")
+        return redirect(url_for("disparar.disparar_page"))
+
+    phone_col  = (request.form.get("phone_col") or "").strip()
+    has_header = request.form.get("has_header", "1") != "0"
+    if not phone_col:
+        flash("Selecione a coluna do telefone.", "error")
+        return redirect(url_for("disparar.disparar_page"))
+
+    try:
+        rows = _read_rows(path, has_header=has_header)
+    except Exception as exc:
+        flash(f"Erro ao ler arquivo: {exc}", "error")
+        return redirect(url_for("disparar.disparar_page"))
+
+    csv_phones = {str(r.get(phone_col, "")).strip()
+                  for r in rows if str(r.get(phone_col, "")).strip()}
+
+    lines = _ordered_sent_lines(current_user.id)
+    remaining = [ln for ln in lines if ln not in csv_phones]
+    removed = len(lines) - len(remaining)
+
+    if removed:
+        with open(sent_log_path(current_user.id), "w", encoding="utf-8") as f:
+            f.write("\n".join(remaining) + ("\n" if remaining else ""))
+
+    flash(f"{removed} número(s) de '{fn}' removido(s) da lista de já-enviados.", "success")
+    return redirect(url_for("disparar.disparar_page"))
+
+
 # ── start job ─────────────────────────────────────────────────────────────────
 
 @bp.route("/disparar/start", methods=["POST"])
