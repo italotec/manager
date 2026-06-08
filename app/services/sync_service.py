@@ -176,69 +176,72 @@ def _run_job(app, job_id: int, user_id: int, bms: dict, api_version: str) -> Non
     next_checkpoint = checkpoint_interval
 
     with app.app_context():
-        with ThreadPoolExecutor(max_workers=_max_concurrency()) as pool:
-            future_to_key = {
-                pool.submit(_sync_one_waba, api_version, waba_id, token, prev_snap): key
-                for key, waba_id, token, prev_snap in work_items
-            }
+        max_workers = _max_concurrency()
+    # connection released here; network-bound sync below holds no pool slot
 
-            for future in as_completed(future_to_key):
-                if state.get("stop_requested"):
-                    for f in future_to_key:
-                        f.cancel()
-                    break
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        future_to_key = {
+            pool.submit(_sync_one_waba, api_version, waba_id, token, prev_snap): key
+            for key, waba_id, token, prev_snap in work_items
+        }
 
-                key = future_to_key[future]
-                data = bms.get(key)
-                waba_id = str((data or {}).get("waba_id") or key).strip()
+        for future in as_completed(future_to_key):
+            if state.get("stop_requested"):
+                for f in future_to_key:
+                    f.cancel()
+                break
 
-                try:
-                    result = future.result()
-                except Exception as exc:
-                    result = {
-                        "category": "errors",
-                        "fields": {
-                            "waba_name": "—",
-                            "phone_numbers": [],
-                            "template_counts": {"APPROVED": 0, "PAUSED": 0, "DISABLED": 0, "OTHER": 0},
-                            "last_error": str(exc)[:400],
-                            "status_label": "Erro",
-                            "last_sync_at": int(time.time()),
-                        },
-                    }
+            key = future_to_key[future]
+            data = bms.get(key)
+            waba_id = str((data or {}).get("waba_id") or key).strip()
 
-                # Merge into in-memory bms (single thread — safe, no lock needed here)
-                if isinstance(data, dict):
-                    snap = data.get("snapshot", {}) if isinstance(data.get("snapshot"), dict) else {}
-                    snap.update(result["fields"])
-                    data["snapshot"] = snap
+            try:
+                result = future.result()
+            except Exception as exc:
+                result = {
+                    "category": "errors",
+                    "fields": {
+                        "waba_name": "—",
+                        "phone_numbers": [],
+                        "template_counts": {"APPROVED": 0, "PAUSED": 0, "DISABLED": 0, "OTHER": 0},
+                        "last_error": str(exc)[:400],
+                        "status_label": "Erro",
+                        "last_sync_at": int(time.time()),
+                    },
+                }
 
-                # Update counters
-                with _jobs_lock:
-                    state["done"] += 1
-                    cat = result["category"]
-                    if cat == "synced":
-                        state["synced"] += 1
-                    elif cat == "blocked":
-                        state["blocked"] += 1
-                    else:
-                        state["errors"] += 1
+            # Merge into in-memory bms (single thread — safe, no lock needed here)
+            if isinstance(data, dict):
+                snap = data.get("snapshot", {}) if isinstance(data.get("snapshot"), dict) else {}
+                snap.update(result["fields"])
+                data["snapshot"] = snap
 
-                    snap = result["fields"]
-                    state["results"].append({
-                        "waba_id": waba_id,
-                        "waba_name": snap.get("waba_name") or waba_id,
-                        "status_label": snap.get("status_label") or "",
-                        "category": cat,
-                    })
+            # Update counters
+            with _jobs_lock:
+                state["done"] += 1
+                cat = result["category"]
+                if cat == "synced":
+                    state["synced"] += 1
+                elif cat == "blocked":
+                    state["blocked"] += 1
+                else:
+                    state["errors"] += 1
 
-                # Checkpoint: write every N completions for crash resilience
-                if state["done"] >= next_checkpoint:
-                    save_user_bms(user_id, bms)
-                    next_checkpoint += checkpoint_interval
+                snap = result["fields"]
+                state["results"].append({
+                    "waba_id": waba_id,
+                    "waba_name": snap.get("waba_name") or waba_id,
+                    "status_label": snap.get("status_label") or "",
+                    "category": cat,
+                })
 
-        # Final write (covers the tail after last checkpoint)
-        save_user_bms(user_id, bms)
+            # Checkpoint: write every N completions for crash resilience
+            if state["done"] >= next_checkpoint:
+                save_user_bms(user_id, bms)
+                next_checkpoint += checkpoint_interval
+
+    # Final write (covers the tail after last checkpoint)
+    save_user_bms(user_id, bms)
 
     state["status"] = "stopped" if state.get("stop_requested") else "done"
 

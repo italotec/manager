@@ -120,12 +120,14 @@ def _handle_agent_message(user_id: int, data: str):
 def handle_ws(ws):
     user = _auth_user()
     if not user:
+        db.session.remove()
         print("[AGENT WS] Auth failed — invalid or missing token")
         ws.close()
         return
 
     user_id  = user.id
     username = user.username
+    db.session.remove()  # release connection immediately — handler holds no DB connection for its lifetime
     print(f"[AGENT WS] Auth OK — user='{username}' id={user_id}")
 
     session = AgentSession(user_id=user_id, username=username, ws=ws)
