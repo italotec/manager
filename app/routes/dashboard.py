@@ -64,6 +64,7 @@ def dashboard():
             "status_label": snap.get("status_label") or "",
             "last_error": snap.get("last_error") or "",
             "last_add_phone_error": data.get("last_add_phone_error") or "",
+            "last_add_phone_debug": data.get("last_add_phone_debug") or [],
             "ever_had_erro_generic": snap.get("ever_had_erro_generic", False),
             "disparou": bool(snap.get("disparou_at")) and (time.time() - (snap.get("disparou_at") or 0)) < 86400,
             "ultimo_disparo": snap.get("ultimo_disparo") or "",
@@ -339,6 +340,7 @@ def register_phones():
     api_version = current_app.config["META_API_VERSION"]
     bms = load_user_bms(current_user.id)
     results = []
+    dirty = False
 
     for waba_id in waba_ids:
         entry = bms.get(str(waba_id))
@@ -365,6 +367,13 @@ def register_phones():
         for p in pending:
             phone_id = p.get("id", "")
             display = p.get("display_phone_number", phone_id)
+            if not phone_id:
+                # Number added via webhook (no phone_number_id yet). Needs a sync first.
+                results.append({
+                    "waba_id": waba_id, "phone_id": "", "phone": display,
+                    "ok": False, "msg": "Sincronize o dashboard antes de registrar (sem phone_number_id).",
+                })
+                continue
             try:
                 r = register_number(api_version, token, phone_id, pin, None)
                 try:
@@ -372,6 +381,8 @@ def register_phones():
                 except Exception:
                     j = {}
                 if r.status_code == 200 and j.get("success"):
+                    p["status"] = "CONNECTED"   # turn the row green (persisted below)
+                    dirty = True
                     results.append({
                         "waba_id": waba_id, "phone_id": phone_id, "phone": display,
                         "ok": True, "msg": "Registrado com sucesso",
@@ -388,6 +399,9 @@ def register_phones():
                     "waba_id": waba_id, "phone_id": phone_id, "phone": display,
                     "ok": False, "msg": str(e)[:300],
                 })
+
+    if dirty:
+        save_user_bms(current_user.id, bms)
 
     return jsonify({"results": results})
 

@@ -104,12 +104,14 @@ def _apply_phone_membership(waba_id: str, phone: str, added: bool) -> None:
         if added:
             already = any(_digits(p.get("display_phone_number")) == target for p in phones)
             if not already:
+                # Pending (yellow): the number was added to the WABA but is not yet
+                # registered/connected. It turns green only after a successful register.
                 phones.append({
                     "id": "",
                     "display_phone_number": _format_phone(phone),
                     "verified_name": "",
                     "quality_rating": "",
-                    "status": "CONNECTED",
+                    "status": "PENDING",
                 })
             else:
                 continue
@@ -123,6 +125,55 @@ def _apply_phone_membership(waba_id: str, phone: str, added: bool) -> None:
         entry["snapshot"] = snap
         data[key] = entry
         save_user_bms(user_id, data)
+
+
+def mark_phone_connected(user_id: int, waba_id: str, phone_id: str = "", phone: str = "") -> None:
+    """Flip a phone to CONNECTED (green) in snapshot.phone_numbers after a successful register.
+
+    Matches an existing entry by phone_id or by digit-normalized number; inserts a new
+    connected entry if none matches (e.g. the PHONE_NUMBER_ADDED webhook hasn't arrived yet).
+    """
+    from ..json_store import load_user_bms, save_user_bms
+    pid = str(phone_id or "").strip()
+    target = _digits(phone)
+    if not pid and not target:
+        return
+
+    data = load_user_bms(user_id)
+    key = str(waba_id).strip()
+    if key not in data or not isinstance(data.get(key), dict):
+        return
+
+    entry = data[key]
+    snap = entry.get("snapshot", {}) if isinstance(entry.get("snapshot"), dict) else {}
+    phones = list(snap.get("phone_numbers") or [])
+
+    matched = None
+    for p in phones:
+        if pid and str(p.get("id") or "") == pid:
+            matched = p
+            break
+        if target and _digits(p.get("display_phone_number")) == target:
+            matched = p
+            break
+
+    if matched is not None:
+        matched["status"] = "CONNECTED"
+        if pid and not matched.get("id"):
+            matched["id"] = pid
+    else:
+        phones.append({
+            "id": pid,
+            "display_phone_number": _format_phone(phone) if target else "",
+            "verified_name": "",
+            "quality_rating": "",
+            "status": "CONNECTED",
+        })
+
+    snap["phone_numbers"] = phones
+    entry["snapshot"] = snap
+    data[key] = entry
+    save_user_bms(user_id, data)
 
 
 # Labels that this webhook is allowed to flip back to OK

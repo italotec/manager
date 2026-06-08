@@ -180,12 +180,39 @@
                  class="font-semibold hover:text-indigo-400 transition-colors">{{ row.waba_name }}</a>
               <div class="text-xs text-zinc-500">{{ row.waba_id }}</div>
 
-              {% if row.last_error %}
-                <div class="text-xs text-red-400 mt-1">Erro sync: {{ row.last_error }}</div>
-              {% endif %}
-
-              {% if row.last_add_phone_error %}
-                <div class="text-xs text-red-400 mt-1">Erro add-phone: {{ row.last_add_phone_error }}</div>
+              {% set _errs = [] %}
+              {% if row.last_error %}{% set _ = _errs.append(('Erro sync', row.last_error)) %}{% endif %}
+              {% if row.last_add_phone_error %}{% set _ = _errs.append(('Erro add-phone', row.last_add_phone_error)) %}{% endif %}
+              {% if _errs %}
+                <div class="relative inline-block group/err mt-1">
+                  <button type="button"
+                          class="inline-flex items-center gap-1 text-red-400 hover:text-red-300 transition-colors"
+                          data-waba-id="{{ row.waba_id }}"
+                          data-waba-name="{{ row.waba_name | e }}"
+                          data-last-error="{{ row.last_error | e }}"
+                          data-add-phone-error="{{ row.last_add_phone_error | e }}"
+                          data-add-phone-debug="{{ row.last_add_phone_debug | tojson | forceescape }}"
+                          onclick="openErrorModal(this)">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none"
+                         stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                      <line x1="12" y1="9" x2="12" y2="13"></line>
+                      <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                    </svg>
+                    <span class="text-xs font-semibold">{{ _errs | length }} erro{{ 's' if _errs | length > 1 else '' }}</span>
+                  </button>
+                  {# hover preview tooltip #}
+                  <div class="pointer-events-none absolute left-0 top-full mt-1 z-40 w-80 hidden group-hover/err:block
+                              rounded-xl border border-red-900/60 bg-zinc-950 shadow-xl p-3 space-y-2">
+                    {% for label, msg in _errs %}
+                      <div>
+                        <div class="text-xs font-semibold text-red-400 mb-0.5">{{ label }}</div>
+                        <div class="text-xs text-zinc-300 break-words line-clamp-3">{{ msg | truncate(160, True) }}</div>
+                      </div>
+                    {% endfor %}
+                    <div class="text-xs text-zinc-500 pt-1 border-t border-zinc-800">Clique para ver detalhes completos</div>
+                  </div>
+                </div>
               {% endif %}
             </td>
 
@@ -583,6 +610,33 @@
   </div>
 </div>
 
+{# ── Error detail modal ── #}
+<div id="errorModalBg" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
+  <div class="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-5 max-h-[85vh] overflow-y-auto">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-9 h-9 rounded-xl bg-red-950/50 border border-red-800/50 flex items-center justify-center shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-red-400" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+      </div>
+      <div>
+        <div class="font-semibold text-zinc-100">Erros da WABA</div>
+        <div id="errorModalSubtitle" class="text-xs text-zinc-400"></div>
+      </div>
+    </div>
+    <div id="errorModalBody" class="space-y-4 text-sm"></div>
+    <div class="flex justify-end mt-5">
+      <button type="button" onclick="closeErrorModal()"
+              class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-300">
+        Fechar
+      </button>
+    </div>
+  </div>
+</div>
+
 {# ── Remarks modal ── #}
 <div id="remarksModalBg" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
   <div class="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
@@ -802,6 +856,59 @@ async function saveRemarks() {
 
 document.getElementById("remarksModalBg")?.addEventListener("click", (e) => {
   if (e.target.id === "remarksModalBg") closeRemarksModal();
+});
+
+// ── Error modal ──────────────────────────────────────────────────────────────
+function openErrorModal(btn) {
+  const wabaName  = btn.dataset.wabaName || "";
+  const wabaId    = btn.dataset.wabaId   || "";
+  const syncErr   = btn.dataset.lastError      || "";
+  const addErr    = btn.dataset.addPhoneError  || "";
+  let   dbg       = [];
+  try { dbg = JSON.parse(btn.dataset.addPhoneDebug || "[]"); } catch (e) {}
+
+  document.getElementById("errorModalSubtitle").textContent =
+    (wabaName ? wabaName + " — " : "") + wabaId;
+
+  let html = "";
+  if (syncErr) html += _errSection("Erro de sincronização", syncErr);
+  if (addErr)  html += _errSection("Erro ao adicionar telefone", addErr);
+  if (dbg.length) html += _dbgSection("Log de depuração (add-phone)", dbg);
+  document.getElementById("errorModalBody").innerHTML =
+    html || '<div class="text-zinc-500">Sem erros registrados.</div>';
+
+  const bg = document.getElementById("errorModalBg");
+  bg.classList.remove("hidden");
+  bg.classList.add("flex");
+}
+
+function closeErrorModal() {
+  const bg = document.getElementById("errorModalBg");
+  bg.classList.add("hidden");
+  bg.classList.remove("flex");
+}
+
+function _errSection(title, msg) {
+  return `
+    <div class="rounded-xl border border-red-900/50 bg-red-950/20 p-4">
+      <div class="text-xs font-semibold text-red-400 uppercase tracking-wide mb-2">${escHtml(title)}</div>
+      <pre class="text-xs text-zinc-200 whitespace-pre-wrap break-words font-mono leading-relaxed">${escHtml(msg)}</pre>
+    </div>`;
+}
+
+function _dbgSection(title, lines) {
+  const items = lines.map(l =>
+    `<div class="py-1 border-b border-zinc-800 last:border-0 text-xs text-zinc-300 font-mono break-words">${escHtml(String(l))}</div>`
+  ).join("");
+  return `
+    <div class="rounded-xl border border-zinc-700/50 bg-zinc-900/40 p-4">
+      <div class="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-2">${escHtml(title)}</div>
+      <div class="max-h-60 overflow-y-auto space-y-0">${items}</div>
+    </div>`;
+}
+
+document.getElementById("errorModalBg")?.addEventListener("click", (e) => {
+  if (e.target.id === "errorModalBg") closeErrorModal();
 });
 
 // ── Job polling ─────────────────────────────────────────────────────────────

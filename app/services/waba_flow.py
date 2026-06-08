@@ -415,6 +415,9 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
                     "otp_received_at": 0,
                     "last_add_phone_error": "",
                 })
+                # Turn the dashboard row green now that the number is registered
+                from .waba_events import mark_phone_connected
+                mark_phone_connected(user_id, waba_id, phone_id=str(phone_id), phone=str(full_phone))
                 _job_update(job, last_message="Número registrado com sucesso!")
                 return True
 
