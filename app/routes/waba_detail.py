@@ -161,6 +161,47 @@ def send_message(waba_id):
     return jsonify({"ok": True, "wamid": result})
 
 
+@bp.route("/waba/<waba_id>/webhooks")
+@login_required
+def webhooks(waba_id):
+    """Return paginated webhook payloads received for this WABA (newest first)."""
+    import json as _json
+    from ..models import WebhookLog
+
+    _get_waba_or_404(current_user.id, waba_id)
+
+    per_page = 50
+    page = request.args.get("page", 1, type=int)
+    total = WebhookLog.query.filter_by(waba_id=waba_id).count()
+    logs = (
+        WebhookLog.query
+        .filter_by(waba_id=waba_id)
+        .order_by(WebhookLog.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    items = []
+    for log in logs:
+        try:
+            payload = _json.loads(log.payload_json)
+        except Exception:
+            payload = {}
+        try:
+            field = payload["entry"][0]["changes"][0]["field"]
+        except (KeyError, IndexError, TypeError):
+            field = "—"
+        items.append({
+            "id": log.id,
+            "field": field,
+            "created_at": log.created_at.isoformat(),
+            "payload": payload,
+        })
+
+    return jsonify({"webhooks": items, "page": page, "total": total, "per_page": per_page})
+
+
 @bp.route("/waba/<waba_id>/templates/create", methods=["POST"])
 @login_required
 def template_create(waba_id):

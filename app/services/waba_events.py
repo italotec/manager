@@ -1,11 +1,16 @@
 """
 Handlers for Meta WABA webhook fields that update the stored snapshot:
   - message_template_status_update  → template_status_map + template_counts
-  - account_update                  → status_label (+ status_detail)
+  - account_update                  → phone_numbers list + status_label (+ status_detail)
   - phone_number_quality_update     → messaging_limit_tier
 """
+import re
 from ..json_store import find_users_with_waba, patch_snapshot
 from .meta import templates_status_summary
+
+
+def _digits(s: str) -> str:
+    return re.sub(r"\D", "", str(s or ""))
 
 
 # ── template status ───────────────────────────────────────────────────────────
@@ -61,7 +66,48 @@ def apply_template_status_event(waba_id: str, value: dict) -> None:
         save_user_bms(user_id, data)
 
 
-# ── account update → status_label ────────────────────────────────────────────
+# ── account update → phone_numbers + status_label ────────────────────────────
+
+def _apply_phone_membership(waba_id: str, phone: str, added: bool) -> None:
+    """Append or remove a phone entry in snapshot.phone_numbers without a Meta API call."""
+    target = _digits(phone)
+    if not target:
+        return
+
+    for user_id in find_users_with_waba(waba_id):
+        from ..json_store import load_user_bms, save_user_bms
+        data = load_user_bms(user_id)
+        key = str(waba_id).strip()
+        if key not in data or not isinstance(data.get(key), dict):
+            continue
+
+        entry = data[key]
+        snap = entry.get("snapshot", {}) if isinstance(entry.get("snapshot"), dict) else {}
+        phones = list(snap.get("phone_numbers") or [])
+
+        if added:
+            already = any(_digits(p.get("display_phone_number")) == target for p in phones)
+            if not already:
+                phones.append({
+                    "id": "",
+                    "display_phone_number": phone,
+                    "verified_name": "",
+                    "quality_rating": "",
+                    "status": "CONNECTED",
+                })
+            else:
+                continue
+        else:
+            new_phones = [p for p in phones if _digits(p.get("display_phone_number")) != target]
+            if len(new_phones) == len(phones):
+                continue
+            phones = new_phones
+
+        snap["phone_numbers"] = phones
+        entry["snapshot"] = snap
+        data[key] = entry
+        save_user_bms(user_id, data)
+
 
 # Labels that this webhook is allowed to flip back to OK
 _WEBHOOK_BAD_LABELS = {"PERMANENTE", "RESTRITA", "ANALISANDO"}
@@ -77,6 +123,13 @@ def apply_account_update(waba_id: str, value: dict) -> None:
       violation_info.violation_type
     """
     event    = (value.get("event") or "").upper()
+
+    if event in ("PHONE_NUMBER_ADDED", "PHONE_NUMBER_REMOVED", "PHONE_NUMBER_DELETED"):
+        phone = (value.get("phone_number") or "").strip()
+        if phone:
+            _apply_phone_membership(waba_id, phone, added=(event == "PHONE_NUMBER_ADDED"))
+        return
+
     ban_info = value.get("ban_info") or {}
     ban_state = (ban_info.get("waba_ban_state") or "").upper()
 

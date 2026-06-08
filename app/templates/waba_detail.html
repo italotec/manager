@@ -395,6 +395,27 @@
   </div>
 </div>
 
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  WEBHOOKS SECTION                                                        -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-6">
+  <div class="flex items-center justify-between mb-4">
+    <div class="text-sm font-semibold text-zinc-300">Webhooks</div>
+    <button onclick="loadWebhooks(1)"
+            class="px-3 py-1 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-300 transition-colors border border-zinc-700">
+      Atualizar
+    </button>
+  </div>
+  <div id="wh-body" class="flex flex-col gap-2 text-xs text-zinc-500">
+    Carregando...
+  </div>
+  <button id="wh-more-btn"
+          onclick="loadWebhooks(_whPage + 1)"
+          class="hidden mt-3 w-full py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-400 border border-zinc-700 transition-colors">
+    Carregar mais
+  </button>
+</div>
+
 <script>
 const WABA_ID = {{ waba_id | tojson }};
 const _templates = {{ templates | tojson }};
@@ -863,6 +884,73 @@ function submitDuplicate() {
   })
   .catch(e => { alert("Erro: " + e); btn.disabled = false; btn.textContent = "Duplicar"; });
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  WEBHOOKS
+// ══════════════════════════════════════════════════════════════════════════════
+
+let _whPage = 1;
+let _whTotal = 0;
+let _whPerPage = 50;
+
+async function loadWebhooks(page) {
+  const body    = document.getElementById("wh-body");
+  const moreBtn = document.getElementById("wh-more-btn");
+  if (page === 1) {
+    body.innerHTML = '<div class="text-xs text-zinc-500">Carregando...</div>';
+    if (moreBtn) moreBtn.classList.add("hidden");
+  }
+  try {
+    const r = await fetch(`/waba/${WABA_ID}/webhooks?page=${page}`);
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || r.status);
+
+    _whTotal   = d.total;
+    _whPerPage = d.per_page;
+    _whPage    = page;
+
+    if (page === 1) body.innerHTML = "";
+
+    if (d.webhooks.length === 0 && page === 1) {
+      body.innerHTML = '<div class="text-xs text-zinc-500">Nenhum webhook recebido ainda.</div>';
+      return;
+    }
+
+    for (const wh of d.webhooks) {
+      const row = document.createElement("div");
+      row.className = "border border-zinc-700 rounded-xl overflow-hidden";
+
+      const ts = new Date(wh.created_at).toLocaleString("pt-BR");
+      row.innerHTML = `
+        <button onclick="whToggle(this)" class="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-800/60 transition-colors text-left">
+          <span class="text-xs text-zinc-400">${ts}</span>
+          <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-900/60 text-indigo-300">${wh.field}</span>
+          <span class="ml-auto text-zinc-600 text-xs">▼</span>
+        </button>
+        <pre class="hidden text-xs bg-zinc-800 border-t border-zinc-700 p-3 overflow-x-auto whitespace-pre-wrap break-all text-zinc-300">${JSON.stringify(wh.payload, null, 2)}</pre>`;
+      body.appendChild(row);
+    }
+
+    const loaded = (_whPage - 1) * _whPerPage + d.webhooks.length;
+    if (loaded < _whTotal) {
+      moreBtn.textContent = `Carregar mais (${_whTotal - loaded} restantes)`;
+      moreBtn.classList.remove("hidden");
+    } else {
+      if (moreBtn) moreBtn.classList.add("hidden");
+    }
+  } catch(e) {
+    if (page === 1) body.innerHTML = `<div class="text-xs text-red-400">Erro ao carregar: ${e}</div>`;
+  }
+}
+
+function whToggle(btn) {
+  const pre = btn.nextElementSibling;
+  const arrow = btn.querySelector("span:last-child");
+  pre.classList.toggle("hidden");
+  arrow.textContent = pre.classList.contains("hidden") ? "▼" : "▲";
+}
+
+loadWebhooks(1);
 </script>
 
 {% endblock %}

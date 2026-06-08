@@ -1,7 +1,7 @@
 import json
 from flask import Blueprint, request, current_app, jsonify
 from .. import db
-from ..models import WebhookLog, AppSetting
+from ..models import WebhookLog
 from ..json_store import load_user_bms, patch_snapshot, find_users_with_waba
 from ..services.chat_service import save_message, update_message_status
 from ..services.waba_events import (
@@ -201,22 +201,35 @@ def _handle_bms_status(profiles: list) -> None:
 
 
 def _maybe_log(payload: dict):
-    """Save raw webhook payload if logging is toggled on by admin."""
+    """Save raw webhook payload — one row per WABA entry, always on."""
     try:
-        setting = db.session.get(AppSetting, "webhook_logging_enabled")
-        if not setting or setting.value != "1":
-            return
+        payload_str = json.dumps(payload, ensure_ascii=False)[:50_000]
+        waba_ids_seen = []
 
-        waba_id = ""
         for entry in (payload.get("entry") or []):
-            waba_id = str(entry.get("id") or "")
-            break
+            waba_id = str(entry.get("id") or "").strip()
+            if not waba_id:
+                continue
+            log = WebhookLog(waba_id=waba_id, payload_json=payload_str)
+            db.session.add(log)
+            waba_ids_seen.append(waba_id)
 
-        log = WebhookLog(
-            waba_id=waba_id,
-            payload_json=json.dumps(payload, ensure_ascii=False)[:50_000],
-        )
-        db.session.add(log)
+        db.session.flush()
+
+        # Prune: keep only the newest 200 rows per WABA
+        for waba_id in set(waba_ids_seen):
+            keep = (
+                db.session.query(WebhookLog.id)
+                .filter(WebhookLog.waba_id == waba_id)
+                .order_by(WebhookLog.created_at.desc(), WebhookLog.id.desc())
+                .limit(200)
+                .subquery()
+            )
+            db.session.query(WebhookLog).filter(
+                WebhookLog.waba_id == waba_id,
+                ~WebhookLog.id.in_(keep),
+            ).delete(synchronize_session=False)
+
         db.session.commit()
     except Exception:
         db.session.rollback()
