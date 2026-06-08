@@ -13,6 +13,22 @@ def _digits(s: str) -> str:
     return re.sub(r"\D", "", str(s or ""))
 
 
+def _format_phone(phone: str) -> str:
+    """Format raw webhook digits like Meta's display_phone_number.
+
+    Brazil (CC 55): "5574923842261" → "+55 74 92384-2261"
+                    "551633334444"  → "+55 16 3333-4444"   (landline, 8-digit subscriber)
+    Anything else falls back to "+<digits>".
+    """
+    d = _digits(phone)
+    if not d:
+        return phone
+    if d.startswith("55") and len(d) in (12, 13):
+        cc, ddd, sub = d[:2], d[2:4], d[4:]
+        return f"+{cc} {ddd} {sub[:-4]}-{sub[-4:]}"
+    return f"+{d}"
+
+
 # ── template status ───────────────────────────────────────────────────────────
 
 _DELETED_EVENTS = {"DELETED", "PENDING_DELETION"}
@@ -90,7 +106,7 @@ def _apply_phone_membership(waba_id: str, phone: str, added: bool) -> None:
             if not already:
                 phones.append({
                     "id": "",
-                    "display_phone_number": phone,
+                    "display_phone_number": _format_phone(phone),
                     "verified_name": "",
                     "quality_rating": "",
                     "status": "CONNECTED",
