@@ -177,6 +177,7 @@ def save_remarks(waba_id):
 @login_required
 def travar_start():
     import random
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     from ..services.disparar_service import start_disparo_job, csvs_dir
 
     data = request.get_json(silent=True) or {}
@@ -194,14 +195,13 @@ def travar_start():
 
     api_version = current_app.config["META_API_VERSION"]
     bms = load_user_bms(current_user.id)
-    job_ids = []
-    errors  = []
+    app_obj = current_app._get_current_object()
+    user_id = current_user.id
 
-    for waba_id in waba_ids:
+    def _process_waba(waba_id):
         entry = bms.get(str(waba_id))
         if not isinstance(entry, dict):
-            errors.append(f"{waba_id}: não encontrado no bms.json")
-            continue
+            return None, f"{waba_id}: não encontrado no bms.json"
 
         token = (entry.get("token") or "").strip()
         snap  = entry.get("snapshot", {}) or {}
@@ -214,30 +214,25 @@ def travar_start():
             phone_number_id = (entry.get("phone_number_id") or "").strip()
 
         if not token:
-            errors.append(f"{waba_id}: token vazio")
-            continue
+            return None, f"{waba_id}: token vazio"
         if not phone_number_id:
-            errors.append(f"{waba_id}: sem phone_number_id (sincronize o dashboard)")
-            continue
+            return None, f"{waba_id}: sem phone_number_id (sincronize o dashboard)"
 
-        # Fetch templates and pick a random APPROVED one
         templates, err_tpl = get_templates(api_version, token, waba_id)
         if err_tpl or not templates:
-            errors.append(f"{waba_id}: erro ao buscar templates — {err_tpl or 'lista vazia'}")
-            continue
+            return None, f"{waba_id}: erro ao buscar templates — {err_tpl or 'lista vazia'}"
 
         approved = [t for t in templates if t.get("status") == "APPROVED"]
         if not approved:
-            errors.append(f"{waba_id}: nenhum template APPROVED disponível")
-            continue
+            return None, f"{waba_id}: nenhum template APPROVED disponível"
 
         chosen = random.choice(approved)
         template_name     = chosen.get("name", "")
         template_language = chosen.get("language", "pt")
 
         job_id = start_disparo_job(
-            current_app._get_current_object(),
-            current_user.id,
+            app_obj,
+            user_id,
             csv_filename,
             phone_col,
             phone_number_id,
@@ -245,16 +240,23 @@ def travar_start():
             template_name,
             template_language,
             param_map,
-            1,        # max_workers
-            False,    # skip_log
-            waba_id,  # waba_id — used to stamp ultimo_disparo on finish
+            1,
+            False,
+            waba_id,
         )
-        job_ids.append({
-            "waba_id":  waba_id,
-            "job_id":   job_id,
-            "template": template_name,
-            "language": template_language,
-        })
+        return {"waba_id": waba_id, "job_id": job_id, "template": template_name, "language": template_language}, None
+
+    job_ids = []
+    errors  = []
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(_process_waba, wid): wid for wid in waba_ids}
+        for future in as_completed(futures):
+            result, error = future.result()
+            if error:
+                errors.append(error)
+            else:
+                job_ids.append(result)
 
     return jsonify({"job_ids": job_ids, "errors": errors})
 

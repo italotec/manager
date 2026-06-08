@@ -6,8 +6,8 @@ class Config:
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///app.db")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {
-        "pool_size": 10,
-        "max_overflow": 20,
+        "pool_size": 50,
+        "max_overflow": 100,
         "pool_timeout": 30,
         "pool_recycle": 1800,
         "pool_pre_ping": True,
