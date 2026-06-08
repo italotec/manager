@@ -12,7 +12,7 @@ from flask import (
 )
 from flask_login import login_required, current_user
 from .. import db
-from ..services.meta import templates_status_summary
+from ..services.meta import templates_status_summary, get_templates
 from werkzeug.utils import secure_filename
 
 from ..json_store import (
