@@ -34,24 +34,36 @@ def start_add_phone_job(user_id: int, waba_ids: list[str]) -> int:
 
         for idx, waba_id in enumerate(waba_ids, start=1):
             with app.app_context():
-                job = db.session.get(Job, job_id)
-                if job:
-                    job.current_label = str(waba_id)
-                    job.last_message = f"Processando {idx}/{len(waba_ids)}"
-                    db.session.commit()
+                try:
+                    job = db.session.get(Job, job_id)
+                    if job:
+                        job.current_label = str(waba_id)
+                        job.last_message = f"Processando {idx}/{len(waba_ids)}"
+                        db.session.commit()
 
-            ok = process_one_waba_add_phone(user_id=user_id, waba_id=str(waba_id), job_id=job_id)
+                    ok = process_one_waba_add_phone(user_id=user_id, waba_id=str(waba_id), job_id=job_id)
 
-            with app.app_context():
-                job = db.session.get(Job, job_id)
-                if job:
-                    if not ok:
-                        failed += 1
-                        job.last_message = f"Falhou em {waba_id} (veja logs/last_error no bms.json)"
-                    job.done = idx
-                    if hasattr(job, "failed"):
-                        job.failed = failed
-                    db.session.commit()
+                    job = db.session.get(Job, job_id)
+                    if job:
+                        if not ok:
+                            failed += 1
+                            job.last_message = f"Falhou em {waba_id} (veja logs/last_error no bms.json)"
+                        job.done = idx
+                        if hasattr(job, "failed"):
+                            job.failed = failed
+                        db.session.commit()
+                except Exception as exc:
+                    failed += 1
+                    try:
+                        job = db.session.get(Job, job_id)
+                        if job:
+                            job.done = idx
+                            job.last_message = f"Erro inesperado em {waba_id}: {exc}"
+                            if hasattr(job, "failed"):
+                                job.failed = failed
+                            db.session.commit()
+                    except Exception:
+                        pass
 
         with app.app_context():
             job = db.session.get(Job, job_id)
