@@ -145,6 +145,14 @@ class WebhookLog(db.Model):
     created_at   = db.Column(db.DateTime,   default=_now_sp, nullable=False)
 
 
+class LoginLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    ip_address = db.Column(db.String(64), default="", nullable=False)
+    user_agent = db.Column(db.String(512), default="", nullable=False)
+    created_at = db.Column(db.DateTime, default=_now_sp, nullable=False)
+
+
 class AppSetting(db.Model):
     """Generic key-value store for persistent admin settings."""
     key   = db.Column(db.String(64),  primary_key=True)

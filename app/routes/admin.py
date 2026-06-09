@@ -5,7 +5,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 import requests as _requests
 from .. import db
-from ..models import User, BalanceTx, Waba, Proxy, AppSetting
+from ..models import User, BalanceTx, Waba, Proxy, AppSetting, LoginLog
 from ..json_store import ensure_user_bms_file
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
@@ -99,12 +99,20 @@ def admin_user_detail(user_id: int):
     # NOTE: Waba table may be unused now for listing, but keep it for your flow.
     wabas = Waba.query.filter_by(user_id=u.id).order_by(Waba.created_at.desc()).all()
 
+    login_logs = (
+        LoginLog.query.filter_by(user_id=u.id)
+        .order_by(LoginLog.created_at.desc())
+        .limit(50)
+        .all()
+    )
+
     return render_template(
         "admin_user_detail.html",
         title=f"Admin • {u.username}",
         u=u,
         txs=txs,
         wabas=wabas,
+        login_logs=login_logs,
     )
 
 @bp.route("/users/<int:user_id>/balance", methods=["POST"])

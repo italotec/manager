@@ -89,5 +89,32 @@
       {% endif %}
     </div>
   </div>
+
+  <div class="mt-8">
+    <h2 class="font-semibold mb-3">IP logging (últimos 50 acessos)</h2>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="text-zinc-400">
+          <tr class="border-b border-zinc-800">
+            <th class="text-left py-2">Data</th>
+            <th class="text-left py-2">IP</th>
+            <th class="text-left py-2">Navegador</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for log in login_logs %}
+          <tr class="border-b border-zinc-900">
+            <td class="py-3 text-zinc-300 whitespace-nowrap">{{ log.created_at.strftime("%d/%m/%Y %H:%M:%S") }}</td>
+            <td class="py-3 font-mono text-zinc-200">{{ log.ip_address }}</td>
+            <td class="py-3 text-zinc-400 max-w-xs truncate" title="{{ log.user_agent }}">{{ log.user_agent }}</td>
+          </tr>
+          {% endfor %}
+          {% if not login_logs %}
+          <tr><td class="py-3 text-zinc-500" colspan="3">Nenhum acesso registrado.</td></tr>
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 </div>
 {% endblock %}
