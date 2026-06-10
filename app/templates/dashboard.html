@@ -412,7 +412,7 @@
     <div class="flex items-center justify-between mb-3">
       <div>
         <div class="text-lg font-semibold">Adicionar WABA</div>
-        <div class="text-xs text-zinc-500">Informe somente WABA ID e Token.</div>
+        <div class="text-xs text-zinc-500">WABA ID e Token são obrigatórios.</div>
       </div>
       <button onclick="closeModal()" class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">Fechar</button>
     </div>
@@ -430,6 +430,13 @@
         <textarea name="token" rows="4"
                   class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm"
                   required></textarea>
+      </div>
+
+      <div>
+        <label class="text-xs text-zinc-400">ID do Perfil AdsPower <span class="text-zinc-600">(opcional)</span></label>
+        <input name="adspower_profile_id"
+               class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm font-mono"
+               placeholder="ex: kpjxxxxxxx" />
       </div>
 
       <button class="w-full px-4 py-3 rounded-xl bg-indigo-700 hover:bg-indigo-600 font-semibold">
