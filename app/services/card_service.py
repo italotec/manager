@@ -127,7 +127,7 @@ def _run_job(app, job_id: int, user_id: int, assignments: list, bms: dict):
             "type": "add_card",
             "profile_id": profile_id,
             "waba_id": waba_id,
-            "business_manager_id": business_manager_id,
+            "business_id": business_manager_id,
             "payment_account_id": payment_account_id,
             "card": {
                 "number": card.number,
