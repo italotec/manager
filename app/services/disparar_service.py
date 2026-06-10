@@ -351,20 +351,31 @@ def _run_disparo(app, job_id: int, user_id: int,
     def _finish(status: str, msg: str):
         state["status"] = status
         state["last_message"] = msg
-        # Single DB write at the end
-        with app.app_context():
-            job = db.session.get(DisparoJob, job_id)
-            if job:
-                job.status = status
-                job.total = state["total"]
-                job.sent = state["sent"]
-                job.failed = state["failed"]
-                job.skipped = state["skipped"]
-                job.last_message = msg
-                db.session.commit()
-        # Update 24h disparo event log and conditionally stamp ultimo_disparo
+        # Stamp the Disparou check FIRST — it's the user-facing result and must never
+        # be skipped because of a transient DB lock on the job-history write below.
         if waba_id and status in ("done", "stopped") and state["sent"] > 0 and not skip_log:
-            stamp_disparo_events(user_id, waba_id, state["sent"])
+            try:
+                stamp_disparo_events(user_id, waba_id, state["sent"])
+            except Exception:
+                pass
+        # Single DB write at the end (job history only). A failure here (e.g. SQLite
+        # "database is locked" under heavy parallel batch load) is non-fatal.
+        try:
+            with app.app_context():
+                job = db.session.get(DisparoJob, job_id)
+                if job:
+                    job.status = status
+                    job.total = state["total"]
+                    job.sent = state["sent"]
+                    job.failed = state["failed"]
+                    job.skipped = state["skipped"]
+                    job.last_message = msg
+                    db.session.commit()
+        except Exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
         _live_jobs.pop(job_id, None)
 
     namespace = _random_namespace()

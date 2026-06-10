@@ -11,6 +11,9 @@ class Config:
         "pool_timeout": 30,
         "pool_recycle": 1800,
         "pool_pre_ping": True,
+        # Wait up to 30s for a SQLite write lock instead of failing instantly with
+        # "database is locked" when many disparo jobs commit in parallel.
+        "connect_args": {"timeout": 30},
     }
 
     # Session / login persistence — keeps the user logged in across

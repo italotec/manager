@@ -1,7 +1,13 @@
 import os
 import json
 import time
+import threading
 from typing import Dict, Any
+
+# Serializes read-modify-write on bms.json across threads. Without it, concurrent
+# disparo jobs (multi-BM batch) clobber each other's snapshot updates and can
+# corrupt the file.
+_WRITE_LOCK = threading.RLock()
 
 def user_dir(user_id: int) -> str:
     base = os.path.join(os.getcwd(), "instance", "users", str(user_id))
@@ -31,80 +37,88 @@ def load_user_bms(user_id: int) -> Dict[str, Any]:
 
 def save_user_bms(user_id: int, data: Dict[str, Any]) -> None:
     path = ensure_user_bms_file(user_id)
-    with open(path, "w", encoding="utf-8") as f:
+    # Write to a temp file then atomically replace — a crash mid-write can never
+    # leave a truncated/corrupt bms.json.
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
+    os.replace(tmp, path)
 
 def upsert_waba(user_id: int, waba_id: str, token: str, adspower_profile_id: str = "",
                 business_manager_id: str = "", payment_account_id: str = "") -> None:
-    data = load_user_bms(user_id)
-    key = str(waba_id).strip()
-    if not key:
-        return
+    with _WRITE_LOCK:
+        data = load_user_bms(user_id)
+        key = str(waba_id).strip()
+        if not key:
+            return
 
-    entry = data.get(key, {}) if isinstance(data.get(key), dict) else {}
-    entry["waba_id"] = key
-    entry["token"] = token
-    entry["adspower_profile_id"] = adspower_profile_id or entry.get("adspower_profile_id", "")
-    entry["business_manager_id"] = business_manager_id or entry.get("business_manager_id", "")
-    entry["payment_account_id"] = payment_account_id or entry.get("payment_account_id", "")
-    entry.setdefault("phone_number_id", "")
-    entry.setdefault("templates", [])
+        entry = data.get(key, {}) if isinstance(data.get(key), dict) else {}
+        entry["waba_id"] = key
+        entry["token"] = token
+        entry["adspower_profile_id"] = adspower_profile_id or entry.get("adspower_profile_id", "")
+        entry["business_manager_id"] = business_manager_id or entry.get("business_manager_id", "")
+        entry["payment_account_id"] = payment_account_id or entry.get("payment_account_id", "")
+        entry.setdefault("phone_number_id", "")
+        entry.setdefault("templates", [])
 
-    snap = entry.get("snapshot", {}) if isinstance(entry.get("snapshot"), dict) else {}
-    snap.setdefault("waba_name", "")
-    snap.setdefault("phone_numbers", [])
-    snap.setdefault("template_counts", {"APPROVED": 0, "PAUSED": 0, "DISABLED": 0, "OTHER": 0})
-    snap.setdefault("last_sync_at", 0)
-    snap.setdefault("last_error", "")
+        snap = entry.get("snapshot", {}) if isinstance(entry.get("snapshot"), dict) else {}
+        snap.setdefault("waba_name", "")
+        snap.setdefault("phone_numbers", [])
+        snap.setdefault("template_counts", {"APPROVED": 0, "PAUSED": 0, "DISABLED": 0, "OTHER": 0})
+        snap.setdefault("last_sync_at", 0)
+        snap.setdefault("last_error", "")
 
-    entry["snapshot"] = snap
-    data[key] = entry
-    save_user_bms(user_id, data)
+        entry["snapshot"] = snap
+        data[key] = entry
+        save_user_bms(user_id, data)
 
 def update_snapshot(user_id: int, waba_id: str, **fields) -> None:
-    data = load_user_bms(user_id)
-    key = str(waba_id).strip()
-    if key not in data or not isinstance(data.get(key), dict):
-        return
+    with _WRITE_LOCK:
+        data = load_user_bms(user_id)
+        key = str(waba_id).strip()
+        if key not in data or not isinstance(data.get(key), dict):
+            return
 
-    entry = data[key]
-    snap = entry.get("snapshot", {}) if isinstance(entry.get("snapshot"), dict) else {}
+        entry = data[key]
+        snap = entry.get("snapshot", {}) if isinstance(entry.get("snapshot"), dict) else {}
 
-    for k, v in fields.items():
-        snap[k] = v
+        for k, v in fields.items():
+            snap[k] = v
 
-    if "last_sync_at" not in fields:
-        snap["last_sync_at"] = int(time.time())
+        if "last_sync_at" not in fields:
+            snap["last_sync_at"] = int(time.time())
 
-    entry["snapshot"] = snap
-    data[key] = entry
-    save_user_bms(user_id, data)
+        entry["snapshot"] = snap
+        data[key] = entry
+        save_user_bms(user_id, data)
 
 
 def save_waba_remarks(user_id: int, waba_id: str, text: str) -> None:
-    data = load_user_bms(user_id)
-    key = str(waba_id).strip()
-    if key in data and isinstance(data.get(key), dict):
-        data[key]["remarks"] = text
-        save_user_bms(user_id, data)
+    with _WRITE_LOCK:
+        data = load_user_bms(user_id)
+        key = str(waba_id).strip()
+        if key in data and isinstance(data.get(key), dict):
+            data[key]["remarks"] = text
+            save_user_bms(user_id, data)
 
 
 def patch_snapshot(user_id: int, waba_id: str, **fields) -> None:
     """Update specific snapshot fields without touching last_sync_at."""
-    data = load_user_bms(user_id)
-    key = str(waba_id).strip()
-    if key not in data or not isinstance(data.get(key), dict):
-        return
+    with _WRITE_LOCK:
+        data = load_user_bms(user_id)
+        key = str(waba_id).strip()
+        if key not in data or not isinstance(data.get(key), dict):
+            return
 
-    entry = data[key]
-    snap = entry.get("snapshot", {}) if isinstance(entry.get("snapshot"), dict) else {}
+        entry = data[key]
+        snap = entry.get("snapshot", {}) if isinstance(entry.get("snapshot"), dict) else {}
 
-    for k, v in fields.items():
-        snap[k] = v
+        for k, v in fields.items():
+            snap[k] = v
 
-    entry["snapshot"] = snap
-    data[key] = entry
-    save_user_bms(user_id, data)
+        entry["snapshot"] = snap
+        data[key] = entry
+        save_user_bms(user_id, data)
 
 
 def find_users_with_waba(waba_id: str) -> list:
