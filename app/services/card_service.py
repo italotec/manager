@@ -102,8 +102,12 @@ def _run_job(app, job_id: int, user_id: int, assignments: list, bms: dict):
             snap = entry.get("snapshot", {}) or {}
             waba_name = snap.get("waba_name") or waba_id
             profile_id = (entry.get("adspower_profile_id") or "").strip()
+            business_manager_id = (entry.get("business_manager_id") or "").strip()
+            payment_account_id = (entry.get("payment_account_id") or "").strip()
         else:
             profile_id = ""
+            business_manager_id = ""
+            payment_account_id = ""
 
         if card is None:
             return {
@@ -123,6 +127,8 @@ def _run_job(app, job_id: int, user_id: int, assignments: list, bms: dict):
             "type": "add_card",
             "profile_id": profile_id,
             "waba_id": waba_id,
+            "business_manager_id": business_manager_id,
+            "payment_account_id": payment_account_id,
             "card": {
                 "number": card.number,
                 "exp_month": card.exp_month,

@@ -19,9 +19,14 @@ def add():
     ensure_user_bms_file(current_user.id)
 
     adspower_profile_id = (request.form.get("adspower_profile_id") or "").strip()
+    business_manager_id = (request.form.get("business_manager_id") or "").strip()
+    payment_account_id = (request.form.get("payment_account_id") or "").strip()
 
     # Write/update in user's bms.json
-    upsert_waba(current_user.id, waba_id=waba_id, token=token, adspower_profile_id=adspower_profile_id)
+    upsert_waba(current_user.id, waba_id=waba_id, token=token,
+                adspower_profile_id=adspower_profile_id,
+                business_manager_id=business_manager_id,
+                payment_account_id=payment_account_id)
 
     # Subscribe app to webhook events for this WABA
     ok, err = subscribe_waba_webhook(Config.META_API_VERSION, token, waba_id)

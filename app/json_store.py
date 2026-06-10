@@ -34,7 +34,8 @@ def save_user_bms(user_id: int, data: Dict[str, Any]) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
 
-def upsert_waba(user_id: int, waba_id: str, token: str, adspower_profile_id: str = "") -> None:
+def upsert_waba(user_id: int, waba_id: str, token: str, adspower_profile_id: str = "",
+                business_manager_id: str = "", payment_account_id: str = "") -> None:
     data = load_user_bms(user_id)
     key = str(waba_id).strip()
     if not key:
@@ -44,6 +45,8 @@ def upsert_waba(user_id: int, waba_id: str, token: str, adspower_profile_id: str
     entry["waba_id"] = key
     entry["token"] = token
     entry["adspower_profile_id"] = adspower_profile_id or entry.get("adspower_profile_id", "")
+    entry["business_manager_id"] = business_manager_id or entry.get("business_manager_id", "")
+    entry["payment_account_id"] = payment_account_id or entry.get("payment_account_id", "")
     entry.setdefault("phone_number_id", "")
     entry.setdefault("templates", [])
 
