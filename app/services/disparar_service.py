@@ -86,6 +86,52 @@ def disparo_log_path(user_id: int, job_id: int) -> str:
     return os.path.join(_user_base(user_id), f"disparo_log_{job_id}.jsonl")
 
 
+# ── Disparou stamping (shared by _finish and restart recovery) ────────────────
+
+def stamp_disparo_events(user_id: int, waba_id: str, sent_count: int) -> None:
+    """Append a 24h disparo event for this WABA and stamp disparou_at/ultimo_disparo
+    once cumulative sends in the last 24h reach 500. Pure file I/O — safe to call
+    outside any running job (e.g. from restart recovery)."""
+    if not waba_id or sent_count <= 0:
+        return
+    key = str(waba_id).strip()
+    bms = load_user_bms(user_id)
+    snap = (bms.get(key) or {}).get("snapshot") or {}
+    events = [e for e in (snap.get("disparo_events") or []) if isinstance(e, dict)]
+
+    now_ts = int(time.time())
+    cutoff = now_ts - 86400
+    events.append({"ts": now_ts, "sent": sent_count})
+    events = [e for e in events if e.get("ts", 0) >= cutoff]
+
+    total_24h = sum(e.get("sent", 0) for e in events)
+    patch = {"disparo_events": events}
+    if total_24h >= 500:
+        patch["disparou_at"] = now_ts
+        patch["ultimo_disparo"] = datetime.now(_SP).strftime("%d/%m %H:%M")
+    patch_snapshot(user_id, waba_id, **patch)
+
+
+def count_sent_from_log(user_id: int, job_id: int) -> int:
+    """Count messages actually sent for a job by reading its real-time log.
+    Used to recover the Disparou stamp when a job's process died before _finish ran."""
+    path = disparo_log_path(user_id, job_id)
+    if not os.path.exists(path):
+        return 0
+    count = 0
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                if json.loads(line).get("status") == "sent":
+                    count += 1
+            except Exception:
+                pass
+    return count
+
+
 # ── random generators ─────────────────────────────────────────────────────────
 
 def _random_namespace() -> str:
@@ -318,24 +364,7 @@ def _run_disparo(app, job_id: int, user_id: int,
                 db.session.commit()
         # Update 24h disparo event log and conditionally stamp ultimo_disparo
         if waba_id and status in ("done", "stopped") and state["sent"] > 0 and not skip_log:
-            with app.app_context():
-                bms = load_user_bms(user_id)
-                key = str(waba_id).strip()
-                snap = (bms.get(key) or {}).get("snapshot") or {}
-                events = [e for e in (snap.get("disparo_events") or [])
-                          if isinstance(e, dict)]
-
-            now_ts = int(time.time())
-            cutoff = now_ts - 86400
-            events.append({"ts": now_ts, "sent": state["sent"]})
-            events = [e for e in events if e.get("ts", 0) >= cutoff]
-
-            total_24h = sum(e.get("sent", 0) for e in events)
-            patch = {"disparo_events": events}
-            if total_24h >= 500:
-                patch["disparou_at"] = now_ts
-                patch["ultimo_disparo"] = datetime.now(_SP).strftime("%d/%m %H:%M")
-            patch_snapshot(user_id, waba_id, **patch)
+            stamp_disparo_events(user_id, waba_id, state["sent"])
         _live_jobs.pop(job_id, None)
 
     namespace = _random_namespace()
@@ -483,7 +512,10 @@ def start_disparo_job(app, user_id: int, csv_filename: str,
     csv_path = os.path.join(csvs_dir(user_id), csv_filename)
 
     with app.app_context():
-        job = DisparoJob(user_id=user_id, status="queued")
+        job = DisparoJob(
+            user_id=user_id, status="queued",
+            waba_id=str(waba_id or "").strip(), skip_log=bool(skip_log),
+        )
         db.session.add(job)
         db.session.commit()
         job_id = job.id

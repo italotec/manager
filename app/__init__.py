@@ -89,10 +89,29 @@ def create_app():
             db.session.execute(db.text("ALTER TABLE user ADD COLUMN agent_token VARCHAR(64)"))
             db.session.commit()
 
-        # Clean up jobs that were left "running"/"queued" by a previous restart
+        djcols = [c["name"] for c in db.inspect(db.engine).get_columns("disparo_job")]
+        if "waba_id" not in djcols:
+            db.session.execute(db.text("ALTER TABLE disparo_job ADD COLUMN waba_id VARCHAR(64) DEFAULT ''"))
+            db.session.commit()
+        if "skip_log" not in djcols:
+            db.session.execute(db.text("ALTER TABLE disparo_job ADD COLUMN skip_log BOOLEAN DEFAULT 0"))
+            db.session.commit()
+
+        # Clean up jobs that were left "running"/"queued" by a previous restart.
+        # The Disparou stamp is only written by _finish() at job end, so a job whose
+        # process died mid-send never stamped it — recover it here from the send log.
         from .models import DisparoJob, ListaJob
+        from .services.disparar_service import stamp_disparo_events, count_sent_from_log
         stuck = DisparoJob.query.filter(DisparoJob.status.in_(["running", "queued"])).all()
         for j in stuck:
+            try:
+                if getattr(j, "waba_id", "") and not getattr(j, "skip_log", False):
+                    recovered = count_sent_from_log(j.user_id, j.id)
+                    if recovered > 0:
+                        stamp_disparo_events(j.user_id, j.waba_id, recovered)
+                        j.sent = recovered
+            except Exception:
+                pass
             j.status = "stopped"
             j.last_message = "Interrompido: servidor reiniciou."
         stuck_listas = ListaJob.query.filter(ListaJob.status.in_(["running", "queued"])).all()

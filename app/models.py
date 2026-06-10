@@ -94,6 +94,9 @@ class DisparoJob(db.Model):
 
     status = db.Column(db.String(32), default="queued", nullable=False)  # queued/running/done/error/stopped
 
+    waba_id = db.Column(db.String(64), default="", nullable=False)
+    skip_log = db.Column(db.Boolean, default=False, nullable=False)
+
     total = db.Column(db.Integer, default=0, nullable=False)
     sent = db.Column(db.Integer, default=0, nullable=False)
     failed = db.Column(db.Integer, default=0, nullable=False)
