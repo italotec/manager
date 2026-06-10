@@ -10,6 +10,17 @@ login_manager.login_view = "auth.login_get"
 sock = Sock()
 
 def create_app():
+    # Raise the open-file-descriptor soft limit — large disparos open hundreds of
+    # concurrent sockets and would otherwise hit the default 1024 ceiling (EMFILE).
+    try:
+        import resource
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        target = min(65536, hard)
+        if soft < target:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+    except Exception:
+        pass
+
     app = Flask(__name__)
     app.config.from_object(Config)
 
