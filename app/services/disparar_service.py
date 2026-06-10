@@ -317,7 +317,7 @@ def _run_disparo(app, job_id: int, user_id: int,
                 job.last_message = msg
                 db.session.commit()
         # Update 24h disparo event log and conditionally stamp ultimo_disparo
-        if waba_id and status in ("done", "stopped") and state["sent"] > 0:
+        if waba_id and status in ("done", "stopped") and state["sent"] > 0 and not skip_log:
             with app.app_context():
                 bms = load_user_bms(user_id)
                 key = str(waba_id).strip()
