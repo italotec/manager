@@ -128,7 +128,7 @@ def start_job():
         if not filename or not phone_column:
             return jsonify({"error": "Campos obrigatórios faltando."}), 400
 
-        if mode not in ("dedup_only", "dedup_validate"):
+        if mode not in ("dedup_only", "dedup_validate", "remove_empty"):
             return jsonify({"error": "Modo inválido."}), 400
 
         fn = secure_filename(filename)

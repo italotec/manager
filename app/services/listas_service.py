@@ -482,6 +482,24 @@ def _run_lista_job(app, job_id: int, user_id: int,
         _finish("error", f"Coluna '{phone_column}' não encontrada.")
         return
 
+    # ── 2a. remove_empty mode ─────────────────────────────────────────────────
+    if mode == "remove_empty":
+        state["last_message"] = "Removendo linhas vazias..."
+        kept = [r for r in rows
+                if str(r.get(phone_column, "") or "").strip() != ""]
+        removed = len(rows) - len(kept)
+        state["total"] = len(kept)
+        out_path = result_path(user_id, job_id, "deduped", ext)
+        try:
+            _write_file(kept, out_path, ext)
+        except Exception as exc:
+            _finish("error", f"Erro ao salvar arquivo: {exc}")
+            return
+        _finish("done",
+                f"Concluído — {len(kept)} linhas mantidas, "
+                f"{removed} linhas vazias removidas.")
+        return
+
     # ── 2. Normalize phones ───────────────────────────────────────────────────
     cfg = _load_admin_config(app) if mode == "dedup_validate" else {"country_code": "55"}
     country_code = cfg.get("country_code", "55")
