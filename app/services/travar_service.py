@@ -1,18 +1,20 @@
+import sys
+import asyncio
 import threading
-from concurrent.futures import ThreadPoolExecutor
 
 from .disparar_service import (
-    _send_template,
+    _send_template_async,
     _random_namespace,
     _flag_erro_generic_if_needed,
 )
 
 _live_jobs: dict[int, dict] = {}
-_stop_events: dict[int, threading.Event] = {}
+_loops: dict[int, asyncio.AbstractEventLoop] = {}
+_main_tasks: dict[int, asyncio.Task] = {}
 _jobs_lock = threading.Lock()
 _job_counter = 0
 
-_TOTAL_BUDGET = 300  # max concurrent sends across all WABAs in a job
+_GLOBAL_CONCURRENCY = 500
 
 
 def _next_job_id() -> int:
@@ -27,23 +29,23 @@ def get_job(job_id: int) -> dict | None:
 
 
 def request_stop(job_id: int) -> bool:
-    ev = _stop_events.get(job_id)
-    if ev:
-        ev.set()
     state = _live_jobs.get(job_id)
     if state:
         state["stop_requested"] = True
-        # Mark stopped immediately so the next poll reflects it
         if state.get("status") == "running":
             state["status"] = "stopped"
+
+    loop = _loops.get(job_id)
+    task = _main_tasks.get(job_id)
+    if loop and task and not task.done():
+        loop.call_soon_threadsafe(task.cancel)
         return True
-    return False
+    return bool(state)
 
 
-def _run_waba(job_id: int, user_id: int, result_entry: dict,
-              spec: dict, rows: list, phone_col: str, param_map: list,
-              stop_event: threading.Event, concurrency: int) -> None:
-    """Stream messages to one WABA continuously until error 135000 or stop."""
+async def _run_waba(session, sem: asyncio.Semaphore, job_id: int, user_id: int,
+                   result_entry: dict, spec: dict, rows: list,
+                   phone_col: str, param_map: list) -> None:
     if not rows:
         with _jobs_lock:
             result_entry["status"] = "error"
@@ -60,11 +62,12 @@ def _run_waba(job_id: int, user_id: int, result_entry: dict,
     template_language = spec["template_language"]
     namespace = _random_namespace()
     waba_flag_state = {}
-    travada = threading.Event()
-    sem = threading.BoundedSemaphore(concurrency)
+    travada = asyncio.Event()
 
-    def _worker(row: dict) -> None:
-        try:
+    async def _one(row: dict) -> None:
+        async with sem:
+            if travada.is_set():
+                return
             phone = str(row.get(phone_col, "")).strip()
             if not phone:
                 return
@@ -72,8 +75,9 @@ def _run_waba(job_id: int, user_id: int, result_entry: dict,
                 {"name": pm["name"], "value": str(row.get(pm.get("column", ""), "")).strip()}
                 for pm in param_map
             ]
-            success, msg = _send_template(
-                phone, phone_number_id, token, template_name, template_language, params, namespace
+            success, msg = await _send_template_async(
+                session, phone, phone_number_id, token,
+                template_name, template_language, params, namespace,
             )
             with _jobs_lock:
                 s = _live_jobs.get(job_id)
@@ -88,67 +92,74 @@ def _run_waba(job_id: int, user_id: int, result_entry: dict,
             if success is False and "#135000" in (msg or "") and not travada.is_set():
                 _flag_erro_generic_if_needed(user_id, waba_id, waba_flag_state, msg)
                 travada.set()
-        finally:
-            sem.release()
 
-    pool = ThreadPoolExecutor(max_workers=concurrency)
-
-    # Streaming loop: cycle rows repeatedly, submitting as fast as slots free up
-    while not stop_event.is_set() and not travada.is_set():
-        for row in rows:
-            if stop_event.is_set() or travada.is_set():
-                break
-            # Acquire a slot — check stop/travada every 200ms so we don't block long
-            acquired = False
-            while not (stop_event.is_set() or travada.is_set()):
-                if sem.acquire(timeout=0.2):
-                    acquired = True
-                    break
-            if not acquired:
-                break
-            pool.submit(_worker, row)
-
-    # Don't wait for in-flight sends — return control immediately
-    pool.shutdown(wait=False, cancel_futures=True)
+    while not travada.is_set():
+        await asyncio.gather(*[_one(row) for row in rows])
 
     with _jobs_lock:
-        if travada.is_set():
-            result_entry["status"] = "travada"
-            result_entry["last_message"] = "Erro #135000 detectado"
-            s = _live_jobs.get(job_id)
-            if s:
-                s["travadas"] += 1
-        else:
-            result_entry["status"] = "stopped"
-            result_entry["last_message"] = "Interrompido"
-
-
-def _manager(job_id: int, user_id: int, waba_specs: list,
-             rows: list, phone_col: str, param_map: list,
-             stop_event: threading.Event) -> None:
-    state = _live_jobs[job_id]
-    num_wabas = max(1, len(waba_specs))
-    concurrency = max(5, min(50, _TOTAL_BUDGET // num_wabas))
-
-    with ThreadPoolExecutor(max_workers=num_wabas) as pool:
-        futures = [
-            pool.submit(
-                _run_waba, job_id, user_id, state["results"][i],
-                spec, rows, phone_col, param_map, stop_event, concurrency
-            )
-            for i, spec in enumerate(waba_specs)
-        ]
-        for future in futures:
-            try:
-                future.result()
-            except Exception:
-                pass
-
-    with _jobs_lock:
+        result_entry["status"] = "travada"
+        result_entry["last_message"] = "Erro #135000 detectado"
         s = _live_jobs.get(job_id)
-        if s and s.get("status") not in ("stopped",):
-            s["status"] = "stopped" if stop_event.is_set() else "done"
-    _stop_events.pop(job_id, None)
+        if s:
+            s["travadas"] += 1
+
+
+async def _main(job_id: int, user_id: int, waba_specs: list,
+                rows: list, phone_col: str, param_map: list) -> None:
+    import aiohttp as _aiohttp
+
+    state = _live_jobs[job_id]
+
+    # Bail early if request_stop() was called before the loop started
+    if state.get("stop_requested"):
+        return
+
+    # Register loop + task so request_stop() can cancel us from another thread
+    loop = asyncio.get_running_loop()
+    task = asyncio.current_task()
+    with _jobs_lock:
+        _loops[job_id] = loop
+        _main_tasks[job_id] = task
+
+    connector = _aiohttp.TCPConnector(limit=_GLOBAL_CONCURRENCY, limit_per_host=_GLOBAL_CONCURRENCY)
+    sem = asyncio.Semaphore(_GLOBAL_CONCURRENCY)
+
+    try:
+        async with _aiohttp.ClientSession(connector=connector) as session:
+            await asyncio.gather(*[
+                _run_waba(session, sem, job_id, user_id, state["results"][i],
+                          spec, rows, phone_col, param_map)
+                for i, spec in enumerate(waba_specs)
+            ])
+        with _jobs_lock:
+            s = _live_jobs.get(job_id)
+            if s and s.get("status") == "running":
+                s["status"] = "done"
+    except asyncio.CancelledError:
+        with _jobs_lock:
+            for r in state.get("results", []):
+                if r.get("status") == "running":
+                    r["status"] = "stopped"
+                    r["last_message"] = "Interrompido"
+            if state.get("status") not in ("stopped",):
+                state["status"] = "stopped"
+    finally:
+        _loops.pop(job_id, None)
+        _main_tasks.pop(job_id, None)
+
+
+def _thread_runner(job_id: int, user_id: int, waba_specs: list,
+                   rows: list, phone_col: str, param_map: list) -> None:
+    if sys.platform == "win32":
+        loop = asyncio.SelectorEventLoop()
+        asyncio.set_event_loop(loop)
+        try:
+            loop.run_until_complete(_main(job_id, user_id, waba_specs, rows, phone_col, param_map))
+        finally:
+            loop.close()
+            asyncio.set_event_loop(None)
+    else:
+        asyncio.run(_main(job_id, user_id, waba_specs, rows, phone_col, param_map))
 
 
 def start_travar_job(user_id: int, waba_specs: list,
@@ -179,15 +190,12 @@ def start_travar_job(user_id: int, waba_specs: list,
         "results": results,
     }
 
-    stop_event = threading.Event()
-
     with _jobs_lock:
         _live_jobs[job_id] = state
-        _stop_events[job_id] = stop_event
 
     t = threading.Thread(
-        target=_manager,
-        args=(job_id, user_id, waba_specs, rows, phone_col, param_map, stop_event),
+        target=_thread_runner,
+        args=(job_id, user_id, waba_specs, rows, phone_col, param_map),
         daemon=True,
     )
     t.start()
