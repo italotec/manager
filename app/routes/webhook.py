@@ -1,4 +1,6 @@
 import json
+import queue
+import threading
 from flask import Blueprint, request, current_app, jsonify
 from .. import db
 from ..models import WebhookLog
@@ -13,6 +15,50 @@ from ..services.waba_events import (
 )
 
 bp = Blueprint("webhook", __name__)
+
+# ── Async webhook processing ────────────────────────────────────────────────────
+# Meta floods this endpoint (~16 req/s of message/status events). Processing each
+# request inline did several DB writes against the (single-writer) SQLite DB before
+# returning 200, so under load request threads + pool connections piled up and
+# starved everything else (including add-phone job threads). We now ACK 200 instantly
+# and process payloads on a small, fixed pool of background workers — decoupling
+# Meta's arrival rate from our DB write throughput and keeping request threads short.
+
+_WORKER_COUNT = 2
+_QUEUE_MAXSIZE = 20000
+_work_queue: "queue.Queue" = queue.Queue(maxsize=_QUEUE_MAXSIZE)
+_workers_started = False
+_workers_lock = threading.Lock()
+_dropped = 0
+
+
+def _worker_loop(app):
+    while True:
+        payload = _work_queue.get()
+        try:
+            with app.app_context():
+                process_webhook_payload(payload)
+        except Exception as e:
+            try:
+                print(f"[WEBHOOK] worker error: {type(e).__name__}: {e}", flush=True)
+            except Exception:
+                pass
+        finally:
+            _work_queue.task_done()
+
+
+def _ensure_workers(app):
+    global _workers_started
+    if _workers_started:
+        return
+    with _workers_lock:
+        if _workers_started:
+            return
+        for _ in range(_WORKER_COUNT):
+            threading.Thread(
+                target=_worker_loop, args=(app,), daemon=True
+            ).start()
+        _workers_started = True
 
 
 @bp.route("/webhook", methods=["GET"])
@@ -30,19 +76,37 @@ def verify():
 
 @bp.route("/webhook", methods=["POST"])
 def receive():
-    """Receive incoming WhatsApp messages / status updates from Meta,
-    or BMS profile-status arrays from the external monitoring tool."""
+    """ACK Meta instantly; hand the payload to a background worker for DB work."""
+    global _dropped
     payload = request.get_json(silent=True)
     if not payload:
         return "OK", 200
 
+    _ensure_workers(current_app._get_current_object())
+    try:
+        _work_queue.put_nowait(payload)
+    except queue.Full:
+        _dropped += 1
+        try:
+            print(f"[WEBHOOK] queue full — dropped (total={_dropped})", flush=True)
+        except Exception:
+            pass
+    return "OK", 200
+
+
+def process_webhook_payload(payload):
+    """Process a single webhook payload. Runs inside an app context on a worker thread.
+
+    Receives incoming WhatsApp messages / status updates from Meta, or BMS
+    profile-status arrays from the external monitoring tool.
+    """
     # ── BMS profile-status format: array OR single object with asset_id ─────
     if isinstance(payload, list):
         _handle_bms_status(payload)
-        return "OK", 200
+        return
     if isinstance(payload, dict) and "asset_id" in payload:
         _handle_bms_status([payload])
-        return "OK", 200
+        return
 
     # Log raw payload if admin has enabled it
     _maybe_log(payload)
@@ -137,8 +201,6 @@ def receive():
                     except Exception:
                         pass
 
-    return "OK", 200
-
 
 @bp.route("/saidaquicurioso", methods=["GET"])
 def public_webhook_logs():
@@ -212,8 +274,15 @@ def _handle_bms_status(profiles: list) -> None:
             patch_snapshot(user_id, asset_id, status_label=new_status)
 
 
+# Prune is expensive (per-WABA subquery DELETE); run it only occasionally instead of
+# on every webhook. Processing is now serialized on a tiny worker pool, so this
+# counter is effectively single-threaded cadence control.
+_log_counter = 0
+
+
 def _maybe_log(payload: dict):
     """Save raw webhook payload — one row per WABA entry, always on."""
+    global _log_counter
     try:
         payload_str = json.dumps(payload, ensure_ascii=False)[:50_000]
         waba_ids_seen = []
@@ -228,19 +297,22 @@ def _maybe_log(payload: dict):
 
         db.session.flush()
 
-        # Prune: keep only the newest 200 rows per WABA
-        for waba_id in set(waba_ids_seen):
-            keep = (
-                db.session.query(WebhookLog.id)
-                .filter(WebhookLog.waba_id == waba_id)
-                .order_by(WebhookLog.created_at.desc(), WebhookLog.id.desc())
-                .limit(200)
-                .subquery()
-            )
-            db.session.query(WebhookLog).filter(
-                WebhookLog.waba_id == waba_id,
-                ~WebhookLog.id.in_(keep),
-            ).delete(synchronize_session=False)
+        # Prune: keep only the newest 200 rows per WABA — but only every 100th call
+        # to avoid running a delete-subquery on every single webhook.
+        _log_counter += 1
+        if _log_counter % 100 == 0:
+            for waba_id in set(waba_ids_seen):
+                keep = (
+                    db.session.query(WebhookLog.id)
+                    .filter(WebhookLog.waba_id == waba_id)
+                    .order_by(WebhookLog.created_at.desc(), WebhookLog.id.desc())
+                    .limit(200)
+                    .subquery()
+                )
+                db.session.query(WebhookLog).filter(
+                    WebhookLog.waba_id == waba_id,
+                    ~WebhookLog.id.in_(keep),
+                ).delete(synchronize_session=False)
 
         db.session.commit()
     except Exception:

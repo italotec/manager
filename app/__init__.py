@@ -135,6 +135,16 @@ def create_app():
         if stuck or stuck_listas:
             db.session.commit()
 
+        # Add-phone jobs run in in-memory threads; a restart orphans any that were
+        # "running"/"queued", leaving them frozen forever. Recover them here.
+        from .models import Job
+        stuck_jobs = Job.query.filter(Job.status.in_(["running", "queued"])).all()
+        for j in stuck_jobs:
+            j.status = "done_with_errors"
+            j.last_message = "Interrompido: servidor reiniciou."
+        if stuck_jobs:
+            db.session.commit()
+
         # Seed admin df/df
         from .models import User
         import secrets as _secrets

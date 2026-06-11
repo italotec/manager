@@ -22,12 +22,27 @@ def start_add_phone_job(user_id: int, waba_ids: list[str]) -> int:
     job_id = job.id
 
     def runner(app):
-        with app.app_context():
-            job = db.session.get(Job, job_id)
-            if not job:
-                return
-            job.status = "running"
-            db.session.commit()
+        # Guard the initial commit: if the DB connection pool is exhausted (e.g. under
+        # heavy webhook load) this commit can raise, and being outside try/except it
+        # used to kill the thread silently — leaving the job frozen at "queued" forever.
+        try:
+            with app.app_context():
+                job = db.session.get(Job, job_id)
+                if not job:
+                    return
+                job.status = "running"
+                db.session.commit()
+        except Exception as exc:
+            try:
+                with app.app_context():
+                    job = db.session.get(Job, job_id)
+                    if job:
+                        job.status = "done_with_errors"
+                        job.last_message = f"Falha ao iniciar (pool/DB): {exc}"
+                        db.session.commit()
+            except Exception:
+                pass
+            return
         # connection released here; HTTP work below holds no pool slot
 
         failed = 0
