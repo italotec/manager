@@ -1,5 +1,5 @@
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 
 from .disparar_service import (
     _send_template,
@@ -8,9 +8,11 @@ from .disparar_service import (
 )
 
 _live_jobs: dict[int, dict] = {}
+_stop_events: dict[int, threading.Event] = {}
 _jobs_lock = threading.Lock()
 _job_counter = 0
-_BATCH_SIZE = 10
+
+_TOTAL_BUDGET = 300  # max concurrent sends across all WABAs in a job
 
 
 def _next_job_id() -> int:
@@ -25,16 +27,23 @@ def get_job(job_id: int) -> dict | None:
 
 
 def request_stop(job_id: int) -> bool:
+    ev = _stop_events.get(job_id)
+    if ev:
+        ev.set()
     state = _live_jobs.get(job_id)
     if state:
         state["stop_requested"] = True
+        # Mark stopped immediately so the next poll reflects it
+        if state.get("status") == "running":
+            state["status"] = "stopped"
         return True
     return False
 
 
 def _run_waba(job_id: int, user_id: int, result_entry: dict,
-              spec: dict, rows: list, phone_col: str, param_map: list) -> None:
-    """Hammer a single WABA with messages until error 135000 or stop requested."""
+              spec: dict, rows: list, phone_col: str, param_map: list,
+              stop_event: threading.Event, concurrency: int) -> None:
+    """Stream messages to one WABA continuously until error 135000 or stop."""
     if not rows:
         with _jobs_lock:
             result_entry["status"] = "error"
@@ -51,74 +60,85 @@ def _run_waba(job_id: int, user_id: int, result_entry: dict,
     template_language = spec["template_language"]
     namespace = _random_namespace()
     waba_flag_state = {}
+    travada = threading.Event()
+    sem = threading.BoundedSemaphore(concurrency)
 
-    def _worker(row: dict):
-        phone = str(row.get(phone_col, "")).strip()
-        if not phone:
-            return phone, None, "telefone vazio"
-        params = [
-            {"name": pm["name"], "value": str(row.get(pm.get("column", ""), "")).strip()}
-            for pm in param_map
-        ]
-        success, msg = _send_template(
-            phone, phone_number_id, token, template_name, template_language, params, namespace
-        )
-        return phone, success, msg
-
-    row_cursor = 0
-
-    while True:
-        state = _live_jobs.get(job_id)
-        if not state or state.get("stop_requested"):
+    def _worker(row: dict) -> None:
+        try:
+            phone = str(row.get(phone_col, "")).strip()
+            if not phone:
+                return
+            params = [
+                {"name": pm["name"], "value": str(row.get(pm.get("column", ""), "")).strip()}
+                for pm in param_map
+            ]
+            success, msg = _send_template(
+                phone, phone_number_id, token, template_name, template_language, params, namespace
+            )
             with _jobs_lock:
-                result_entry["status"] = "stopped"
-                result_entry["last_message"] = "Interrompido"
-            return
-
-        batch = [rows[(row_cursor + j) % len(rows)] for j in range(_BATCH_SIZE)]
-        row_cursor = (row_cursor + _BATCH_SIZE) % len(rows)
-
-        travou = False
-        with ThreadPoolExecutor(max_workers=_BATCH_SIZE) as pool:
-            futures = {pool.submit(_worker, row): row for row in batch}
-            for future in as_completed(futures):
-                phone, success, msg = future.result()
-                with _jobs_lock:
-                    s = _live_jobs.get(job_id)
-                    if s:
-                        if success is True:
-                            result_entry["sent"] += 1
-                            s["sent"] += 1
-                        elif success is False:
-                            result_entry["failed"] += 1
-                            s["failed"] += 1
-                            result_entry["last_message"] = msg or ""
-
-                if success is False and "#135000" in (msg or ""):
-                    travou = True
-                    _flag_erro_generic_if_needed(user_id, waba_id, waba_flag_state, msg)
-
-        if travou:
-            with _jobs_lock:
-                result_entry["status"] = "travada"
-                result_entry["last_message"] = "Erro #135000 detectado"
                 s = _live_jobs.get(job_id)
                 if s:
-                    s["travadas"] += 1
-            return
+                    if success is True:
+                        result_entry["sent"] += 1
+                        s["sent"] += 1
+                    elif success is False:
+                        result_entry["failed"] += 1
+                        s["failed"] += 1
+                        result_entry["last_message"] = msg or ""
+            if success is False and "#135000" in (msg or "") and not travada.is_set():
+                _flag_erro_generic_if_needed(user_id, waba_id, waba_flag_state, msg)
+                travada.set()
+        finally:
+            sem.release()
+
+    pool = ThreadPoolExecutor(max_workers=concurrency)
+
+    # Streaming loop: cycle rows repeatedly, submitting as fast as slots free up
+    while not stop_event.is_set() and not travada.is_set():
+        for row in rows:
+            if stop_event.is_set() or travada.is_set():
+                break
+            # Acquire a slot — check stop/travada every 200ms so we don't block long
+            acquired = False
+            while not (stop_event.is_set() or travada.is_set()):
+                if sem.acquire(timeout=0.2):
+                    acquired = True
+                    break
+            if not acquired:
+                break
+            pool.submit(_worker, row)
+
+    # Don't wait for in-flight sends — return control immediately
+    pool.shutdown(wait=False, cancel_futures=True)
+
+    with _jobs_lock:
+        if travada.is_set():
+            result_entry["status"] = "travada"
+            result_entry["last_message"] = "Erro #135000 detectado"
+            s = _live_jobs.get(job_id)
+            if s:
+                s["travadas"] += 1
+        else:
+            result_entry["status"] = "stopped"
+            result_entry["last_message"] = "Interrompido"
 
 
 def _manager(job_id: int, user_id: int, waba_specs: list,
-             rows: list, phone_col: str, param_map: list) -> None:
+             rows: list, phone_col: str, param_map: list,
+             stop_event: threading.Event) -> None:
     state = _live_jobs[job_id]
+    num_wabas = max(1, len(waba_specs))
+    concurrency = max(5, min(50, _TOTAL_BUDGET // num_wabas))
 
-    with ThreadPoolExecutor(max_workers=max(1, len(waba_specs))) as pool:
+    with ThreadPoolExecutor(max_workers=num_wabas) as pool:
         futures = [
-            pool.submit(_run_waba, job_id, user_id, state["results"][i],
-                        spec, rows, phone_col, param_map)
+            pool.submit(
+                _run_waba, job_id, user_id, state["results"][i],
+                spec, rows, phone_col, param_map, stop_event, concurrency
+            )
             for i, spec in enumerate(waba_specs)
         ]
-        for future in as_completed(futures):
+        for future in futures:
             try:
                 future.result()
             except Exception:
@@ -126,8 +146,9 @@ def _manager(job_id: int, user_id: int, waba_specs: list,
 
     with _jobs_lock:
         s = _live_jobs.get(job_id)
-        if s:
-            s["status"] = "stopped" if s.get("stop_requested") else "done"
+        if s and s.get("status") not in ("stopped",):
+            s["status"] = "stopped" if stop_event.is_set() else "done"
+    _stop_events.pop(job_id, None)
 
 
 def start_travar_job(user_id: int, waba_specs: list,
@@ -158,12 +179,15 @@ def start_travar_job(user_id: int, waba_specs: list,
         "results": results,
     }
 
+    stop_event = threading.Event()
+
     with _jobs_lock:
         _live_jobs[job_id] = state
+        _stop_events[job_id] = stop_event
 
     t = threading.Thread(
         target=_manager,
-        args=(job_id, user_id, waba_specs, rows, phone_col, param_map),
+        args=(job_id, user_id, waba_specs, rows, phone_col, param_map, stop_event),
         daemon=True,
     )
     t.start()
