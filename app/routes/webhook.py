@@ -9,6 +9,7 @@ from ..services.waba_events import (
     apply_template_status_event,
     apply_account_update,
     apply_phone_quality_update,
+    apply_message_status_event,
 )
 
 bp = Blueprint("webhook", __name__)
@@ -128,6 +129,11 @@ def receive():
                 if wamid and status_v in ("sent", "delivered") and waba_id:
                     try:
                         mark_health_test(waba_id, wamid)
+                    except Exception:
+                        pass
+                if waba_id:
+                    try:
+                        apply_message_status_event(waba_id, status_obj)
                     except Exception:
                         pass
 

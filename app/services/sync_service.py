@@ -32,7 +32,7 @@ _job_counter = 0
 _counter_lock = threading.Lock()
 
 API_BLOCKED_MARK = "API access blocked."
-_WEBHOOK_PROTECTED = {"PERMANENTE", "ANALISANDO", "RESTRITA"}
+_WEBHOOK_PROTECTED = {"PERMANENTE", "ANALISANDO", "RESTRITA", "RETENÇÃO"}
 
 
 def _next_job_id() -> int:

@@ -179,6 +179,60 @@ def mark_phone_connected(user_id: int, waba_id: str, phone_id: str = "", phone: 
 # Labels that this webhook is allowed to flip back to OK
 _WEBHOOK_BAD_LABELS = {"PERMANENTE", "RESTRITA", "ANALISANDO"}
 
+# ── RETENÇÃO: payment-restriction failed sends ────────────────────────────────
+
+_RETENCAO_LABEL           = "RETENÇÃO"
+_RETENCAO_OVERWRITABLE    = {"", "OK", "PROBLEMA CARTÃO"}
+_PAYMENT_RESTRICTED_CODES = {131042}
+
+
+def _set_retencao(waba_id: str) -> None:
+    for user_id in find_users_with_waba(waba_id):
+        from ..json_store import load_user_bms, save_user_bms
+        data = load_user_bms(user_id)
+        key  = str(waba_id).strip()
+        if key not in data or not isinstance(data.get(key), dict):
+            continue
+        entry = data[key]
+        snap  = entry.get("snapshot", {}) if isinstance(entry.get("snapshot"), dict) else {}
+        current = snap.get("status_label", "")
+        if current == _RETENCAO_LABEL or current not in _RETENCAO_OVERWRITABLE:
+            continue
+        snap["retencao_prev_label"] = current
+        snap["status_label"]        = _RETENCAO_LABEL
+        entry["snapshot"] = snap
+        data[key] = entry
+        save_user_bms(user_id, data)
+
+
+def _clear_retencao(waba_id: str) -> None:
+    for user_id in find_users_with_waba(waba_id):
+        from ..json_store import load_user_bms, save_user_bms
+        data = load_user_bms(user_id)
+        key  = str(waba_id).strip()
+        if key not in data or not isinstance(data.get(key), dict):
+            continue
+        entry = data[key]
+        snap  = entry.get("snapshot", {}) if isinstance(entry.get("snapshot"), dict) else {}
+        if snap.get("status_label") != _RETENCAO_LABEL:
+            continue
+        prev = snap.pop("retencao_prev_label", "") or "OK"
+        snap["status_label"] = prev
+        entry["snapshot"] = snap
+        data[key] = entry
+        save_user_bms(user_id, data)
+
+
+def apply_message_status_event(waba_id: str, status_obj: dict) -> None:
+    """Set or clear RETENÇÃO based on an outgoing-message status callback."""
+    status_v = (status_obj.get("status") or "").lower()
+    if status_v == "failed":
+        errors = status_obj.get("errors") or []
+        if any(isinstance(e, dict) and e.get("code") in _PAYMENT_RESTRICTED_CODES for e in errors):
+            _set_retencao(waba_id)
+    elif status_v in ("sent", "delivered", "read"):
+        _clear_retencao(waba_id)
+
 
 def apply_account_update(waba_id: str, value: dict) -> None:
     """

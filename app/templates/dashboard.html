@@ -318,6 +318,8 @@
                 <span class="px-2 py-0.5 rounded text-xs font-bold bg-orange-900/60 text-orange-300">RESTRITA</span>
               {% elif row.status_label == "ANALISANDO" %}
                 <span class="px-2 py-0.5 rounded text-xs font-bold bg-zinc-700/60 text-zinc-300">ANALISANDO</span>
+              {% elif row.status_label == "RETENÇÃO" %}
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-amber-900/60 text-amber-300">RETENÇÃO</span>
               {% else %}
                 <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-900/60 text-emerald-300">OK</span>
               {% endif %}
