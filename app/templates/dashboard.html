@@ -108,6 +108,18 @@
         </svg>
       </button>
 
+      <!-- Bulk health test button -->
+      <button type="button"
+              title="Testar disparo das WABAs selecionadas"
+              onclick="openHealthTestModal()"
+              class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-emerald-900/60 text-zinc-400 hover:text-emerald-300 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+
       <button type="button" onclick="openModal()"
               class="px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">
         + Adicionar WABA
@@ -286,6 +298,8 @@
             </td>
 
             <td class="py-3">
+              <div class="inline-flex items-center gap-1 flex-wrap"
+                   id="statusCell_{{ row.waba_id }}">
               {% if row.status_label == "DESATIVADA" %}
                 <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/60 text-red-300">DESATIVADA</span>
               {% elif row.status_label == "LIMITADA" %}
@@ -307,6 +321,10 @@
               {% else %}
                 <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-900/60 text-emerald-300">OK</span>
               {% endif %}
+              {% if row.health_ok %}
+                <span class="health-ok-badge px-2 py-0.5 rounded text-xs font-bold bg-teal-900/60 text-teal-300" title="Teste de disparo aprovado nas últimas 24h">✓ pronta</span>
+              {% endif %}
+              </div>
             </td>
 
             {# Limite — whatsapp_business_manager_messaging_limit from phone node #}
@@ -353,15 +371,16 @@
                     <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path>
                   </svg>
                 </button>
-                {# copy single WABA button #}
+                {# health test single WABA button #}
                 <button type="button"
-                        title="Copiar dados desta WABA"
-                        onclick="copySingle('{{ row.waba_id }}')"
-                        class="p-1.5 rounded-lg text-zinc-700 group-hover:text-zinc-400 hover:!text-blue-400 hover:bg-blue-950/40 transition-colors">
+                        id="healthBtn_{{ row.waba_id }}"
+                        title="Testar disparo desta WABA"
+                        onclick="startHealthTest('{{ row.waba_id }}')"
+                        class="p-1.5 rounded-lg text-zinc-700 group-hover:text-zinc-400 hover:!text-emerald-400 hover:bg-emerald-950/40 transition-colors">
                   <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none"
                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect x="9" y="2" width="6" height="4" rx="1"></rect>
-                    <path d="M9 4H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2"></path>
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                   </svg>
                 </button>
                 {# trash button #}
@@ -819,24 +838,155 @@ async function copySelected() {
   }
 }
 
-// ── Copy single WABA ────────────────────────────────────────────────────────
-async function copySingle(wabaId) {
-  const res = await fetch("{{ url_for('dashboard.export_selected') }}", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({ waba_ids: [wabaId] })
-  });
-  if (!res.ok) { alert("Erro ao copiar dados da WABA."); return; }
-  const data = await res.json();
-  const text = JSON.stringify(data, null, 4);
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch (e) {
-    const ta = document.createElement("textarea");
-    ta.value = text; document.body.appendChild(ta); ta.select();
-    document.execCommand("copy"); document.body.removeChild(ta);
+// ── Health test (single + bulk) ─────────────────────────────────────────────
+async function startHealthTest(wabaId) {
+  const btn = document.getElementById(`healthBtn_${wabaId}`);
+  if (btn) {
+    btn.disabled = true;
+    btn.title = "Testando…";
+    btn.innerHTML = `<svg class="w-4 h-4 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+    </svg>`;
   }
-  alert("Copiado para a área de transferência!");
+  try {
+    const r = await fetch("{{ url_for('dashboard.health_test_start') }}", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ waba_ids: [wabaId] }),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      alert(d.error || "Erro ao iniciar teste.");
+      _resetHealthBtn(wabaId);
+      return;
+    }
+    _pollHealthJob(d.job_id, [wabaId], null);
+  } catch(e) {
+    alert("Erro de rede: " + e);
+    _resetHealthBtn(wabaId);
+  }
+}
+
+function _resetHealthBtn(wabaId) {
+  const btn = document.getElementById(`healthBtn_${wabaId}`);
+  if (!btn) return;
+  btn.disabled = false;
+  btn.title = "Testar disparo desta WABA";
+  btn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none"
+     stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <line x1="22" y1="2" x2="11" y2="13"></line>
+    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+  </svg>`;
+}
+
+function _injectHealthBadge(wabaId) {
+  const cell = document.getElementById(`statusCell_${wabaId}`);
+  if (!cell) return;
+  if (cell.querySelector(".health-ok-badge")) return;
+  const badge = document.createElement("span");
+  badge.className = "health-ok-badge px-2 py-0.5 rounded text-xs font-bold bg-teal-900/60 text-teal-300";
+  badge.title = "Teste de disparo aprovado nas últimas 24h";
+  badge.textContent = "✓ pronta";
+  cell.appendChild(badge);
+}
+
+function _pollHealthJob(jobId, wabaIds, resultsEl) {
+  const interval = setInterval(async () => {
+    try {
+      const r = await fetch(`/health-test/job/${jobId}`);
+      const d = await r.json();
+      const isDone = d.status === "done";
+
+      wabaIds.forEach(wid => {
+        const res = (d.results || {})[wid];
+        if (!res) return;
+        if (res.state === "passed") {
+          _injectHealthBadge(wid);
+          _resetHealthBtn(wid);
+          if (resultsEl) {
+            const row = resultsEl.querySelector(`[data-wid="${wid}"]`);
+            if (row) { row.className = "text-teal-300"; row.textContent = `${wid}: ✓ ${res.msg}`; }
+          }
+        } else if (res.state === "failed") {
+          _resetHealthBtn(wid);
+          if (resultsEl) {
+            const row = resultsEl.querySelector(`[data-wid="${wid}"]`);
+            if (row) { row.className = "text-red-400"; row.textContent = `${wid}: ✗ ${res.msg}`; }
+          } else {
+            // single WABA — show alert only when all done
+          }
+        }
+      });
+
+      if (isDone) {
+        clearInterval(interval);
+        // Single WABA: show failure message if no badge injected
+        if (wabaIds.length === 1 && !resultsEl) {
+          const wid = wabaIds[0];
+          const res = (d.results || {})[wid] || {};
+          if (res.state === "failed") {
+            alert(`Teste falhou: ${res.msg}`);
+          }
+        }
+        if (resultsEl) {
+          const doneEl = document.getElementById("healthTestDoneMsg");
+          if (doneEl) doneEl.classList.remove("hidden");
+        }
+      }
+    } catch(e) { /* ignore */ }
+  }, 2000);
+}
+
+// ── Bulk health test modal ───────────────────────────────────────────────────
+let _healthWabaIds = [], _healthJobId = null, _healthPollInterval = null;
+
+function openHealthTestModal() {
+  const checks = Array.from(document.querySelectorAll('input[name="waba_ids"]:checked'));
+  if (!checks.length) { alert("Selecione ao menos 1 WABA."); return; }
+  _healthWabaIds = checks.map(c => c.value);
+  document.getElementById("healthTestModal").classList.remove("hidden");
+  document.getElementById("healthTestStatus").textContent = _healthWabaIds.length + " WABA(s) selecionada(s).";
+  const list = document.getElementById("healthTestResultList");
+  list.innerHTML = _healthWabaIds.map(w =>
+    `<div data-wid="${w}" class="text-zinc-400">${w}: aguardando…</div>`
+  ).join("");
+  document.getElementById("healthTestStartBtn").classList.remove("hidden");
+  document.getElementById("healthTestStartBtn").disabled = false;
+  document.getElementById("healthTestDoneMsg").classList.add("hidden");
+}
+
+function closeHealthTestModal() {
+  document.getElementById("healthTestModal").classList.add("hidden");
+}
+
+async function startBulkHealthTest() {
+  const btn = document.getElementById("healthTestStartBtn");
+  btn.disabled = true;
+  btn.textContent = "Iniciando…";
+
+  try {
+    const r = await fetch("{{ url_for('dashboard.health_test_start') }}", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({ waba_ids: _healthWabaIds }),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      alert(d.error || "Erro ao iniciar teste.");
+      btn.disabled = false;
+      btn.textContent = "Iniciar Teste";
+      return;
+    }
+    btn.classList.add("hidden");
+    document.getElementById("healthTestStatus").textContent = "Teste em andamento…";
+    const resultsEl = document.getElementById("healthTestResultList");
+    _pollHealthJob(d.job_id, _healthWabaIds, resultsEl);
+  } catch(e) {
+    alert("Erro de rede: " + e);
+    btn.disabled = false;
+    btn.textContent = "Iniciar Teste";
+  }
 }
 
 // ── Remarks modal ────────────────────────────────────────────────────────────
@@ -1703,5 +1853,30 @@ async function stopTplJob() {
   document.getElementById("tplStopBtn").textContent = "Parando…";
 }
 </script>
+
+<!-- ── Health test bulk modal ───────────────────────────────────────────────── -->
+<div id="healthTestModal" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+  <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg space-y-4">
+    <div class="flex items-center justify-between">
+      <div class="font-semibold text-zinc-100">Testar Disparo</div>
+      <button onclick="closeHealthTestModal()" class="text-zinc-500 hover:text-zinc-300">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+        </svg>
+      </button>
+    </div>
+    <p id="healthTestStatus" class="text-sm text-zinc-400"></p>
+    <div id="healthTestResultList" class="max-h-64 overflow-y-auto space-y-1 font-mono text-xs bg-zinc-950 rounded-xl p-3 border border-zinc-800"></div>
+    <p id="healthTestDoneMsg" class="hidden text-sm text-teal-300 font-semibold">Teste concluído. WABAs aprovadas receberam o badge "pronta".</p>
+    <div class="flex justify-end gap-3">
+      <button onclick="closeHealthTestModal()" class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-300">Fechar</button>
+      <button id="healthTestStartBtn" onclick="startBulkHealthTest()"
+              class="px-4 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-sm font-semibold text-zinc-100">
+        Iniciar Teste
+      </button>
+    </div>
+  </div>
+</div>
 
 {% endblock %}

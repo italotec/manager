@@ -175,8 +175,9 @@
             <option value="{{ w.waba_id }}"
                     data-phone-number-id="{{ ph.phone_number_id }}"
                     data-token="{{ w.token }}"
-                    data-name="{{ w.name }}">
-              {{ w.name }} · {{ ph.display }}
+                    data-name="{{ w.name }}"
+                    data-health-ok="{{ '1' if w.health_ok else '0' }}">
+              {{ w.name }} · {{ ph.display }}{% if w.health_ok %} ✓{% endif %}
             </option>
             {% endfor %}
             {% if not w.phones %}
@@ -184,6 +185,7 @@
                     data-phone-number-id=""
                     data-token="{{ w.token }}"
                     data-name="{{ w.name }}"
+                    data-health-ok="{{ '1' if w.health_ok else '0' }}"
                     class="text-zinc-500">
               {{ w.name }} (sem telefone cadastrado — sincronize o dashboard)
             </option>
@@ -193,6 +195,11 @@
         {% if not wabas %}
           <p class="text-xs text-yellow-400 mt-1">Nenhum WABA encontrado. Adicione no Dashboard.</p>
         {% endif %}
+        <label class="inline-flex items-center gap-2 mt-2 cursor-pointer select-none">
+          <input type="checkbox" id="filterHealthOk" onchange="applyHealthFilter()"
+                 class="w-3.5 h-3.5 rounded accent-teal-500">
+          <span class="text-xs text-zinc-400">Somente WABAs aprovadas no teste (24h)</span>
+        </label>
       </div>
 
       <div>
@@ -675,6 +682,30 @@ async function onCsvSelect(filename) {
   // enable config section
   const cfg = document.getElementById("configSection");
   cfg.classList.remove("opacity-40", "pointer-events-none");
+}
+
+// ── Health filter ───────────────────────────────────────────────────────────
+function applyHealthFilter() {
+  const filterOn = document.getElementById("filterHealthOk").checked;
+  const sel = document.getElementById("wabaSelect");
+  const currentVal = sel.value;
+  let currentFiltered = false;
+  Array.from(sel.options).forEach(opt => {
+    if (!opt.value) return; // skip the "— selecione —" placeholder
+    const passes = opt.dataset.healthOk === "1";
+    if (filterOn && !passes) {
+      opt.hidden = true;
+      opt.disabled = true;
+      if (opt.value === currentVal) currentFiltered = true;
+    } else {
+      opt.hidden = false;
+      opt.disabled = false;
+    }
+  });
+  if (currentFiltered) {
+    sel.value = "";
+    onWabaSelect();
+  }
 }
 
 // ── WABA select ────────────────────────────────────────────────────────────

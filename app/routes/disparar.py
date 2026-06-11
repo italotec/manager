@@ -1,6 +1,7 @@
 import os
 import json
 import csv as _csv
+import time
 
 from flask import (
     Blueprint, render_template, request,
@@ -74,12 +75,15 @@ def _wabas_with_phones(user_id: int) -> list:
             phones.append({"phone_number_id": reg, "display": reg})
 
         tier = snap.get("messaging_limit_tier") or ""
+        health_ok_at = snap.get("health_test_ok_at") or 0
+        health_ok = bool(health_ok_at) and (time.time() - health_ok_at) < 86400
         result.append({
             "waba_id": waba_id,
             "name": snap.get("waba_name") or waba_id,
             "token": token,
             "phones": phones,
             "tier": tier,
+            "health_ok": health_ok,
         })
     return result
 

@@ -27,6 +27,10 @@ from ..services.sync_service import (
     get_job as get_sync_job,
     request_stop as sync_request_stop,
 )
+from ..services.health_test_service import (
+    start_health_test_job,
+    get_job as get_health_test_job,
+)
 
 bp = Blueprint("dashboard", __name__)
 
@@ -77,6 +81,7 @@ def dashboard():
             "ever_had_erro_generic": snap.get("ever_had_erro_generic", False),
             "disparou": bool(snap.get("disparou_at")) and (time.time() - (snap.get("disparou_at") or 0)) < 86400,
             "ultimo_disparo": snap.get("ultimo_disparo") or "",
+            "health_ok": bool(snap.get("health_test_ok_at")) and (time.time() - (snap.get("health_test_ok_at") or 0)) < 86400,
             "remarks": data.get("remarks") or "",
             "adspower_profile_id": data.get("adspower_profile_id") or "",
             "messaging_limit_tier": snap.get("messaging_limit_tier"),
@@ -116,6 +121,32 @@ def sync_job_status(job_id: int):
 def sync_job_stop(job_id: int):
     sync_request_stop(job_id)
     return jsonify({"ok": True})
+
+@bp.route("/health-test/start", methods=["POST"])
+@login_required
+def health_test_start():
+    payload = request.get_json(silent=True) or {}
+    waba_ids = payload.get("waba_ids") or []
+    if not isinstance(waba_ids, list) or not waba_ids:
+        return jsonify({"error": "waba_ids inválido"}), 400
+
+    test_phone = current_user.test_phone or ""
+    if not test_phone:
+        return jsonify({"error": "Telefone de teste não configurado. Acesse Minha Conta e salve um número."}), 400
+
+    api_version = current_app.config.get("META_API_VERSION", "v23.0")
+    job_id = start_health_test_job(current_user.id, waba_ids, test_phone, api_version)
+    return jsonify({"ok": True, "job_id": job_id})
+
+
+@bp.route("/health-test/job/<int:job_id>")
+@login_required
+def health_test_job_status(job_id: int):
+    state = get_health_test_job(job_id)
+    if state is None:
+        return jsonify({"error": "Job não encontrado"}), 404
+    return jsonify(state)
+
 
 @bp.route("/export-selected", methods=["POST"])
 @login_required

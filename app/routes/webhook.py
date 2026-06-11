@@ -4,6 +4,7 @@ from .. import db
 from ..models import WebhookLog
 from ..json_store import load_user_bms, patch_snapshot, find_users_with_waba
 from ..services.chat_service import save_message, update_message_status
+from ..services.health_test_service import mark_health_test
 from ..services.waba_events import (
     apply_template_status_event,
     apply_account_update,
@@ -124,6 +125,11 @@ def receive():
                 status_v  = status_obj.get("status", "")
                 if wamid and status_v in ("sent", "delivered", "read"):
                     update_message_status(wamid, status_v)
+                if wamid and status_v in ("sent", "delivered") and waba_id:
+                    try:
+                        mark_health_test(waba_id, wamid)
+                    except Exception:
+                        pass
 
     return "OK", 200
 

@@ -99,6 +99,9 @@ def create_app():
         if "agent_token" not in cols:
             db.session.execute(db.text("ALTER TABLE user ADD COLUMN agent_token VARCHAR(64)"))
             db.session.commit()
+        if "test_phone" not in cols:
+            db.session.execute(db.text("ALTER TABLE user ADD COLUMN test_phone VARCHAR(32)"))
+            db.session.commit()
 
         djcols = [c["name"] for c in db.inspect(db.engine).get_columns("disparo_job")]
         if "waba_id" not in djcols:

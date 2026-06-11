@@ -32,3 +32,14 @@ def save_token():
     db.session.commit()
     flash("Token salvo com sucesso.", "success")
     return redirect(url_for("account.account_page"))
+
+
+@bp.route("/conta/telefone", methods=["POST"])
+@login_required
+def save_test_phone():
+    raw = request.form.get("test_phone", "").strip()
+    digits = "".join(c for c in raw if c.isdigit())
+    current_user.test_phone = digits or None
+    db.session.commit()
+    flash("Telefone de teste salvo com sucesso.", "success")
+    return redirect(url_for("account.account_page"))
