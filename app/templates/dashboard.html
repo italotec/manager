@@ -142,6 +142,180 @@
   </div>
   {% endif %}
 
+  <!-- ── Filter bar ── -->
+  <div id="filterBar" class="mt-4 rounded-xl border border-zinc-800 bg-zinc-900/20 p-3">
+    <div class="flex flex-wrap items-center gap-2">
+
+      <!-- Search -->
+      <div class="relative">
+        <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500 pointer-events-none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input id="filter-search" type="text" placeholder="Buscar WABA, ID ou telefone…"
+               class="pl-8 pr-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-zinc-500 w-56">
+      </div>
+
+      <!-- Status -->
+      <div class="filter-dropdown relative">
+        <button type="button" onclick="_filterToggleDropdown(this)"
+                class="filter-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs hover:bg-zinc-700 transition-colors">
+          Status
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="filter-panel-status" class="filter-panel hidden absolute top-full left-0 mt-1 z-30 min-w-[190px] rounded-xl border border-zinc-700 bg-zinc-950 shadow-xl p-2">
+          <div class="filter-options space-y-0.5"><!-- built by JS --></div>
+        </div>
+      </div>
+
+      <!-- Travada -->
+      <div class="filter-dropdown relative">
+        <button type="button" onclick="_filterToggleDropdown(this)"
+                class="filter-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs hover:bg-zinc-700 transition-colors">
+          Travada
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-panel hidden absolute top-full left-0 mt-1 z-30 min-w-[130px] rounded-xl border border-zinc-700 bg-zinc-950 shadow-xl p-2">
+          <div class="space-y-0.5">
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="travada" value="1">
+              <span class="text-xs text-zinc-300">Sim</span>
+            </label>
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="travada" value="0">
+              <span class="text-xs text-zinc-300">Não</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Disparou -->
+      <div class="filter-dropdown relative">
+        <button type="button" onclick="_filterToggleDropdown(this)"
+                class="filter-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs hover:bg-zinc-700 transition-colors">
+          Disparou
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-panel hidden absolute top-full left-0 mt-1 z-30 min-w-[140px] rounded-xl border border-zinc-700 bg-zinc-950 shadow-xl p-2">
+          <div class="space-y-0.5">
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="disparou" value="1">
+              <span class="text-xs text-zinc-300">Sim (últimas 24h)</span>
+            </label>
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="disparou" value="0">
+              <span class="text-xs text-zinc-300">Não</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Limite -->
+      <div class="filter-dropdown relative">
+        <button type="button" onclick="_filterToggleDropdown(this)"
+                class="filter-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs hover:bg-zinc-700 transition-colors">
+          Limite
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div id="filter-panel-tier" class="filter-panel hidden absolute top-full left-0 mt-1 z-30 min-w-[160px] rounded-xl border border-zinc-700 bg-zinc-950 shadow-xl p-2">
+          <div class="filter-options space-y-0.5"><!-- built by JS --></div>
+        </div>
+      </div>
+
+      <!-- Telefone -->
+      <div class="filter-dropdown relative">
+        <button type="button" onclick="_filterToggleDropdown(this)"
+                class="filter-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs hover:bg-zinc-700 transition-colors">
+          Telefone
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-panel hidden absolute top-full left-0 mt-1 z-30 min-w-[160px] rounded-xl border border-zinc-700 bg-zinc-950 shadow-xl p-2">
+          <div class="space-y-0.5">
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="phone" value="hasphone_1">
+              <span class="text-xs text-zinc-300">Com número</span>
+            </label>
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="phone" value="hasphone_0">
+              <span class="text-xs text-zinc-300">Sem número</span>
+            </label>
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="phone" value="connected_1">
+              <span class="text-xs text-emerald-400">Conectado</span>
+            </label>
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="phone" value="connected_0">
+              <span class="text-xs text-yellow-400">Pendente</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Templates -->
+      <div class="filter-dropdown relative">
+        <button type="button" onclick="_filterToggleDropdown(this)"
+                class="filter-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs hover:bg-zinc-700 transition-colors">
+          Templates
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-panel hidden absolute top-full left-0 mt-1 z-30 min-w-[180px] rounded-xl border border-zinc-700 bg-zinc-950 shadow-xl p-2">
+          <div class="space-y-0.5">
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="tpl" value="approved">
+              <span class="text-xs text-emerald-400">Tem aprovado</span>
+            </label>
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="tpl" value="paused">
+              <span class="text-xs text-yellow-400">Tem pausado</span>
+            </label>
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="tpl" value="rejected">
+              <span class="text-xs text-red-400">Tem reprovado/desativado</span>
+            </label>
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="tpl" value="pending">
+              <span class="text-xs text-zinc-400">Tem pendente/analisando</span>
+            </label>
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="tpl" value="none">
+              <span class="text-xs text-zinc-500">Sem templates</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Saúde -->
+      <div class="filter-dropdown relative">
+        <button type="button" onclick="_filterToggleDropdown(this)"
+                class="filter-btn flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-xs hover:bg-zinc-700 transition-colors">
+          Saúde
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-zinc-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-panel hidden absolute top-full left-0 mt-1 z-30 min-w-[170px] rounded-xl border border-zinc-700 bg-zinc-950 shadow-xl p-2">
+          <div class="space-y-0.5">
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="health" value="1">
+              <span class="text-xs text-teal-300">Pronta (testada 24h)</span>
+            </label>
+            <label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+              <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="health" value="0">
+              <span class="text-xs text-zinc-400">Não testada</span>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Counter + Clear -->
+      <div class="ml-auto flex items-center gap-2">
+        <span id="filter-counter" class="text-xs text-zinc-500"></span>
+        <span id="filter-active-badge" class="hidden text-xs font-semibold text-indigo-300"></span>
+        <button id="filter-clear-btn" type="button"
+                class="hidden px-2.5 py-1 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-xs text-zinc-300 transition-colors">
+          Limpar
+        </button>
+      </div>
+    </div>
+  </div>
+
   <form method="POST" action="{{ url_for('jobs.start_add_phone') }}" class="mt-4">
     <div class="flex items-center gap-3">
       {% if current_user.balance_cents is not none and current_user.balance_cents < 800 %}
@@ -180,7 +354,20 @@
 
         <tbody class="text-zinc-200">
           {% for row in rows %}
-          <tr class="border-b border-zinc-900 group">
+          <tr class="border-b border-zinc-900 group filter-row"
+              data-status="{{ row.status_label or 'OK' }}"
+              data-travada="{{ '1' if row.ever_had_erro_generic else '0' }}"
+              data-disparou="{{ '1' if row.disparou else '0' }}"
+              data-health="{{ '1' if row.health_ok else '0' }}"
+              data-tier="{{ row.messaging_limit_tier or 'NONE' }}"
+              data-hasphone="{{ '1' if row.phone_numbers else '0' }}"
+              data-phoneconnected="{{ '1' if row.phone_numbers and (row.phone_numbers | selectattr('status','equalto','CONNECTED') | list) else '0' }}"
+              data-tpl-approved="{{ '1' if row.t.get('APPROVED',0) else '0' }}"
+              data-tpl-paused="{{ '1' if row.t.get('PAUSED',0) else '0' }}"
+              data-tpl-rejected="{{ '1' if (row.t.get('REJECTED',0) + row.t.get('DISABLED',0)) else '0' }}"
+              data-tpl-pending="{{ '1' if row.t.get('PENDING',0) else '0' }}"
+              data-tpl-any="{{ '1' if (row.t.get('APPROVED',0)+row.t.get('PAUSED',0)+row.t.get('REJECTED',0)+row.t.get('DISABLED',0)+row.t.get('PENDING',0)+row.t.get('OTHER',0)) else '0' }}"
+              data-search="{{ (row.waba_name ~ ' ' ~ row.waba_id ~ ' ' ~ (row.phone_numbers | map(attribute='display_phone_number') | join(' '))) | lower | e }}">
             <td class="py-3 pr-3">
               <input type="checkbox" name="waba_ids" value="{{ row.waba_id }}"
                      data-waba-name="{{ row.waba_name }}"
@@ -1210,21 +1397,30 @@ function escHtml(str) {
     .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-// ── Select all ───────────────────────────────────────────────────────────────
+// ── Select all (filter-aware) ─────────────────────────────────────────────────
+function syncSelectAll() {
+  const allRows = Array.from(document.querySelectorAll('.filter-row'));
+  const visibleCbs = allRows
+    .filter(r => r.style.display !== 'none')
+    .map(r => r.querySelector('input[name="waba_ids"]'))
+    .filter(Boolean);
+  const checkedCbs = visibleCbs.filter(cb => cb.checked);
+  const hdr = document.getElementById("selectAll");
+  if (hdr) hdr.checked = visibleCbs.length > 0 && visibleCbs.length === checkedCbs.length;
+}
+
 function toggleSelectAll(checked) {
-  document.querySelectorAll('input[name="waba_ids"]').forEach(cb => {
-    cb.checked = checked;
+  document.querySelectorAll('.filter-row').forEach(row => {
+    if (row.style.display !== 'none') {
+      const cb = row.querySelector('input[name="waba_ids"]');
+      if (cb) cb.checked = checked;
+    }
   });
 }
 
 // keep header checkbox in sync when individual checkboxes change
 document.querySelectorAll('input[name="waba_ids"]').forEach(cb => {
-  cb.addEventListener("change", () => {
-    const all  = document.querySelectorAll('input[name="waba_ids"]');
-    const chkd = document.querySelectorAll('input[name="waba_ids"]:checked');
-    const hdr  = document.getElementById("selectAll");
-    if (hdr) hdr.checked = all.length > 0 && all.length === chkd.length;
-  });
+  cb.addEventListener("change", syncSelectAll);
 });
 
 // ── Travar modal ─────────────────────────────────────────────────────────────
@@ -2004,5 +2200,216 @@ async function stopTplJob() {
     </div>
   </div>
 </div>
+
+
+<script>
+// ── Filter engine ─────────────────────────────────────────────────────────────
+(function () {
+  const FILTER_KEY = 'dashboard_filters_v1';
+  let _openPanel = null;
+
+  // Close open panel when clicking outside any dropdown
+  document.addEventListener('click', function (e) {
+    if (!_openPanel) return;
+    if (!_openPanel.closest('.filter-dropdown').contains(e.target)) {
+      _openPanel.classList.add('hidden');
+      _openPanel = null;
+    }
+  }, true);
+
+  function _toggleDropdown(btn) {
+    const dd = btn.closest('.filter-dropdown');
+    const panel = dd.querySelector('.filter-panel');
+    const isOpen = !panel.classList.contains('hidden');
+    if (_openPanel && _openPanel !== panel) {
+      _openPanel.classList.add('hidden');
+    }
+    panel.classList.toggle('hidden', isOpen);
+    _openPanel = isOpen ? null : panel;
+  }
+  window._filterToggleDropdown = _toggleDropdown;
+
+  function _buildDynamic() {
+    const rows = document.querySelectorAll('.filter-row');
+
+    // Status options — sorted by known order, unknowns appended
+    const STATUS_ORDER = ['OK','DESATIVADA','LIMITADA','PROBLEMA CARTÃO','ERRO GENERIC',
+                          'Developers Travado','Erro','PERMANENTE','RESTRITA','ANALISANDO','RETENÇÃO'];
+    const statuses = new Set();
+    rows.forEach(r => statuses.add(r.dataset.status || 'OK'));
+    const statusContainer = document.querySelector('#filter-panel-status .filter-options');
+    if (statusContainer) {
+      const sorted = Array.from(statuses).sort((a, b) => {
+        const ia = STATUS_ORDER.indexOf(a), ib = STATUS_ORDER.indexOf(b);
+        return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+      });
+      statusContainer.innerHTML = sorted.map(s =>
+        `<label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+          <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="status" value="${escHtml(s)}">
+          <span class="text-xs text-zinc-300">${escHtml(s)}</span>
+        </label>`
+      ).join('');
+    }
+
+    // Tier options — sorted: Unlimited first, then by tier value, NONE last
+    const tiers = new Set();
+    rows.forEach(r => tiers.add(r.dataset.tier || 'NONE'));
+    const tierContainer = document.querySelector('#filter-panel-tier .filter-options');
+    if (tierContainer) {
+      const tierLabel = t =>
+        t === 'NONE' ? 'Sem limite' :
+        t === 'TIER_UNLIMITED' ? '∞ Ilimitado' :
+        t.replace('TIER_', '');
+      const sorted = Array.from(tiers).sort((a, b) => {
+        if (a === 'TIER_UNLIMITED') return -1; if (b === 'TIER_UNLIMITED') return 1;
+        if (a === 'NONE') return 1;  if (b === 'NONE') return -1;
+        return a.localeCompare(b);
+      });
+      tierContainer.innerHTML = sorted.map(t =>
+        `<label class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 cursor-pointer">
+          <input type="checkbox" class="filter-cb w-3.5 h-3.5 accent-indigo-500" data-filter="tier" value="${escHtml(t)}">
+          <span class="text-xs text-zinc-300">${escHtml(tierLabel(t))}</span>
+        </label>`
+      ).join('');
+    }
+
+    // Wire change event on ALL filter checkboxes (static + dynamic)
+    document.querySelectorAll('.filter-cb').forEach(cb => {
+      cb.removeEventListener('change', applyFilters);
+      cb.addEventListener('change', applyFilters);
+    });
+
+    // Init counter
+    const counter = document.getElementById('filter-counter');
+    if (counter) counter.textContent = rows.length + ' WABAs';
+  }
+
+  function applyFilters() {
+    // Collect checked values by filter key
+    const active = {};
+    document.querySelectorAll('.filter-cb:checked').forEach(cb => {
+      const k = cb.dataset.filter;
+      if (!active[k]) active[k] = [];
+      active[k].push(cb.value);
+    });
+    const search = (document.getElementById('filter-search')?.value || '').trim().toLowerCase();
+
+    const rows = document.querySelectorAll('.filter-row');
+    let vis = 0;
+
+    rows.forEach(row => {
+      const d = row.dataset;
+      let ok = true;
+
+      if (active.status?.length)
+        ok = ok && active.status.includes(d.status || 'OK');
+
+      if (active.travada?.length)
+        ok = ok && active.travada.includes(d.travada);
+
+      if (active.disparou?.length)
+        ok = ok && active.disparou.includes(d.disparou);
+
+      if (active.health?.length)
+        ok = ok && active.health.includes(d.health);
+
+      if (active.tier?.length)
+        ok = ok && active.tier.includes(d.tier);
+
+      if (active.phone?.length)
+        ok = ok && active.phone.some(v =>
+          v === 'hasphone_1'  ? d.hasphone === '1' :
+          v === 'hasphone_0'  ? d.hasphone === '0' :
+          v === 'connected_1' ? d.phoneconnected === '1' :
+          v === 'connected_0' ? (d.hasphone === '1' && d.phoneconnected === '0') :
+          false
+        );
+
+      if (active.tpl?.length)
+        ok = ok && active.tpl.some(v =>
+          v === 'approved' ? d.tplApproved === '1' :
+          v === 'paused'   ? d.tplPaused   === '1' :
+          v === 'rejected' ? d.tplRejected  === '1' :
+          v === 'pending'  ? d.tplPending   === '1' :
+          v === 'none'     ? d.tplAny       === '0' :
+          false
+        );
+
+      if (search)
+        ok = ok && (d.search || '').includes(search);
+
+      row.style.display = ok ? '' : 'none';
+      if (ok) {
+        vis++;
+      } else {
+        const cb = row.querySelector('input[name="waba_ids"]');
+        if (cb) cb.checked = false;
+      }
+    });
+
+    // Counter
+    const counter = document.getElementById('filter-counter');
+    if (counter) counter.textContent = vis + ' de ' + rows.length + ' WABAs';
+
+    // Active filter badge + clear button
+    const filterN = Object.values(active).reduce((n, a) => n + a.length, 0) + (search ? 1 : 0);
+    const badge = document.getElementById('filter-active-badge');
+    if (badge) {
+      badge.textContent = filterN > 0
+        ? filterN + ' filtro' + (filterN !== 1 ? 's' : '') + ' ativo' + (filterN !== 1 ? 's' : '')
+        : '';
+      badge.classList.toggle('hidden', filterN === 0);
+    }
+    document.getElementById('filter-clear-btn')?.classList.toggle('hidden', filterN === 0);
+
+    // Highlight active dropdown buttons
+    document.querySelectorAll('.filter-dropdown').forEach(dd => {
+      const btn = dd.querySelector('.filter-btn');
+      const hasActive = dd.querySelectorAll('.filter-cb:checked').length > 0;
+      if (!btn) return;
+      btn.classList.toggle('bg-indigo-900/40', hasActive);
+      btn.classList.toggle('border-indigo-600', hasActive);
+      btn.classList.toggle('text-indigo-200',   hasActive);
+      btn.classList.toggle('bg-zinc-800',        !hasActive);
+      btn.classList.toggle('border-zinc-700',    !hasActive);
+      btn.classList.toggle('text-zinc-300',      !hasActive);
+    });
+
+    syncSelectAll();
+    _saveFilters(active, search);
+  }
+  window._filterApply = applyFilters;
+
+  window._filterClear = function () {
+    document.querySelectorAll('.filter-cb').forEach(cb => cb.checked = false);
+    const s = document.getElementById('filter-search');
+    if (s) s.value = '';
+    applyFilters();
+  };
+
+  function _saveFilters(active, search) {
+    try { localStorage.setItem(FILTER_KEY, JSON.stringify({ active, search: search || '' })); } catch (e) {}
+  }
+
+  function _restoreFilters() {
+    let saved;
+    try { saved = JSON.parse(localStorage.getItem(FILTER_KEY) || 'null'); } catch (e) {}
+    if (!saved) return;
+    document.querySelectorAll('.filter-cb').forEach(cb => {
+      const vals = (saved.active || {})[cb.dataset.filter] || [];
+      cb.checked = vals.includes(cb.value);
+    });
+    const s = document.getElementById('filter-search');
+    if (s && saved.search) s.value = saved.search;
+    applyFilters();
+  }
+
+  // Init
+  _buildDynamic();
+  document.getElementById('filter-search')?.addEventListener('input', applyFilters);
+  document.getElementById('filter-clear-btn')?.addEventListener('click', window._filterClear);
+  _restoreFilters();
+})();
+</script>
 
 {% endblock %}
