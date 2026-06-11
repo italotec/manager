@@ -46,13 +46,14 @@ def request_stop(job_id: int) -> bool:
 async def _run_waba(session, sem: asyncio.Semaphore, job_id: int, user_id: int,
                    result_entry: dict, spec: dict, rows: list,
                    phone_col: str, param_map: list) -> None:
+    state = _live_jobs.get(job_id)
+
     if not rows:
         with _jobs_lock:
             result_entry["status"] = "error"
             result_entry["last_message"] = "Lista vazia"
-            s = _live_jobs.get(job_id)
-            if s:
-                s["travadas"] += 1
+            if state:
+                state["travadas"] += 1
         return
 
     waba_id = spec["waba_id"]
@@ -64,9 +65,15 @@ async def _run_waba(session, sem: asyncio.Semaphore, job_id: int, user_id: int,
     waba_flag_state = {}
     travada = asyncio.Event()
 
+    def _stopping() -> bool:
+        # Flag-based stop — reliable even if task cancellation doesn't propagate
+        return state is None or state.get("stop_requested") or travada.is_set()
+
     async def _one(row: dict) -> None:
+        if _stopping():
+            return
         async with sem:
-            if travada.is_set():
+            if _stopping():
                 return
             phone = str(row.get(phone_col, "")).strip()
             if not phone:
@@ -80,28 +87,30 @@ async def _run_waba(session, sem: asyncio.Semaphore, job_id: int, user_id: int,
                 template_name, template_language, params, namespace,
             )
             with _jobs_lock:
-                s = _live_jobs.get(job_id)
-                if s:
+                if state:
                     if success is True:
                         result_entry["sent"] += 1
-                        s["sent"] += 1
+                        state["sent"] += 1
                     elif success is False:
                         result_entry["failed"] += 1
-                        s["failed"] += 1
+                        state["failed"] += 1
                         result_entry["last_message"] = msg or ""
             if success is False and "#135000" in (msg or "") and not travada.is_set():
                 _flag_erro_generic_if_needed(user_id, waba_id, waba_flag_state, msg)
                 travada.set()
 
-    while not travada.is_set():
+    while not _stopping():
         await asyncio.gather(*[_one(row) for row in rows])
 
     with _jobs_lock:
-        result_entry["status"] = "travada"
-        result_entry["last_message"] = "Erro #135000 detectado"
-        s = _live_jobs.get(job_id)
-        if s:
-            s["travadas"] += 1
+        if travada.is_set():
+            result_entry["status"] = "travada"
+            result_entry["last_message"] = "Erro #135000 detectado"
+            if state:
+                state["travadas"] += 1
+        elif result_entry.get("status") == "running":
+            result_entry["status"] = "stopped"
+            result_entry["last_message"] = "Interrompido"
 
 
 async def _main(job_id: int, user_id: int, waba_specs: list,
@@ -134,7 +143,7 @@ async def _main(job_id: int, user_id: int, waba_specs: list,
         with _jobs_lock:
             s = _live_jobs.get(job_id)
             if s and s.get("status") == "running":
-                s["status"] = "done"
+                s["status"] = "stopped" if s.get("stop_requested") else "done"
     except asyncio.CancelledError:
         with _jobs_lock:
             for r in state.get("results", []):

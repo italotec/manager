@@ -1514,6 +1514,16 @@ function openTrarModal() {
 }
 
 function closeTrarModal() {
+  // Stop the running job too — closing the modal must never leave it hammering
+  // WABAs forever in the background.
+  const jid = _trarJobId;
+  if (jid) {
+    try {
+      const url = `/travar/job/${jid}/stop`;
+      if (navigator.sendBeacon) navigator.sendBeacon(url);
+      else fetch(url, { method: "POST", keepalive: true });
+    } catch(e) {}
+  }
   _trarStopPolling();
   const bg = document.getElementById("trarModalBg");
   bg.classList.add("hidden");
