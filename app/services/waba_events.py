@@ -181,9 +181,20 @@ _WEBHOOK_BAD_LABELS = {"PERMANENTE", "RESTRITA", "ANALISANDO"}
 
 # ── RETENÇÃO: payment-restriction failed sends ────────────────────────────────
 
-_RETENCAO_LABEL           = "RETENÇÃO"
-_RETENCAO_OVERWRITABLE    = {"", "OK", "PROBLEMA CARTÃO"}
-_PAYMENT_RESTRICTED_CODES = {131042}
+_RETENCAO_LABEL        = "RETENÇÃO"
+_RETENCAO_OVERWRITABLE = {"", "OK", "PROBLEMA CARTÃO"}
+# Error code 131042 ("Business eligibility payment issue") is shared by several
+# distinct problems (payment restricted, currency not configured, …) — so we must
+# match the human-readable details text, not just the code.
+_PAYMENT_RESTRICTED_CODE   = 131042
+_PAYMENT_RESTRICTED_PHRASE = "payment has been restricted"
+
+
+def _is_payment_restricted(error: dict) -> bool:
+    if not isinstance(error, dict) or error.get("code") != _PAYMENT_RESTRICTED_CODE:
+        return False
+    details = ((error.get("error_data") or {}).get("details") or "").lower()
+    return _PAYMENT_RESTRICTED_PHRASE in details
 
 
 def _set_retencao(waba_id: str) -> None:
@@ -228,7 +239,7 @@ def apply_message_status_event(waba_id: str, status_obj: dict) -> None:
     status_v = (status_obj.get("status") or "").lower()
     if status_v == "failed":
         errors = status_obj.get("errors") or []
-        if any(isinstance(e, dict) and e.get("code") in _PAYMENT_RESTRICTED_CODES for e in errors):
+        if any(_is_payment_restricted(e) for e in errors):
             _set_retencao(waba_id)
     elif status_v in ("sent", "delivered", "read"):
         _clear_retencao(waba_id)
