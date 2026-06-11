@@ -95,6 +95,68 @@ def dashboard():
         job_id=job_id,
     )
 
+@bp.route("/dashboard/analytics", methods=["GET"])
+@login_required
+def dashboard_analytics():
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from ..services.meta import get_waba_analytics
+
+    start_ts = request.args.get("start", type=int)
+    end_ts = request.args.get("end", type=int)
+    if not start_ts or not end_ts:
+        return jsonify({"error": "Parâmetros start e end são obrigatórios."}), 400
+
+    bms = load_user_bms(current_user.id) or {}
+    api_version = current_app.config["META_API_VERSION"]
+
+    wabas_disparadas = 0
+    total_sent = 0
+    total_delivered = 0
+    errors = []
+
+    entries = [(wid, data) for wid, data in bms.items() if isinstance(data, dict)]
+
+    # Count disparadas (local, no API) — disparou_at within [start, end]
+    for _wid, data in entries:
+        snap = data.get("snapshot", {}) or {}
+        d_at = snap.get("disparou_at")
+        if d_at and start_ts <= d_at <= end_ts:
+            wabas_disparadas += 1
+
+    # Fetch sent/delivered in parallel
+    def _fetch(wid, data):
+        token = (data.get("token") or "").strip()
+        if not token:
+            return 0, 0, None
+        analytics, err = get_waba_analytics(api_version, token, wid, start_ts, end_ts)
+        if err:
+            return 0, 0, f"{wid}: {err}"
+        points = (analytics or {}).get("data_points") or []
+        sent = sum(p.get("sent", 0) for p in points)
+        delivered = sum(p.get("delivered", 0) for p in points)
+        return sent, delivered, None
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(_fetch, wid, data): wid for wid, data in entries}
+        for future in as_completed(futures):
+            try:
+                sent, delivered, err = future.result()
+                total_sent += sent
+                total_delivered += delivered
+                if err:
+                    errors.append(err)
+            except Exception as exc:
+                errors.append(f"{futures[future]}: {exc}")
+
+    return jsonify({
+        "wabas_disparadas": wabas_disparadas,
+        "total_sent": total_sent,
+        "total_delivered": total_delivered,
+        "waba_count": len(entries),
+        "errors": errors,
+    })
+
+
 @bp.route("/sync-start", methods=["POST"])
 @login_required
 def sync_start():

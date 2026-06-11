@@ -1,6 +1,60 @@
 {% extends "base.html" %}
 {% block content %}
 
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!--  SUMMARY CARDS                                                           -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-4">
+  <div class="flex items-center justify-between mb-3">
+    <div class="text-sm font-semibold text-zinc-300">Resumo</div>
+    <!-- Date controls -->
+    <div class="flex flex-wrap items-end gap-2">
+      <div>
+        <label class="block text-[10px] text-zinc-500 mb-1">De</label>
+        <input type="date" id="dash-start"
+               class="px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-xs focus:outline-none focus:border-indigo-500">
+      </div>
+      <div>
+        <label class="block text-[10px] text-zinc-500 mb-1">Até</label>
+        <input type="date" id="dash-end"
+               class="px-2.5 py-1.5 rounded-lg bg-zinc-800 border border-zinc-700 text-xs focus:outline-none focus:border-indigo-500">
+      </div>
+      <button type="button" onclick="fetchDashboardAnalytics()"
+              class="px-3 py-1.5 rounded-lg bg-indigo-700 hover:bg-indigo-600 text-xs font-semibold transition-colors">
+        Buscar
+      </button>
+      <!-- Presets -->
+      <div class="flex gap-1">
+        <button type="button" onclick="dashSetPreset('hoje')"   class="px-2 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px]">Hoje</button>
+        <button type="button" onclick="dashSetPreset('ontem')"  class="px-2 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px]">Ontem</button>
+        <button type="button" onclick="dashSetPreset('semana')" class="px-2 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px]">Esta semana</button>
+        <button type="button" onclick="dashSetPreset('mes')"    class="px-2 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px]">Este mês</button>
+        <button type="button" onclick="dashSetPreset('7d')"     class="px-2 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px]">7d</button>
+        <button type="button" onclick="dashSetPreset('30d')"    class="px-2 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-[11px]">30d</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cards -->
+  <div class="grid grid-cols-3 gap-3">
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-center">
+      <div class="text-[10px] text-zinc-500 uppercase tracking-wide">WABAs disparadas</div>
+      <div id="dash-stat-disparadas" class="text-2xl font-bold text-violet-400 mt-1">…</div>
+    </div>
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-center">
+      <div class="text-[10px] text-zinc-500 uppercase tracking-wide">Enviados</div>
+      <div id="dash-stat-sent" class="text-2xl font-bold text-emerald-400 mt-1">…</div>
+    </div>
+    <div class="rounded-xl border border-zinc-800 bg-zinc-900 p-3 text-center">
+      <div class="text-[10px] text-zinc-500 uppercase tracking-wide">Entregues</div>
+      <div id="dash-stat-delivered" class="text-2xl font-bold text-blue-400 mt-1">…</div>
+    </div>
+  </div>
+
+  <!-- Error / partial-failure notice -->
+  <div id="dash-analytics-error" class="hidden mt-3 rounded-lg border border-yellow-700 bg-yellow-950/40 px-3 py-2 text-xs text-yellow-300"></div>
+</div>
+
 <div class="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-4 mb-4">
   <div class="flex items-center justify-between gap-3">
     <div>
@@ -2410,6 +2464,104 @@ async function stopTplJob() {
   document.getElementById('filter-clear-btn')?.addEventListener('click', window._filterClear);
   _restoreFilters();
 })();
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  DASHBOARD SUMMARY ANALYTICS
+// ══════════════════════════════════════════════════════════════════════════════
+
+function _dashDateToUnix(dateStr) {
+  return Math.floor(new Date(dateStr + "T00:00:00Z").getTime() / 1000);
+}
+
+function _dashISODate(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+function dashSetPreset(kind) {
+  const today = new Date();
+  const todayStr = _dashISODate(today);
+  let startStr = todayStr;
+
+  if (kind === 'hoje') {
+    startStr = todayStr;
+  } else if (kind === 'ontem') {
+    const y = new Date(today); y.setUTCDate(today.getUTCDate() - 1);
+    startStr = _dashISODate(y);
+    document.getElementById('dash-end').value = startStr;
+    document.getElementById('dash-start').value = startStr;
+    fetchDashboardAnalytics();
+    return;
+  } else if (kind === 'semana') {
+    // Monday of current week
+    const mon = new Date(today);
+    const day = mon.getUTCDay() || 7; // Sunday=0→7
+    mon.setUTCDate(mon.getUTCDate() - day + 1);
+    startStr = _dashISODate(mon);
+  } else if (kind === 'mes') {
+    startStr = `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, '0')}-01`;
+  } else if (kind === '7d') {
+    const s = new Date(today); s.setUTCDate(today.getUTCDate() - 6);
+    startStr = _dashISODate(s);
+  } else if (kind === '30d') {
+    const s = new Date(today); s.setUTCDate(today.getUTCDate() - 29);
+    startStr = _dashISODate(s);
+  }
+
+  document.getElementById('dash-start').value = startStr;
+  document.getElementById('dash-end').value   = todayStr;
+  fetchDashboardAnalytics();
+}
+
+async function fetchDashboardAnalytics() {
+  const startVal = document.getElementById('dash-start').value;
+  const endVal   = document.getElementById('dash-end').value;
+  if (!startVal || !endVal) return;
+
+  const startTs = _dashDateToUnix(startVal);
+  const endTs   = _dashDateToUnix(endVal) + 86399;
+
+  // Show spinners
+  ['dash-stat-disparadas', 'dash-stat-sent', 'dash-stat-delivered'].forEach(id => {
+    document.getElementById(id).textContent = '…';
+  });
+  document.getElementById('dash-analytics-error').classList.add('hidden');
+
+  try {
+    const r = await fetch(`/dashboard/analytics?start=${startTs}&end=${endTs}`);
+    const j = await r.json();
+
+    if (!r.ok || j.error) {
+      ['dash-stat-disparadas', 'dash-stat-sent', 'dash-stat-delivered'].forEach(id => {
+        document.getElementById(id).textContent = '—';
+      });
+      const errEl = document.getElementById('dash-analytics-error');
+      errEl.textContent = j.error || `Erro HTTP ${r.status}`;
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    const fmt = n => (n || 0).toLocaleString('pt-BR');
+    document.getElementById('dash-stat-disparadas').textContent = fmt(j.wabas_disparadas);
+    document.getElementById('dash-stat-sent').textContent       = fmt(j.total_sent);
+    document.getElementById('dash-stat-delivered').textContent  = fmt(j.total_delivered);
+
+    if (j.errors && j.errors.length) {
+      const errEl = document.getElementById('dash-analytics-error');
+      errEl.textContent = `${j.errors.length} WABA(s) com erro ao buscar analytics: ${j.errors.slice(0, 3).join('; ')}${j.errors.length > 3 ? '…' : ''}`;
+      errEl.classList.remove('hidden');
+    }
+  } catch (e) {
+    ['dash-stat-disparadas', 'dash-stat-sent', 'dash-stat-delivered'].forEach(id => {
+      document.getElementById(id).textContent = '—';
+    });
+    const errEl = document.getElementById('dash-analytics-error');
+    errEl.textContent = 'Erro de rede: ' + String(e);
+    errEl.classList.remove('hidden');
+  }
+}
+
+// Auto-load on page open with "Hoje" preset
+document.addEventListener('DOMContentLoaded', () => dashSetPreset('hoje'));
 </script>
 
 {% endblock %}
