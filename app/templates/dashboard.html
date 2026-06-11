@@ -497,68 +497,99 @@
       <button onclick="closeTrarModal()" class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">Fechar</button>
     </div>
 
-    {# selected WABAs display #}
+    {# selected WABAs display — always visible #}
     <div class="mb-4 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800">
       <div class="text-xs text-zinc-500 mb-1">WABAs selecionadas</div>
       <div id="trarWabaList" class="flex flex-wrap gap-1.5 text-xs"></div>
     </div>
 
-    <div class="space-y-4">
+    {# ── Form section ── #}
+    <div id="trarFormSection">
+      <div class="space-y-4">
 
-      {# CSV file #}
-      <div>
-        <div class="flex items-center justify-between mb-1">
-          <label class="text-xs text-zinc-400">Lista (CSV)</label>
-          <button type="button" onclick="trarLoadCsvList()"
-                  class="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs">
-            ↺ Atualizar lista
-          </button>
+        {# CSV file #}
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-xs text-zinc-400">Lista (CSV)</label>
+            <button type="button" onclick="trarLoadCsvList()"
+                    class="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs">
+              ↺ Atualizar lista
+            </button>
+          </div>
+          <select id="trarCsvSelect" onchange="trarLoadCsvColumns(this.value)"
+                  class="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800 outline-none focus:border-zinc-600 text-sm">
+            <option value="">— selecione o CSV —</option>
+          </select>
         </div>
-        <select id="trarCsvSelect" onchange="trarLoadCsvColumns(this.value)"
-                class="w-full px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800 outline-none focus:border-zinc-600 text-sm">
-          <option value="">— selecione o CSV —</option>
-        </select>
+
+        {# Phone column #}
+        <div>
+          <label class="text-xs text-zinc-400">Coluna do telefone</label>
+          <select id="trarPhoneCol"
+                  class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800 outline-none focus:border-zinc-600 text-sm">
+            <option value="">— selecione o CSV primeiro —</option>
+          </select>
+        </div>
+
+        {# Params #}
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <label class="text-xs text-zinc-400">Parâmetros do template</label>
+            <button type="button" onclick="trarAddParam()"
+                    class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold">
+              + Adicionar
+            </button>
+          </div>
+          <div id="trarParamRows" class="space-y-2">
+            {# injected by JS #}
+          </div>
+          <p class="text-xs text-zinc-600 mt-1">Nome do param → coluna do CSV</p>
+        </div>
+
       </div>
 
-      {# Phone column #}
-      <div>
-        <label class="text-xs text-zinc-400">Coluna do telefone</label>
-        <select id="trarPhoneCol"
-                class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-900 border border-zinc-800 outline-none focus:border-zinc-600 text-sm">
-          <option value="">— selecione o CSV primeiro —</option>
-        </select>
+      {# result area #}
+      <div id="trarResult" class="hidden mt-4 px-4 py-3 rounded-xl border text-sm"></div>
+
+      <div class="flex items-center justify-end gap-3 mt-5">
+        <button onclick="closeTrarModal()"
+                class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">
+          Cancelar
+        </button>
+        <button id="trarBtnSubmit" onclick="submitTrar()"
+                class="px-5 py-2 rounded-xl bg-violet-700 hover:bg-violet-600 text-sm font-semibold">
+          Travar
+        </button>
+      </div>
+    </div>
+
+    {# ── Progress section ── #}
+    <div id="trarProgressSection" class="hidden">
+
+      {# big counter #}
+      <div class="flex flex-col items-center py-6">
+        <div class="text-5xl font-bold text-violet-300 tracking-tight" id="trarProgressCount">0 / 0</div>
+        <div class="text-sm text-zinc-400 mt-2" id="trarProgressStatus">Iniciando…</div>
+        <div class="text-xs text-zinc-600 mt-1" id="trarProgressTotals"></div>
       </div>
 
-      {# Params #}
-      <div>
-        <div class="flex items-center justify-between mb-2">
-          <label class="text-xs text-zinc-400">Parâmetros do template</label>
-          <button type="button" onclick="trarAddParam()"
-                  class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold">
-            + Adicionar
-          </button>
-        </div>
-        <div id="trarParamRows" class="space-y-2">
-          {# injected by JS #}
-        </div>
-        <p class="text-xs text-zinc-600 mt-1">Nome do param → coluna do CSV</p>
+      {# per-WABA list #}
+      <div id="trarProgressList" class="space-y-2 max-h-64 overflow-y-auto"></div>
+
+      {# action buttons #}
+      <div class="flex items-center justify-end gap-3 mt-5">
+        <button onclick="closeTrarModal()"
+                class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">
+          Fechar
+        </button>
+        <button id="trarBtnStop" onclick="stopTrar()"
+                class="px-5 py-2 rounded-xl bg-red-800 hover:bg-red-700 text-sm font-semibold">
+          Parar
+        </button>
       </div>
 
     </div>
 
-    {# result area #}
-    <div id="trarResult" class="hidden mt-4 px-4 py-3 rounded-xl border text-sm"></div>
-
-    <div class="flex items-center justify-end gap-3 mt-5">
-      <button onclick="closeTrarModal()"
-              class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">
-        Cancelar
-      </button>
-      <button id="trarBtnSubmit" onclick="submitTrar()"
-              class="px-5 py-2 rounded-xl bg-violet-700 hover:bg-violet-600 text-sm font-semibold">
-        Disparar para todas
-      </button>
-    </div>
   </div>
 </div>
 
@@ -1198,6 +1229,8 @@ document.querySelectorAll('input[name="waba_ids"]').forEach(cb => {
 let _trarWabaIds   = [];
 let _trarCsvCols   = [];
 let _trarParamRowN = 0;
+let _trarJobId     = null;
+let _trarPollTimer = null;
 
 function openTrarModal() {
   const checks = Array.from(document.querySelectorAll('input[name="waba_ids"]:checked'));
@@ -1229,10 +1262,17 @@ function openTrarModal() {
 }
 
 function closeTrarModal() {
+  _trarStopPolling();
   const bg = document.getElementById("trarModalBg");
   bg.classList.add("hidden");
   bg.classList.remove("flex");
   _trarWabaIds = [];
+  // reset panels
+  document.getElementById("trarFormSection").classList.remove("hidden");
+  document.getElementById("trarProgressSection").classList.add("hidden");
+  const btn = document.getElementById("trarBtnSubmit");
+  btn.disabled = false;
+  btn.textContent = "Travar";
 }
 
 document.getElementById("trarModalBg")?.addEventListener("click", (e) => {
@@ -1345,48 +1385,132 @@ async function submitTrar() {
       resultBox.className = "mt-4 px-4 py-3 rounded-xl border text-sm bg-red-950/40 border-red-800 text-red-300";
       resultBox.textContent = "Erro: " + data.error;
       resultBox.classList.remove("hidden");
+      btn.disabled = false;
+      btn.textContent = "Travar";
       return;
     }
 
-    const jobs   = data.job_ids || [];
-    const errors = data.errors  || [];
+    const jobId  = data.job_id;
+    const wabas  = data.wabas  || [];
+    const errors = data.errors || [];
 
-    let html = "";
-    if (jobs.length) {
-      html += `<div class="text-emerald-300 font-semibold mb-2">${jobs.length} job(s) iniciado(s):</div>`;
-      html += `<div class="space-y-1">` + jobs.map(j =>
-        `<div class="flex items-center gap-2 text-xs font-mono">
-          <span class="text-zinc-400">WABA ${escHtml(j.waba_id)}</span>
-          <span class="text-zinc-600">→</span>
-          <span class="text-indigo-300">${escHtml(j.template)}</span>
-          <span class="text-zinc-600 text-[10px]">[${escHtml(j.language)}]</span>
-          <span class="text-zinc-500 ml-auto">Job #${j.job_id}</span>
-        </div>`
-      ).join("") + `</div>`;
-    }
-    if (errors.length) {
-      html += `<div class="text-red-300 font-semibold mt-3 mb-1">Erros:</div>`;
-      html += errors.map(e => `<div class="text-xs text-red-400">${escHtml(e)}</div>`).join("");
-    }
-    if (jobs.length) {
-      html += `<div class="mt-3 text-xs text-zinc-500">Acompanhe o progresso na página <a href="/disparar" class="text-indigo-400 hover:underline">Disparar</a>.</div>`;
+    if (!jobId) {
+      // no job started — show errors only
+      resultBox.className = "mt-4 px-4 py-3 rounded-xl border text-sm bg-red-950/40 border-red-800 text-red-300";
+      resultBox.innerHTML = errors.map(e => `<div>${escHtml(e)}</div>`).join("") || "Nenhuma WABA pôde ser travada.";
+      resultBox.classList.remove("hidden");
+      btn.disabled = false;
+      btn.textContent = "Travar";
+      return;
     }
 
-    resultBox.className = "mt-4 px-4 py-3 rounded-xl border text-sm " +
-      (errors.length && !jobs.length
-        ? "bg-red-950/40 border-red-800"
-        : "bg-emerald-950/30 border-emerald-800/50");
-    resultBox.innerHTML = html;
-    resultBox.classList.remove("hidden");
+    // switch to progress panel
+    document.getElementById("trarFormSection").classList.add("hidden");
+    const prog = document.getElementById("trarProgressSection");
+    prog.classList.remove("hidden");
+
+    // seed initial state
+    _trarRenderProgress({
+      job_id: jobId,
+      status: "running",
+      total: wabas.length,
+      travadas: 0,
+      sent: 0,
+      failed: 0,
+      results: wabas.map(w => ({...w, status: "running", sent: 0, failed: 0, last_message: ""})),
+    });
+
+    _trarStartPolling(jobId);
 
   } catch(e) {
     resultBox.className = "mt-4 px-4 py-3 rounded-xl border text-sm bg-red-950/40 border-red-800 text-red-300";
     resultBox.textContent = "Erro de rede: " + e;
     resultBox.classList.remove("hidden");
-  } finally {
     btn.disabled = false;
-    btn.textContent = "Disparar para todas";
+    btn.textContent = "Travar";
   }
+}
+
+// ── Travar polling ────────────────────────────────────────────────────────────
+
+function _trarStartPolling(jobId) {
+  _trarJobId = jobId;
+  if (_trarPollTimer) clearInterval(_trarPollTimer);
+  _trarPollTimer = setInterval(_trarPoll, 1500);
+  _trarPoll();
+}
+
+function _trarStopPolling() {
+  if (_trarPollTimer) { clearInterval(_trarPollTimer); _trarPollTimer = null; }
+  _trarJobId = null;
+}
+
+async function _trarPoll() {
+  if (!_trarJobId) return;
+  try {
+    const res = await fetch(`/travar/job/${_trarJobId}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    _trarRenderProgress(data);
+    if (data.status === "done" || data.status === "stopped") {
+      _trarStopPolling();
+    }
+  } catch(e) {}
+}
+
+function _trarRenderProgress(data) {
+  document.getElementById("trarProgressCount").textContent =
+    `${data.travadas ?? 0} / ${data.total ?? 0}`;
+
+  const statusMap = {
+    running: `Enviando… ${data.sent ?? 0} enviados, ${data.failed ?? 0} falhas`,
+    done:    "Todas as WABAs foram travadas!",
+    stopped: "Interrompido pelo usuário",
+  };
+  document.getElementById("trarProgressStatus").textContent =
+    statusMap[data.status] || data.status;
+
+  const stopBtn = document.getElementById("trarBtnStop");
+  const isDone = data.status === "done" || data.status === "stopped";
+  stopBtn.classList.toggle("hidden", isDone);
+  stopBtn.disabled = false;
+  stopBtn.textContent = "Parar";
+
+  const badgeCls = {
+    running: "bg-zinc-700 text-zinc-300",
+    travada: "bg-emerald-900/60 border border-emerald-700/60 text-emerald-300",
+    stopped: "bg-zinc-700 text-zinc-500",
+    error:   "bg-red-900/60 text-red-300",
+  };
+  const badgeLbl = {running: "enviando", travada: "travada ✓", stopped: "parado", error: "erro"};
+
+  const list = document.getElementById("trarProgressList");
+  list.innerHTML = (data.results || []).map(r => {
+    const cls = badgeCls[r.status] || badgeCls.running;
+    const lbl = badgeLbl[r.status] || r.status;
+    return `
+      <div class="flex items-center gap-2 px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800">
+        <div class="flex-1 min-w-0">
+          <div class="text-sm font-mono truncate">${escHtml(r.waba_name || r.waba_id)}</div>
+          <div class="text-xs text-zinc-500 truncate">${escHtml(r.template || "")}</div>
+        </div>
+        <span class="px-2 py-0.5 rounded-lg text-xs font-semibold shrink-0 ${cls}">${lbl}</span>
+        <div class="text-xs text-zinc-600 text-right shrink-0 tabular-nums">
+          <div>${r.sent ?? 0} env.</div>
+          <div>${r.failed ?? 0} falhas</div>
+        </div>
+      </div>`;
+  }).join("");
+}
+
+async function stopTrar() {
+  if (!_trarJobId) return;
+  const btn = document.getElementById("trarBtnStop");
+  btn.disabled = true;
+  btn.textContent = "Parando…";
+  try {
+    await fetch(`/travar/job/${_trarJobId}/stop`, { method: "POST" });
+  } catch(e) {}
 }
 
 // ── Register phones modal ─────────────────────────────────────────────────────

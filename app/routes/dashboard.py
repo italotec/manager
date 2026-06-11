@@ -209,7 +209,8 @@ def save_remarks(waba_id):
 def travar_start():
     import random
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    from ..services.disparar_service import start_disparo_job, csvs_dir
+    from ..services.disparar_service import csvs_dir, _read_rows
+    from ..services.travar_service import start_travar_job
 
     data = request.get_json(silent=True) or {}
     waba_ids     = data.get("waba_ids") or []
@@ -226,18 +227,18 @@ def travar_start():
 
     api_version = current_app.config["META_API_VERSION"]
     bms = load_user_bms(current_user.id)
-    app_obj = current_app._get_current_object()
     user_id = current_user.id
 
     # Phase 1: fetch templates from Meta in parallel (pure HTTP, no DB writes)
     def _fetch_templates(waba_id):
         entry = bms.get(str(waba_id))
         if not isinstance(entry, dict):
-            return waba_id, None, None, None, f"{waba_id}: não encontrado no bms.json"
+            return waba_id, None, None, None, None, f"{waba_id}: não encontrado no bms.json"
 
         token = (entry.get("token") or "").strip()
         snap  = entry.get("snapshot", {}) or {}
         phone_numbers = snap.get("phone_numbers") or []
+        waba_name = snap.get("name") or entry.get("name") or str(waba_id)
 
         phone_number_id = ""
         if phone_numbers:
@@ -246,31 +247,30 @@ def travar_start():
             phone_number_id = (entry.get("phone_number_id") or "").strip()
 
         if not token:
-            return waba_id, None, None, None, f"{waba_id}: token vazio"
+            return waba_id, None, None, None, None, f"{waba_id}: token vazio"
         if not phone_number_id:
-            return waba_id, None, None, None, f"{waba_id}: sem phone_number_id (sincronize o dashboard)"
+            return waba_id, None, None, None, None, f"{waba_id}: sem phone_number_id (sincronize o dashboard)"
 
         try:
             templates, err_tpl = get_templates(api_version, token, waba_id)
         except Exception as exc:
-            return waba_id, None, None, None, f"{waba_id}: erro ao buscar templates — {exc}"
+            return waba_id, None, None, None, None, f"{waba_id}: erro ao buscar templates — {exc}"
 
         if err_tpl or not templates:
-            return waba_id, None, None, None, f"{waba_id}: erro ao buscar templates — {err_tpl or 'lista vazia'}"
+            return waba_id, None, None, None, None, f"{waba_id}: erro ao buscar templates — {err_tpl or 'lista vazia'}"
 
         approved = [t for t in templates if t.get("status") == "APPROVED"]
         if not approved:
-            return waba_id, None, None, None, f"{waba_id}: nenhum template APPROVED disponível"
+            return waba_id, None, None, None, None, f"{waba_id}: nenhum template APPROVED disponível"
 
         chosen = random.choice(approved)
-        return waba_id, phone_number_id, token, chosen, None
+        return waba_id, phone_number_id, token, chosen, waba_name, None
 
-    job_ids = []
-    errors  = []
+    errors = []
+    fetch_results = []
 
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = {executor.submit(_fetch_templates, wid): wid for wid in waba_ids}
-        fetch_results = []
         for future in as_completed(futures):
             try:
                 fetch_results.append(future.result())
@@ -278,33 +278,58 @@ def travar_start():
                 wid = futures[future]
                 errors.append(f"{wid}: erro interno — {exc}")
 
-    # Phase 2: start jobs sequentially (serializes SQLite writes, no contention)
-    for waba_id, phone_number_id, token, chosen, err in fetch_results:
+    # Phase 2: build waba_specs and read CSV rows once (no sent_log filtering)
+    waba_specs = []
+    for waba_id, phone_number_id, token, chosen, waba_name, err in fetch_results:
         if err:
             errors.append(err)
             continue
-        template_name     = chosen.get("name", "")
-        template_language = chosen.get("language", "pt")
-        try:
-            job_id = start_disparo_job(
-                app_obj,
-                user_id,
-                csv_filename,
-                phone_col,
-                phone_number_id,
-                token,
-                template_name,
-                template_language,
-                param_map,
-                1,
-                False,
-                waba_id,
-            )
-            job_ids.append({"waba_id": waba_id, "job_id": job_id, "template": template_name, "language": template_language})
-        except Exception as exc:
-            errors.append(f"{waba_id}: erro ao iniciar job — {exc}")
+        waba_specs.append({
+            "waba_id": waba_id,
+            "waba_name": waba_name or str(waba_id),
+            "phone_number_id": phone_number_id,
+            "token": token,
+            "template_name": chosen.get("name", ""),
+            "template_language": chosen.get("language", "pt"),
+        })
 
-    return jsonify({"job_ids": job_ids, "errors": errors})
+    if not waba_specs:
+        return jsonify({"job_id": None, "wabas": [], "errors": errors}), 400
+
+    try:
+        rows = _read_rows(csv_path)
+    except Exception as exc:
+        return jsonify({"error": f"Erro ao ler CSV: {exc}"}), 500
+
+    if not rows:
+        return jsonify({"error": "O CSV está vazio ou sem linhas de dados."}), 400
+
+    job_id = start_travar_job(user_id, waba_specs, rows, phone_col, param_map)
+
+    wabas_out = [
+        {"waba_id": s["waba_id"], "waba_name": s["waba_name"],
+         "template": s["template_name"], "language": s["template_language"]}
+        for s in waba_specs
+    ]
+    return jsonify({"job_id": job_id, "wabas": wabas_out, "errors": errors})
+
+
+@bp.route("/travar/job/<int:job_id>")
+@login_required
+def travar_job_status(job_id: int):
+    from ..services.travar_service import get_job
+    state = get_job(job_id)
+    if state is None:
+        return jsonify({"error": "Job não encontrado"}), 404
+    return jsonify(state)
+
+
+@bp.route("/travar/job/<int:job_id>/stop", methods=["POST"])
+@login_required
+def travar_job_stop(job_id: int):
+    from ..services.travar_service import request_stop
+    request_stop(job_id)
+    return jsonify({"ok": True})
 
 
 @bp.route("/delete-wabas", methods=["POST"])
