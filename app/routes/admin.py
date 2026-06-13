@@ -209,11 +209,23 @@ def webhook_logs_clear():
 
 # ── Proxy management ──────────────────────────────────────────────────────────
 
+_SMS_KEYS = ["sms_provider", "sms24h_api_key", "hero_sms_api_key", "hero_sms_price_usd"]
+
+
 @bp.route("/proxies")
 @login_required
 def proxies():
     all_proxies = Proxy.query.order_by(Proxy.created_at.asc()).all()
-    return render_template("admin_proxies.html", title="Admin • Proxies", proxies=all_proxies)
+    sms_cfg = {}
+    for key in _SMS_KEYS:
+        row = db.session.get(AppSetting, key)
+        sms_cfg[key] = row.value if row else ""
+    if not sms_cfg["sms_provider"]:
+        sms_cfg["sms_provider"] = "sms24h"
+    if not sms_cfg["hero_sms_price_usd"]:
+        sms_cfg["hero_sms_price_usd"] = "0.8225"
+    return render_template("admin_proxies.html", title="Admin • Proxies",
+                           proxies=all_proxies, sms_cfg=sms_cfg)
 
 
 @bp.route("/proxies/add", methods=["POST"])
@@ -268,6 +280,57 @@ def proxy_test(proxy_id: int):
         return jsonify({"ok": True, "ip": data.get("ip", "?")})
     except Exception as exc:
         return jsonify({"ok": False, "error": str(exc)[:200]})
+
+
+# ── SMS provider config ───────────────────────────────────────────────────────
+
+@bp.route("/sms-provider", methods=["POST"])
+@login_required
+def sms_provider_save():
+    provider = (request.form.get("sms_provider") or "sms24h").strip()
+    if provider not in ("sms24h", "hero_sms"):
+        provider = "sms24h"
+    values = {
+        "sms_provider": provider,
+        "sms24h_api_key": (request.form.get("sms24h_api_key") or "").strip(),
+        "hero_sms_api_key": (request.form.get("hero_sms_api_key") or "").strip(),
+        "hero_sms_price_usd": (request.form.get("hero_sms_price_usd") or "0.8225").strip(),
+    }
+    for key, value in values.items():
+        row = db.session.get(AppSetting, key)
+        if row:
+            row.value = value
+        else:
+            db.session.add(AppSetting(key=key, value=value))
+    db.session.commit()
+    flash(f"Provedor SMS salvo: {'HeroSMS' if provider == 'hero_sms' else 'SMS24H'}.", "success")
+    return redirect(url_for("admin.proxies"))
+
+
+@bp.route("/sms-balance", methods=["POST"])
+@login_required
+def sms_balance():
+    from ..services.sms24h import _session_with_proxy
+    sel = db.session.get(AppSetting, "sms_provider")
+    provider = (sel.value if sel else "") or "sms24h"
+    if provider == "hero_sms":
+        key_row = db.session.get(AppSetting, "hero_sms_api_key")
+        from flask import current_app
+        api_key = (key_row.value if key_row else "") or current_app.config.get("HERO_SMS_API_KEY", "")
+        base_url = current_app.config["HERO_SMS_BASE_URL"]
+        label = "HeroSMS"
+    else:
+        key_row = db.session.get(AppSetting, "sms24h_api_key")
+        from flask import current_app
+        api_key = (key_row.value if key_row else "") or current_app.config.get("SMS24H_API_KEY", "")
+        base_url = current_app.config["SMS24H_BASE_URL"]
+        label = "SMS24H"
+    try:
+        s = _session_with_proxy(None)
+        r = s.get(base_url, params={"api_key": api_key, "action": "getBalance"}, timeout=10)
+        return jsonify({"ok": True, "label": label, "raw": r.text.strip()})
+    except Exception as exc:
+        return jsonify({"ok": False, "label": label, "error": str(exc)[:200]})
 
 
 # ── Listas webhook config ─────────────────────────────────────────────────────

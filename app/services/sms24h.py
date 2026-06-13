@@ -1,3 +1,5 @@
+# SMS-Activate protocol client — used by both SMS24H and HeroSMS providers.
+# All functions accept base_url + api_key so they are provider-generic.
 import requests
 
 def _session_with_proxy(proxy_url: str | None):
@@ -8,6 +10,7 @@ def _session_with_proxy(proxy_url: str | None):
     return s
 
 def sms24h_get_number(api_key: str, base_url: str, service: str, country: str, operator: str, proxy_str: str | None):
+    """Returns (activation_id, full_phone, raw_response). activation_id is None on failure."""
     s = _session_with_proxy(proxy_str)
     params = {"api_key": api_key, "action": "getNumber", "service": service, "country": country}
     if operator and operator.strip():
@@ -20,8 +23,8 @@ def sms24h_get_number(api_key: str, base_url: str, service: str, country: str, o
         # ACCESS_NUMBER:activation_id:full_phone
         parts = text.split(":")
         if len(parts) >= 3:
-            return parts[1], parts[2]
-    return None, None
+            return parts[1], parts[2], text
+    return None, None, text
 
 def sms24h_get_status(api_key: str, base_url: str, activation_id: str, proxy_str: str | None) -> str:
     s = _session_with_proxy(proxy_str)

@@ -332,6 +332,21 @@ def _session_with_proxy(proxy_url: str | None):
         s.proxies.update({"http": proxy_url, "https": proxy_url})
     return s
 
+def delete_phone_number(api_version: str, token: str, phone_id: str, proxy_str: str | None = None):
+    """DELETE a phone number from its WABA. Returns (ok: bool, err: str | None)."""
+    s = _session_with_proxy(proxy_str)
+    url = f"https://graph.facebook.com/{api_version}/{phone_id}"
+    try:
+        r = s.delete(url, headers=_auth_headers(token), timeout=30)
+        j = r.json() if r.text else {}
+        if r.status_code == 200 and (j.get("success") or j == {}):
+            return True, None
+        err = j.get("error", {}) if isinstance(j, dict) else {}
+        return False, err.get("message") or f"HTTP {r.status_code}: {(r.text or '')[:300]}"
+    except Exception as e:
+        return False, str(e)[:400]
+
+
 def add_phone_number(api_version: str, token: str, waba_id: str, cc: str, local_number: str, verified_name: str, proxy_str: str | None):
     s = _session_with_proxy(proxy_str)
     url = f"https://graph.facebook.com/{api_version}/{waba_id}/phone_numbers"

@@ -2,13 +2,27 @@
 {% block content %}
 <div class="flex items-start justify-between gap-4 mb-6">
   <div>
-    <h1 class="text-2xl font-semibold">Admin • Proxies</h1>
-    <p class="text-sm text-zinc-400">Proxies usados na função de adicionar número de telefone.</p>
+    <h1 class="text-2xl font-semibold">Admin · Proxies & SMS</h1>
+    <p class="text-sm text-zinc-400">Provedor de SMS/OTP e proxies usados na função de adicionar número.</p>
   </div>
-  <a href="{{ url_for('admin.admin_users') }}"
-     class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors shrink-0">
-    ← Usuários
-  </a>
+  <div class="flex gap-2 flex-wrap justify-end">
+    <a href="{{ url_for('admin.admin_users') }}"
+       class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors shrink-0">
+      Usuários
+    </a>
+    <a href="{{ url_for('admin.card_config') }}"
+       class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors shrink-0">
+      Cartões Config
+    </a>
+    <a href="{{ url_for('admin.listas_config') }}"
+       class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors shrink-0">
+      Listas Config
+    </a>
+    <a href="{{ url_for('admin.webhook_logs') }}"
+       class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors shrink-0">
+      Webhook Logs
+    </a>
+  </div>
 </div>
 
 {% with msgs = get_flashed_messages(with_categories=true) %}
@@ -20,6 +34,85 @@
     </div>
   {% endfor %}
 {% endwith %}
+
+{# ── SMS / OTP Provider ── #}
+<div class="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-6 mb-6">
+  <h2 class="font-semibold mb-1">Provedor de SMS / OTP</h2>
+  <p class="text-xs text-zinc-500 mb-4">
+    Selecione qual serviço comprar números virtuais para receber OTP do WhatsApp.
+    Ambos usam o mesmo protocolo SMS-Activate — troca instantânea sem reiniciar.
+  </p>
+
+  <form method="POST" action="{{ url_for('admin.sms_provider_save') }}" class="space-y-5">
+    {# Provider selector #}
+    <div class="flex gap-4">
+      <label class="flex items-center gap-3 cursor-pointer group">
+        <input type="radio" name="sms_provider" value="sms24h"
+               {% if sms_cfg.sms_provider != 'hero_sms' %}checked{% endif %}
+               class="accent-indigo-500 w-4 h-4" onchange="toggleProviderFields()">
+        <div>
+          <div class="text-sm font-medium group-hover:text-zinc-100 transition-colors">SMS24H</div>
+          <div class="text-xs text-zinc-500">api.sms24h.org</div>
+        </div>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer group">
+        <input type="radio" name="sms_provider" value="hero_sms"
+               {% if sms_cfg.sms_provider == 'hero_sms' %}checked{% endif %}
+               class="accent-indigo-500 w-4 h-4" onchange="toggleProviderFields()">
+        <div>
+          <div class="text-sm font-medium group-hover:text-zinc-100 transition-colors">HeroSMS</div>
+          <div class="text-xs text-zinc-500">hero-sms.com · custo fixo $0.8225/número</div>
+        </div>
+      </label>
+    </div>
+
+    {# SMS24H fields #}
+    <div id="fields-sms24h" class="grid md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">API Key — SMS24H</label>
+        <input type="text" name="sms24h_api_key"
+               value="{{ sms_cfg.sms24h_api_key }}"
+               placeholder="chave da API SMS24H"
+               class="w-full rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono px-3 py-2
+                      text-zinc-200 focus:outline-none focus:border-indigo-500">
+        <div class="text-xs text-zinc-600 mt-1">Deixe vazio para usar a chave padrão do config.</div>
+      </div>
+    </div>
+
+    {# HeroSMS fields #}
+    <div id="fields-hero_sms" class="grid md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">API Key — HeroSMS</label>
+        <input type="text" name="hero_sms_api_key"
+               value="{{ sms_cfg.hero_sms_api_key }}"
+               placeholder="chave da API HeroSMS"
+               class="w-full rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono px-3 py-2
+                      text-zinc-200 focus:outline-none focus:border-indigo-500">
+      </div>
+      <div>
+        <label class="block text-xs text-zinc-400 mb-1">Custo por número (USD)</label>
+        <input type="text" name="hero_sms_price_usd"
+               value="{{ sms_cfg.hero_sms_price_usd or '0.8225' }}"
+               placeholder="0.8225"
+               class="w-full rounded-xl bg-zinc-950 border border-zinc-800 text-sm font-mono px-3 py-2
+                      text-zinc-200 focus:outline-none focus:border-indigo-500">
+        <div class="text-xs text-zinc-600 mt-1">Apenas para registro (não afeta cobrança do usuário).</div>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button type="submit"
+              class="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-medium transition-colors">
+        Salvar provedor
+      </button>
+      <button type="button" onclick="checkBalance()"
+              class="px-4 py-2 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-sm transition-colors">
+        Verificar saldo
+      </button>
+      <span id="balance-result" class="text-sm font-mono text-zinc-400"></span>
+    </div>
+  </form>
+</div>
 
 {# Add proxy form #}
 <div class="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-6 mb-6">
@@ -116,13 +209,41 @@
 </div>
 
 <script>
+function toggleProviderFields() {
+  const selected = document.querySelector('input[name="sms_provider"]:checked').value;
+  document.getElementById('fields-sms24h').style.display  = selected === 'sms24h'   ? '' : 'none';
+  document.getElementById('fields-hero_sms').style.display = selected === 'hero_sms' ? '' : 'none';
+}
+toggleProviderFields();
+
+async function checkBalance() {
+  const el = document.getElementById('balance-result');
+  el.textContent = 'Consultando…';
+  el.className = 'text-sm font-mono text-zinc-400';
+  try {
+    const res = await fetch('/admin/sms-balance', { method: 'POST' });
+    const data = await res.json();
+    if (data.ok) {
+      const match = data.raw.match(/ACCESS_BALANCE:([\d.]+)/);
+      const bal = match ? match[1] : data.raw;
+      el.textContent = `${data.label}: ${bal}`;
+      el.className = 'text-sm font-mono text-emerald-400';
+    } else {
+      el.textContent = `${data.label}: erro — ${data.error}`;
+      el.className = 'text-sm font-mono text-red-400';
+    }
+  } catch (e) {
+    el.textContent = 'Erro de rede';
+    el.className = 'text-sm font-mono text-red-400';
+  }
+}
+
 async function testProxy(proxyId, btn) {
   const statusEl = document.getElementById("status-" + proxyId);
   btn.disabled = true;
   btn.textContent = "Testando…";
   statusEl.textContent = "…";
   statusEl.className = "text-xs text-zinc-400";
-
   try {
     const res = await fetch(`/admin/proxies/${proxyId}/test`, { method: "POST" });
     const data = await res.json();

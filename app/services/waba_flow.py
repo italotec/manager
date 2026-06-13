@@ -2,7 +2,7 @@ import time
 import traceback
 from flask import current_app
 from .. import db
-from ..models import User, BalanceTx, Job, Proxy
+from ..models import User, BalanceTx, Job, Proxy, AppSetting
 from ..json_store import load_user_bms, save_user_bms
 from .sms24h import sms24h_get_number, sms24h_get_status, sms24h_cancel
 from .meta import (
@@ -11,6 +11,7 @@ from .meta import (
     request_code,
     verify_code,
     register_number,
+    delete_phone_number,
 )
 
 COUNTRY_CODE_MAP = {
@@ -94,7 +95,8 @@ def _has_balance_for_otp(user_id: int) -> tuple[bool, str]:
         return False, f"Saldo insuficiente. Necessário R$ {cost/100:.2f} para iniciar."
     return True, "OK"
 
-def _debit_otp(user_id: int, waba_id: str, phone_number_id: str):
+def _debit_otp(user_id: int, waba_id: str, phone_number_id: str,
+               provider_label: str = "", provider_price_usd: str = ""):
     cost = int(current_app.config["OTP_COST_CENTS"])
     u = db.session.get(User, user_id)
     if not u:
@@ -103,10 +105,15 @@ def _debit_otp(user_id: int, waba_id: str, phone_number_id: str):
         return False, "Saldo insuficiente para debitar OTP"
 
     u.balance_cents -= cost
+    reason = f"OTP recebido (R$ {cost/100:.2f})"
+    if provider_label:
+        reason += f" · {provider_label}"
+        if provider_price_usd:
+            reason += f" (custo ${provider_price_usd})"
     tx = BalanceTx(
         user_id=user_id,
         amount_cents=-cost,
-        reason=f"OTP recebido (R$ {cost/100:.2f})",
+        reason=reason,
         waba_id=str(waba_id),
         phone_number_id=str(phone_number_id or "")
     )
@@ -114,9 +121,48 @@ def _debit_otp(user_id: int, waba_id: str, phone_number_id: str):
     db.session.commit()
     return True, "OTP debitado"
 
+def _resolve_sms_provider() -> dict:
+    """Return transport config for the admin-selected SMS/OTP provider."""
+    sel = db.session.get(AppSetting, "sms_provider")
+    name = (sel.value if sel else "") or current_app.config.get("SMS_PROVIDER", "sms24h")
+    if name == "hero_sms":
+        key_row = db.session.get(AppSetting, "hero_sms_api_key")
+        price_row = db.session.get(AppSetting, "hero_sms_price_usd")
+        return {
+            "name": "hero_sms",
+            "label": "HeroSMS",
+            "base_url": current_app.config["HERO_SMS_BASE_URL"],
+            "api_key": (key_row.value if key_row else "") or current_app.config.get("HERO_SMS_API_KEY", ""),
+            "price_usd": (price_row.value if price_row else "") or current_app.config.get("HERO_SMS_PRICE_USD", "0.8225"),
+        }
+    key_row = db.session.get(AppSetting, "sms24h_api_key")
+    return {
+        "name": "sms24h",
+        "label": "SMS24H",
+        "base_url": current_app.config["SMS24H_BASE_URL"],
+        "api_key": (key_row.value if key_row else "") or current_app.config["SMS24H_API_KEY"],
+        "price_usd": "",
+    }
+
+
 def _log(msg: str):
     """Print debug line to terminal with a clear prefix."""
     print(f"[ADD_PHONE] {msg}", flush=True)
+
+
+def _delete_dangling(api_version: str, token: str, user_id: int, waba_id: str,
+                     phone_id, proxy_str, reason: str):
+    """Delete a phone number that was added to the WABA but never registered, then clear pending fields."""
+    if not phone_id:
+        return
+    ok, derr = delete_phone_number(api_version, token, str(phone_id), proxy_str)
+    _log(f"cleanup: delete dangling phone_id={phone_id} ({reason}) -> ok={ok} err={derr}")
+    _append_debug(user_id, waba_id, f"cleanup delete phone_id={phone_id} ({reason}) ok={ok} err={derr}")
+    _update_bms_entry(user_id, waba_id, {
+        "pending_phone_number_id": "",
+        "sms24h_activation_id": "",
+        "sms24h_full_phone": "",
+    })
 
 
 def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
@@ -209,13 +255,15 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
         language = str(current_app.config["LANGUAGE"])
         max_wait = int(current_app.config["TEMPO_MAX_ESPERA_OTP"])
         max_attempts = int(current_app.config["MAX_TENTATIVAS_POR_WABA"])
-        sms_api_key = current_app.config["SMS24H_API_KEY"]
-        sms_base_url = current_app.config["SMS24H_BASE_URL"]
+        prov = _resolve_sms_provider()
+        sms_api_key = prov["api_key"]
+        sms_base_url = prov["base_url"]
 
         _log(f"config: api_version={api_version} country={country} operator={operator} "
              f"service={service} code_method={code_method} language={language} "
              f"max_wait={max_wait}s max_attempts={max_attempts} "
-             f"sms_base_url={sms_base_url} sms_api_key={'SET' if sms_api_key else 'EMPTY'}")
+             f"sms_provider={prov['label']} sms_base_url={sms_base_url} sms_api_key={'SET' if sms_api_key else 'EMPTY'}")
+        _append_debug(user_id, waba_id, f"sms_provider={prov['label']} base_url={sms_base_url}")
 
         proxy_objs = Proxy.query.order_by(Proxy.created_at.asc()).all()
         proxies = []
@@ -271,7 +319,7 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
             _log(f"--- Attempt {attempt}/{max_attempts} | proxy={'(none)' if not proxy_str else proxy_str.split('@')[-1]}")
             _job_update(job, last_message=f"Tentativa {attempt}/{max_attempts}: comprando número...")
 
-            activation_id, full_phone = sms24h_get_number(
+            activation_id, full_phone, sms_raw = sms24h_get_number(
                 api_key=sms_api_key,
                 base_url=sms_base_url,
                 service=service,
@@ -279,12 +327,15 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
                 operator=operator,
                 proxy_str=proxy_str
             )
-            _log(f"sms24h_get_number -> activation_id={activation_id} full_phone={full_phone}")
-            _append_debug(user_id, waba_id, f"sms24h_get_number -> activation_id={activation_id} full_phone={full_phone}")
+            _log(f"sms24h_get_number -> activation_id={activation_id} full_phone={full_phone} raw={sms_raw!r}")
+            _append_debug(user_id, waba_id, f"sms24h_get_number -> activation_id={activation_id} full_phone={full_phone} raw={sms_raw!r}")
 
             if not activation_id:
-                _log("sms24h_get_number: sem activation_id, próxima tentativa")
-                _append_debug(user_id, waba_id, "sms24h_get_number failed (no activation_id)")
+                fail_reason = sms_raw or "sem resposta"
+                _log(f"sms_get_number falhou ({prov['label']}): {fail_reason}")
+                _append_debug(user_id, waba_id, f"sms_get_number failed ({prov['label']}): {fail_reason}")
+                _set_error(user_id, waba_id, f"{prov['label']}: {fail_reason}")
+                _job_update(job, last_message=f"Tentativa {attempt}/{max_attempts}: {prov['label']} retornou '{fail_reason}'")
                 continue
 
             if not str(full_phone).startswith(cc):
@@ -331,12 +382,13 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
 
             if r_req.status_code != 200:
                 msg = f"request_code falhou: {r_req.text[:900]}"
-                _log(f"request_code falhou -> cancela activation")
+                _log(f"request_code falhou -> cancela activation + deleta phone dangling")
                 _set_error(user_id, waba_id, msg)
                 sms24h_cancel(sms_api_key, sms_base_url, activation_id, proxy_str)
+                _delete_dangling(api_version, token, user_id, waba_id, phone_id, proxy_str, "request_code failed")
                 continue
 
-            _job_update(job, last_message="Aguardando OTP (SMS24h)...")
+            _job_update(job, last_message=f"Aguardando OTP ({prov['label']})...")
             _log(f"aguardando OTP por até {max_wait}s ...")
             start = time.time()
             otp_code = None
@@ -369,15 +421,18 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
                 time.sleep(12)
 
             if not otp_code:
-                _log(f"OTP timeout após {poll_count} polls -> cancela activation")
+                _log(f"OTP timeout após {poll_count} polls -> cancela activation + deleta phone dangling")
                 _append_debug(user_id, waba_id, "OTP timeout -> cancel activation")
                 _job_update(job, last_message="Sem OTP → cancelando (reembolso).")
                 sms24h_cancel(sms_api_key, sms_base_url, activation_id, proxy_str)
+                _delete_dangling(api_version, token, user_id, waba_id, phone_id, proxy_str, "otp timeout")
                 continue
 
             _update_bms_entry(user_id, waba_id, {"otp_received": True, "otp_received_at": int(time.time())})
 
-            ok, msg = _debit_otp(user_id, waba_id, phone_id)
+            ok, msg = _debit_otp(user_id, waba_id, phone_id,
+                                  provider_label=prov["label"],
+                                  provider_price_usd=prov["price_usd"])
             _log(f"debit_otp -> ok={ok} msg={msg}")
             _append_debug(user_id, waba_id, f"DEBIT otp -> ok={ok} msg={msg}")
             if not ok:
@@ -396,6 +451,7 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
                 msg = f"verify_code falhou: {r_ver.text[:900]}"
                 _log(f"ABORT: verify_code falhou")
                 _set_error(user_id, waba_id, msg)
+                _delete_dangling(api_version, token, user_id, waba_id, phone_id, proxy_str, "verify_code failed")
                 _job_update(job, last_message="OTP recebido, mas verify_code falhou. Veja last_add_phone_error.")
                 return False
 
@@ -424,6 +480,7 @@ def process_one_waba_add_phone(user_id: int, waba_id: str, job_id: int) -> bool:
             msg = f"register falhou: {r_reg.text[:900]}"
             _log(f"ABORT: register_number falhou (HTTP {r_reg.status_code})")
             _set_error(user_id, waba_id, msg)
+            _delete_dangling(api_version, token, user_id, waba_id, phone_id, proxy_str, "register failed")
             _job_update(job, last_message="verify ok, mas register falhou. Veja last_add_phone_error.")
             return False
 

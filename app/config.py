@@ -27,9 +27,17 @@ class Config:
     SESSION_COOKIE_SECURE = False
     REMEMBER_COOKIE_SECURE = False
 
-    # SMS24H
+    # SMS24H (SMS-Activate protocol)
     SMS24H_API_KEY = os.getenv("SMS24H_API_KEY", "0a8b463bee4645a9cfccb45cde49472b")
     SMS24H_BASE_URL = "https://api.sms24h.org/stubs/handler_api"
+
+    # HeroSMS (SMS-Activate protocol compatible — same actions/responses as SMS24H)
+    HERO_SMS_BASE_URL = "https://hero-sms.com/stubs/handler_api.php"
+    HERO_SMS_API_KEY  = os.getenv("HERO_SMS_API_KEY", "")
+    HERO_SMS_PRICE_USD = os.getenv("HERO_SMS_PRICE_USD", "0.8225")
+
+    # Active provider default; admin can override at runtime via AppSetting "sms_provider"
+    SMS_PROVIDER = os.getenv("SMS_PROVIDER", "sms24h")
 
     # META
     META_API_VERSION = os.getenv("META_API_VERSION", "v18.0")
