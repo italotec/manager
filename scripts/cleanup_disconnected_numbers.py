@@ -60,6 +60,8 @@ def main():
             continue
 
         waba_name = (data.get("snapshot") or {}).get("waba_name") or waba_id
+        ads_id = (data.get("adspower_profile_id") or "").strip()
+        bm_id = (data.get("business_manager_id") or "").strip()
         deletable = [p for p in phones if (p.get("status") or "").upper() in DELETABLE_STATUSES]
         keepers = [p for p in phones if (p.get("status") or "").upper() not in DELETABLE_STATUSES]
 
@@ -67,13 +69,13 @@ def main():
             print(f"  WABA {waba_id} ({waba_name}): {len(phones)} phone(s), none deletable")
             continue
 
-        print(f"  WABA {waba_id} ({waba_name}): {len(phones)} phone(s), {len(deletable)} to delete, {len(keepers)} to keep")
+        print(f"  WABA {waba_id} ({waba_name}): {len(phones)} phone(s), {len(deletable)} to delete, {len(keepers)} to keep [ads={ads_id or '-'}]")
         for p in deletable:
             disp = p.get("display_phone_number", "?")
             st = p.get("status", "?")
             pid = p.get("id", "?")
             print(f"    -> DELETE  id={pid}  {disp}  status={st}")
-            to_delete.append((waba_id, token, pid, disp, st, key))
+            to_delete.append((waba_id, token, pid, disp, st, key, ads_id, bm_id))
         for p in keepers:
             disp = p.get("display_phone_number", "?")
             st = p.get("status", "?")
@@ -84,8 +86,9 @@ def main():
 
     if args.dump:
         dump = [
-            {"phone_id": pid, "waba_id": waba_id, "display": disp, "status": status}
-            for (waba_id, token, pid, disp, status, bms_key) in to_delete
+            {"phone_id": pid, "waba_id": waba_id, "display": disp, "status": status,
+             "adspower_profile_id": ads_id, "business_manager_id": bm_id}
+            for (waba_id, token, pid, disp, status, bms_key, ads_id, bm_id) in to_delete
         ]
         with open(args.dump, "w", encoding="utf-8") as f:
             json.dump(dump, f, indent=2, ensure_ascii=False)
@@ -101,7 +104,7 @@ def main():
 
     print("\nDeleting...")
     deleted_ids = set()
-    for waba_id, token, phone_id, disp, status, bms_key in to_delete:
+    for waba_id, token, phone_id, disp, status, bms_key, ads_id, bm_id in to_delete:
         ok, err = delete_phone_number(api_version, token, phone_id)
         if ok:
             print(f"  OK  {phone_id}  {disp}  ({status})")
