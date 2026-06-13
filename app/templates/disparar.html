@@ -1409,7 +1409,7 @@ function rerenderGroupMappings() {
     for (let i = 1; i <= N; i++) {
       const canonKey = `g${N}_v${i}`;
       if (files.length === 0) {
-        rows.push(`<div class="text-xs text-zinc-600 pl-1">Variável {{${i}}} — selecione uma lista primeiro.</div>`);
+        rows.push(`<div class="text-xs text-zinc-600 pl-1">Variável ${'{'+'{'}${i}${'}'+'}'} — selecione uma lista primeiro.</div>`);
       } else {
         const fileSelects = files.map(fn => {
           const cols = (_multiSelectedFiles[fn] || {}).columns || [];
@@ -1424,7 +1424,7 @@ function rerenderGroupMappings() {
           </div>`;
         }).join('');
         rows.push(`<div class="mb-2">
-          <div class="text-xs text-zinc-400 font-mono">{{${i}}}</div>
+          <div class="text-xs text-zinc-400 font-mono">${'{'+'{'}${i}${'}'+'}'}</div>
           ${fileSelects}
         </div>`);
       }
@@ -1567,7 +1567,7 @@ async function startBatch() {
       for (const fn of files) {
         const sel = document.querySelector(`.group-var-col[data-canon="${canon}"][data-filename="${CSS.escape(fn)}"]`);
         if (!sel || !sel.value) {
-          alert(`Mapeie a variável {{${i}}} (${g.var_count} var) para o arquivo "${fn}".`);
+          alert(`Mapeie a variável ${'{'+'{'}${i}${'}'+'}'} (${g.var_count} var) para o arquivo "${fn}".`);
           return;
         }
       }
