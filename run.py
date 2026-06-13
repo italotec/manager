@@ -1,3 +1,12 @@
+import os
+
+# TEMP (leak hunting): start allocation tracing before anything else allocates,
+# so tracemalloc can attribute growth to the exact source line. Gated by env var
+# (TRACEMALLOC=<frame depth>) so it can be toggled via systemd without a redeploy.
+if os.environ.get("TRACEMALLOC"):
+    import tracemalloc
+    tracemalloc.start(int(os.environ.get("TRACEMALLOC", "10")))
+
 from app import create_app
 
 app = create_app()
