@@ -2,6 +2,8 @@ import os
 import json
 import time
 import threading
+import tempfile
+import fcntl
 from typing import Dict, Any
 
 # Serializes read-modify-write on bms.json across threads. Without it, concurrent
@@ -37,12 +39,28 @@ def load_user_bms(user_id: int) -> Dict[str, Any]:
 
 def save_user_bms(user_id: int, data: Dict[str, Any]) -> None:
     path = ensure_user_bms_file(user_id)
-    # Write to a temp file then atomically replace — a crash mid-write can never
-    # leave a truncated/corrupt bms.json.
-    tmp = path + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-    os.replace(tmp, path)
+    dir_name = os.path.dirname(path)
+    lock_path = path + ".lock"
+    # fcntl.flock serializes concurrent writers across processes; the threading
+    # RLock above serializes within a process. Both are needed.
+    with open(lock_path, "w") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            # mkstemp gives each writer its own unique temp file so concurrent
+            # writes never interleave into a shared .tmp file.
+            fd, tmp = tempfile.mkstemp(dir=dir_name, suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=4, ensure_ascii=False)
+                os.replace(tmp, path)
+            except Exception:
+                try:
+                    os.unlink(tmp)
+                except OSError:
+                    pass
+                raise
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 def upsert_waba(user_id: int, waba_id: str, token: str, adspower_profile_id: str = "",
                 business_manager_id: str = "", payment_account_id: str = "") -> None:

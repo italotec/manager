@@ -3,6 +3,7 @@ from flask import current_app
 from . import db
 from .models import Job
 from .services.waba_flow import process_one_waba_add_phone
+from .services.aceitar_bm_service import accept_bm_invitation
 
 def start_add_phone_job(user_id: int, waba_ids: list[str]) -> int:
     job = Job(
@@ -90,4 +91,85 @@ def start_add_phone_job(user_id: int, waba_ids: list[str]) -> int:
     t = threading.Thread(target=runner, args=(current_app._get_current_object(),), daemon=True)
     t.start()
 
+    return job_id
+
+
+def start_aceitar_bm_job(user_id: int, invitations: list[dict]) -> int:
+    """
+    Accept one or more BM invitations in the background.
+
+    Each item in `invitations` must have:
+        profile_id     – AdsPower profile ID
+        invitation_url – full Facebook invitation URL
+    """
+    job = Job(
+        user_id=user_id,
+        type="aceitar_bm",
+        status="queued",
+        total=len(invitations),
+        done=0,
+    )
+    db.session.add(job)
+    db.session.commit()
+    job_id = job.id
+
+    def runner(app):
+        with app.app_context():
+            job = db.session.get(Job, job_id)
+            if not job:
+                return
+            job.status = "running"
+            db.session.commit()
+
+        failed = 0
+
+        for idx, inv in enumerate(invitations, start=1):
+            profile_id = inv.get("profile_id", "")
+            invitation_url = inv.get("invitation_url", "")
+
+            with app.app_context():
+                job = db.session.get(Job, job_id)
+                if job:
+                    job.current_label = profile_id
+                    job.last_message = f"Processando {idx}/{len(invitations)} — perfil {profile_id}"
+                    db.session.commit()
+
+            def _log(msg, _job_id=job_id, _app=app):
+                with _app.app_context():
+                    j = db.session.get(Job, _job_id)
+                    if j:
+                        j.last_message = msg
+                        db.session.commit()
+
+            try:
+                result = accept_bm_invitation(
+                    profile_id=profile_id,
+                    invitation_url=invitation_url,
+                    log_fn=_log,
+                )
+            except Exception as exc:
+                result = {"ok": False, "error": str(exc)}
+
+            with app.app_context():
+                job = db.session.get(Job, job_id)
+                if job:
+                    job.done = idx
+                    if result.get("ok"):
+                        job.last_message = f"✓ {profile_id} — aceito com sucesso"
+                    else:
+                        failed += 1
+                        job.last_message = f"✗ {profile_id} — {result.get('error', 'erro desconhecido')}"
+                    db.session.commit()
+
+        with app.app_context():
+            job = db.session.get(Job, job_id)
+            if job:
+                job.status = "done" if failed == 0 else "done_with_errors"
+                job.last_message = (
+                    f"Finalizado. {len(invitations) - failed} aceitos, {failed} erros."
+                )
+                db.session.commit()
+
+    t = threading.Thread(target=runner, args=(current_app._get_current_object(),), daemon=True)
+    t.start()
     return job_id

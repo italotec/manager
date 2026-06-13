@@ -8,7 +8,7 @@ _MIN_INTERVAL = 1.1  # seconds between consecutive AdsPower API calls
 
 
 class AdsPowerClient:
-    def __init__(self, base: str = "http://local.adspower.net:50325"):
+    def __init__(self, base: str = "http://127.0.0.1:2601"):
         self.base = base.rstrip("/")
         self.session = requests.Session()
 
@@ -30,6 +30,28 @@ class AdsPowerClient:
     def open_browser(self, profile_id: str) -> dict:
         """Start the AdsPower profile browser. Returns the data dict (ws, debug_port, etc.)."""
         return self._get("/api/v1/browser/start", user_id=profile_id)
+
+    def stop_browser(self, profile_id: str) -> None:
+        """Stop the AdsPower profile browser. Never raises."""
+        try:
+            self._get("/api/v1/browser/stop", user_id=profile_id)
+        except Exception:
+            pass
+
+    def list_group_profiles(self, group_id: str, page_size: int = 200) -> list[dict]:
+        """Return all profiles belonging to a group (ordered as AdsPower returns them)."""
+        data = self._get(
+            "/api/v1/user/list", group_id=group_id, page=1, page_size=page_size
+        )
+        return data.get("list") or []
+
+    def get_profile(self, profile_id: str) -> dict:
+        """Return the profile dict for a single user_id (includes password, remark, etc.)."""
+        data = self._get("/api/v1/user/list", user_id=profile_id, page=1, page_size=1)
+        lst = data.get("list") or []
+        if not lst:
+            raise RuntimeError(f"Profile {profile_id} not found in AdsPower")
+        return lst[0]
 
     def is_browser_active(self, profile_id: str) -> str:
         """Return 'active', 'inactive', or 'error'. Never raises."""

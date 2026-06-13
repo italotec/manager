@@ -2,7 +2,7 @@ from flask import Blueprint, request, redirect, url_for, jsonify, flash
 from flask_login import login_required, current_user
 from ..models import Job
 from .. import db
-from ..jobs import start_add_phone_job
+from ..jobs import start_add_phone_job, start_aceitar_bm_job
 
 bp = Blueprint("jobs", __name__, url_prefix="/jobs")
 
@@ -18,6 +18,36 @@ def start_add_phone():
 
     job_id = start_add_phone_job(current_user.id, waba_ids)
     return redirect(url_for("dashboard.dashboard", job=job_id))
+
+@bp.route("/start/aceitar-bm", methods=["POST"])
+@login_required
+def start_aceitar_bm():
+    """
+    JSON body:
+      { "invitations": [ { "profile_id": "k1dg42ii", "invitation_url": "https://..." }, ... ] }
+    OR form fields:
+      profile_id=k1dg42ii&invitation_url=https://...  (single invitation)
+    """
+    if request.is_json:
+        data = request.get_json(force=True) or {}
+        invitations = data.get("invitations", [])
+        if not invitations:
+            # also allow flat single-item JSON
+            pid = data.get("profile_id", "").strip()
+            url = data.get("invitation_url", "").strip()
+            if pid and url:
+                invitations = [{"profile_id": pid, "invitation_url": url}]
+    else:
+        pid = request.form.get("profile_id", "").strip()
+        url = request.form.get("invitation_url", "").strip()
+        invitations = [{"profile_id": pid, "invitation_url": url}] if pid and url else []
+
+    if not invitations:
+        return jsonify({"ok": False, "error": "Forneça profile_id e invitation_url"}), 400
+
+    job_id = start_aceitar_bm_job(current_user.id, invitations)
+    return jsonify({"ok": True, "job_id": job_id})
+
 
 @bp.route("/<int:job_id>/status", methods=["GET"])
 @login_required
