@@ -143,13 +143,32 @@ class CDP:
 # --------------------------------------------------------------------------
 # AdsPower Local API
 # --------------------------------------------------------------------------
-def adspower_get(base: str, path: str, **params) -> dict:
-    r = requests.get(f"{base}{path}", params=params, timeout=120)
-    r.raise_for_status()
-    body = r.json()
-    if body.get("code") != 0:
-        raise RuntimeError(f"AdsPower {path}: {body.get('msg', body)}")
-    return body.get("data") or {}
+_RL_HINTS = ("too many request", "server is not working", "please try again", "busy")
+
+
+def adspower_get(base: str, path: str, _retries: int = 6, **params) -> dict:
+    """GET the AdsPower Local API with backoff on rate-limit / transient errors.
+
+    The Local API throttles to ~1 req/s; under load it returns code!=0 with a
+    'Too many request per second' (or 'server is not working') message, and can
+    also drop connections. Retry all of these with growing delays.
+    """
+    last = None
+    for attempt in range(_retries):
+        try:
+            r = requests.get(f"{base}{path}", params=params, timeout=120)
+            r.raise_for_status()
+            body = r.json()
+            if body.get("code") == 0:
+                return body.get("data") or {}
+            msg = str(body.get("msg", body))
+            last = RuntimeError(f"AdsPower {path}: {msg}")
+            if not any(h in msg.lower() for h in _RL_HINTS):
+                raise last  # genuine error (bad id, etc.) — don't retry
+        except requests.RequestException as e:
+            last = RuntimeError(f"AdsPower {path}: {e}")
+        time.sleep(min(1.5 * (attempt + 1), 8))  # 1.5,3,4.5,6,7.5,8...
+    raise last
 
 
 def adspower_account(base: str, profile_id: str) -> tuple[str, str]:
@@ -254,7 +273,9 @@ def delete_in_browser(cdp: CDP, session_id: str, *, fb_dtsg: str, lsd: str, acto
         f"body:{json.dumps(body)},credentials:'include'}});"
         "return await r.text();})()"
     )
-    text = cdp.evaluate(session_id, js, await_promise=True)
+    text = (cdp.evaluate(session_id, js, await_promise=True) or "")
+    if text.startswith("for (;;);"):   # FB anti-JSON-hijack prefix
+        text = text[len("for (;;);"):]
     try:
         j = json.loads(text)
     except Exception:
@@ -263,6 +284,11 @@ def delete_in_browser(cdp: CDP, session_id: str, *, fb_dtsg: str, lsd: str, acto
               .get("current_status") or {}).get("status")
     if status == "DELETED":
         return {"ok": True, "status": status}
+    # Surface a useful error summary (rate-limit / password / re-auth, etc.)
+    errs = j.get("errors") or []
+    if errs:
+        e0 = errs[0]
+        return {"ok": False, "raw": f"{e0.get('code')}/{e0.get('api_error_code')}: {e0.get('summary') or e0.get('message')}"}
     return {"ok": False, "raw": json.dumps(j)[:300]}
 
 
