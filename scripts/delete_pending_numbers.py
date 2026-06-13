@@ -9,28 +9,31 @@ instead calls business.facebook.com/api/graphql with the mutation
 numbers — but it is browser-session authenticated and requires a freshly
 password-confirmed sensitive-op token (#PWD_BROWSER blob).
 
-This tool:
-  1. Opens an AdsPower profile (the logged-in FB session) via the Local API.
-  2. Harvests the live session data from the page (fb_dtsg, lsd, actor_id) and
-     the current password-encryption public key + keyId, all via CDP.
-  3. Encrypts the FB account password into a fresh #PWD_BROWSER:5 blob (Python,
-     using libsodium sealed-box + AES-256-GCM — verified to match Meta's format).
-  4. For each phone_number_id, fires the delete mutation FROM INSIDE the browser
-     (CDP Runtime.evaluate -> fetch), so cookies + the profile's proxy/IP are used
-     (avoids tripping a security checkpoint).
+Each WABA is linked to its own AdsPower profile (its own FB account), so the
+work is grouped per profile. For each profile this tool:
+  1. Reads the saved FB account password from the AdsPower Local API.
+  2. Opens the profile (logged-in FB session) and harvests live session data
+     from the page (fb_dtsg, lsd, actor_id) + the password-encryption pubkey/keyId
+     via CDP.
+  3. Encrypts the password into a fresh #PWD_BROWSER:5 blob (Python, libsodium
+     sealed-box + AES-256-GCM — verified to match Meta's format).
+  4. Fires the delete mutation FROM INSIDE the browser (CDP Runtime.evaluate ->
+     fetch), so cookies + the profile's proxy/IP are used (avoids checkpoints).
 
 Dry-run by default. Pass --apply to actually delete.
 
-Required env:
-  FB_PASSWORD            FB account password for the logged-in actor.
-Optional:
-  ADSPOWER_BASE          default http://local.adspower.net:50325
-  FB_PUBKEY / FB_KEYID   override password pubkey/keyId if auto-harvest fails.
-
 Usage:
-  set FB_PASSWORD=...   (PowerShell:  $env:FB_PASSWORD="...")
-  py scripts/delete_pending_numbers.py --profile <adspower_id> --business-id 2077282286473604 --ids-file pending.json
-  py scripts/delete_pending_numbers.py --profile <id> --business-id <bid> --ids-file pending.json --limit 1 --apply
+  # See per-profile grouping (no browser opened):
+  py scripts/delete_pending_numbers.py --ids-file scripts/pending.json
+
+  # Verify harvest on ONE profile (opens it, no delete):
+  py scripts/delete_pending_numbers.py --ids-file scripts/pending.json --profile k1dbx8ht
+
+  # Delete one number on one profile (test):
+  py scripts/delete_pending_numbers.py --ids-file scripts/pending.json --profile k1dbx8ht --limit 1 --apply
+
+  # Full run, all profiles:
+  py scripts/delete_pending_numbers.py --ids-file scripts/pending.json --apply
 """
 
 import argparse
@@ -40,6 +43,7 @@ import os
 import struct
 import sys
 import time
+from collections import OrderedDict, defaultdict
 
 import requests
 import websocket  # websocket-client
@@ -47,10 +51,11 @@ import websocket  # websocket-client
 from nacl.bindings import crypto_box_seal
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-DEFAULT_BASE = "http://local.adspower.net:50325"
+DEFAULT_BASE = "http://local.adspower.net:50360"
 APP_ID = "436761779744620"            # WhatsApp Manager app id (from HAR)
 DELETE_DOC_ID = "10009486335757444"   # useDeleteWhatsAppPhoneNumberMutation
 FRIENDLY = "useDeleteWhatsAppPhoneNumberMutation"
+MANAGER_URL = "https://business.facebook.com/latest/whatsapp_manager/phone_numbers/?tab=phone-numbers"
 
 
 # --------------------------------------------------------------------------
@@ -95,33 +100,26 @@ class CDP:
                     raise RuntimeError(f"CDP {method}: {resp['error']}")
                 return resp.get("result") or {}
 
-    def attach_page(self, url_hint: str | None = None) -> str:
-        targets = self._send("Target.getTargets").get("targetInfos", [])
-        page = None
-        for t in targets:
-            if t.get("type") == "page" and (not url_hint or url_hint in (t.get("url") or "")):
-                page = t
-                break
-        if not page:
-            page = next((t for t in targets if t.get("type") == "page"), None)
-        if not page:
-            created = self._send("Target.createTarget", {"url": "about:blank"})
-            page = {"targetId": created["targetId"]}
-        sess = self._send("Target.attachToTarget", {"targetId": page["targetId"], "flatten": True})
-        return sess["sessionId"]
-
-    def navigate(self, session_id: str, url: str):
+    def open_page(self, url: str) -> str:
+        """Create a fresh tab navigated to url, attach, wait for it to load."""
+        created = self._send("Target.createTarget", {"url": url})
+        sess = self._send("Target.attachToTarget", {"targetId": created["targetId"], "flatten": True})
+        session_id = sess["sessionId"]
         self._send("Page.enable", session_id=session_id)
         self._send("Runtime.enable", session_id=session_id)
-        self._send("Page.navigate", {"url": url}, session_id=session_id)
-        # wait for the page to be interactive and the FB module loader present
-        deadline = time.time() + 45
+        deadline = time.time() + 60
         while time.time() < deadline:
             time.sleep(1.5)
-            r = self.evaluate(session_id, "document.readyState==='complete' && typeof require==='function'")
-            if r is True:
-                time.sleep(2)
-                return
+            try:
+                ready = self.evaluate(
+                    session_id,
+                    "document.readyState==='complete' && location.hostname.indexOf('facebook.com')>=0",
+                )
+            except Exception:
+                ready = False
+            if ready is True:
+                time.sleep(2.5)  # let bootstrap JSON settle
+                return session_id
         raise RuntimeError("navigation/load timeout")
 
     def evaluate(self, session_id: str, expr: str, await_promise: bool = False):
@@ -145,21 +143,36 @@ class CDP:
 # --------------------------------------------------------------------------
 # AdsPower Local API
 # --------------------------------------------------------------------------
-def adspower_start(base: str, profile_id: str) -> str:
-    r = requests.get(f"{base}/api/v1/browser/start", params={"user_id": profile_id}, timeout=120)
+def adspower_get(base: str, path: str, **params) -> dict:
+    r = requests.get(f"{base}{path}", params=params, timeout=120)
     r.raise_for_status()
     body = r.json()
     if body.get("code") != 0:
-        raise RuntimeError(f"AdsPower start error: {body.get('msg', body)}")
-    ws_url = ((body.get("data") or {}).get("ws") or {}).get("puppeteer")
+        raise RuntimeError(f"AdsPower {path}: {body.get('msg', body)}")
+    return body.get("data") or {}
+
+
+def adspower_account(base: str, profile_id: str) -> tuple[str, str]:
+    """Return (username, password) saved in the AdsPower profile."""
+    data = adspower_get(base, "/api/v1/user/list", user_id=profile_id)
+    lst = data.get("list") or []
+    if not lst:
+        return "", ""
+    item = lst[0]
+    return (item.get("username") or "").strip(), (item.get("password") or "")
+
+
+def adspower_start(base: str, profile_id: str) -> str:
+    data = adspower_get(base, "/api/v1/browser/start", user_id=profile_id)
+    ws_url = ((data.get("ws") or {}).get("puppeteer"))
     if not ws_url:
-        raise RuntimeError(f"No CDP (puppeteer) endpoint: {body}")
+        raise RuntimeError(f"No CDP (puppeteer) endpoint for {profile_id}: {data}")
     return ws_url
 
 
 def adspower_stop(base: str, profile_id: str):
     try:
-        requests.get(f"{base}/api/v1/browser/stop", params={"user_id": profile_id}, timeout=30)
+        adspower_get(base, "/api/v1/browser/stop", user_id=profile_id)
     except Exception:
         pass
 
@@ -169,24 +182,29 @@ def adspower_stop(base: str, profile_id: str):
 # --------------------------------------------------------------------------
 HARVEST_JS = r"""
 (async () => {
-  const out = {fb_dtsg:null, lsd:null, actor_id:null, keyId:null, publicKey:null, err:null};
-  try { out.fb_dtsg = require('DTSGInitialData').token; } catch(e){}
-  try { out.lsd = require('LSD').token; } catch(e){}
-  try {
-    const cu = require('CurrentUserInitialData');
-    out.actor_id = cu.ACCOUNT_ID || cu.USER_ID || null;
-  } catch(e){}
-  // Password encryption key provider (sensitive-op re-auth). Try the known module.
+  const out = {fb_dtsg:null, lsd:null, actor_id:null, keyId:null, publicKey:null,
+               hasRequire:(typeof require==='function'), url:location.href, err:null};
+  const html = document.documentElement.outerHTML;
+  const m = (re) => { const x = html.match(re); return x ? x[1] : null; };
+  // fb_dtsg / lsd: prefer require, fall back to bootstrap JSON regex
+  try { if (typeof require==='function') out.fb_dtsg = require('DTSGInitialData').token; } catch(e){}
+  if (!out.fb_dtsg) out.fb_dtsg = m(/"DTSGInitialData",\[\],\{"token":"([^"]+)"/) || m(/name=\\?"fb_dtsg\\?" value=\\?"([^"\\]+)/);
+  try { if (typeof require==='function') out.lsd = require('LSD').token; } catch(e){}
+  if (!out.lsd) out.lsd = m(/"LSD",\[\],\{"token":"([^"]+)"/);
+  out.actor_id = m(/"USER_ID":"(\d+)"/) || m(/"ACCOUNT_ID":"(\d+)"/);
+  // password encryption key: try the provider module, then bootstrap regex
   try {
     const prov = require('XBrowserNativePasswordEncryptionKeyProvider');
     const getter = prov.getKeyProvider ? prov.getKeyProvider() : prov;
     await new Promise((resolve) => {
       let done=false;
       const cb = (keyId, publicKey) => { if(done) return; done=true; out.keyId=keyId; out.publicKey=publicKey; resolve(); };
-      try { getter.get(cb); } catch(e){ out.err='get() failed: '+e.message; resolve(); }
-      setTimeout(()=>{ if(!done){ out.err=(out.err||'')+' key timeout'; resolve(); } }, 8000);
+      try { getter.get(cb); } catch(e){ out.err='get:'+e.message; resolve(); }
+      setTimeout(()=>{ if(!done){ out.err=(out.err||'')+' keytimeout'; resolve(); } }, 8000);
     });
-  } catch(e){ out.err='no key provider: '+e.message; }
+  } catch(e){ out.err=(out.err||'')+' noprov:'+e.message; }
+  if (!out.publicKey) out.publicKey = m(/"public_key":"([0-9a-f]{64})"/) || m(/"publicKey":"([0-9a-f]{64})"/);
+  if (out.keyId==null){ const k = m(/"key_id":(\d+)/) || m(/"keyId":(\d+)/); if(k) out.keyId = parseInt(k,10); }
   return JSON.stringify(out);
 })()
 """
@@ -194,8 +212,7 @@ HARVEST_JS = r"""
 
 def harvest(cdp: CDP, session_id: str) -> dict:
     raw = cdp.evaluate(session_id, HARVEST_JS, await_promise=True)
-    data = json.loads(raw) if raw else {}
-    return data
+    return json.loads(raw) if raw else {}
 
 
 # --------------------------------------------------------------------------
@@ -208,25 +225,26 @@ def delete_in_browser(cdp: CDP, session_id: str, *, fb_dtsg: str, lsd: str, acto
             "actor_id": actor_id,
             "client_mutation_id": "1",
             "app_id": APP_ID,
+            "log_session_id": f"WBxP--{int(time.time())}-{os.getpid()}",
             "phone_number_id": str(phone_id),
             "password": {"sensitive_string_value": encrypted_pwd},
             "reason": "",
             "source_surface": "WHATSAPP_MANAGER",
         }
     }
-    form = {
-        "av": actor_id,
-        "__user": actor_id,
-        "__a": "1",
-        "fb_dtsg": fb_dtsg,
-        "jazoest": jazoest_of(fb_dtsg),
-        "lsd": lsd,
-        "fb_api_caller_class": "RelayModern",
-        "fb_api_req_friendly_name": FRIENDLY,
-        "variables": json.dumps(variables),
-        "server_timestamps": "true",
-        "doc_id": DELETE_DOC_ID,
-    }
+    form = OrderedDict([
+        ("av", actor_id),
+        ("__user", actor_id),
+        ("__a", "1"),
+        ("fb_dtsg", fb_dtsg),
+        ("jazoest", jazoest_of(fb_dtsg)),
+        ("lsd", lsd),
+        ("fb_api_caller_class", "RelayModern"),
+        ("fb_api_req_friendly_name", FRIENDLY),
+        ("variables", json.dumps(variables)),
+        ("server_timestamps", "true"),
+        ("doc_id", DELETE_DOC_ID),
+    ])
     body = "&".join(f"{requests.utils.quote(k, safe='')}={requests.utils.quote(v, safe='')}"
                     for k, v in form.items())
     js = (
@@ -248,103 +266,130 @@ def delete_in_browser(cdp: CDP, session_id: str, *, fb_dtsg: str, lsd: str, acto
     return {"ok": False, "raw": json.dumps(j)[:300]}
 
 
-def load_ids(path: str) -> list[dict]:
+def load_groups(path: str) -> "OrderedDict[str, list]":
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    out = []
+    groups: "OrderedDict[str, list]" = OrderedDict()
     for item in data:
-        if isinstance(item, str):
-            out.append({"phone_id": item})
-        elif isinstance(item, dict) and item.get("phone_id"):
-            out.append(item)
-    return out
+        if not isinstance(item, dict) or not item.get("phone_id"):
+            continue
+        prof = (item.get("adspower_profile_id") or "").strip()
+        groups.setdefault(prof, []).append(item)
+    return groups
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--profile", required=True, help="AdsPower profile id (logged-in FB session)")
-    ap.add_argument("--business-id", required=True, help="Business manager id for the manager page context")
-    ap.add_argument("--ids-file", required=True, help="JSON list of phone ids (or objects with phone_id)")
-    ap.add_argument("--apply", action="store_true", help="Actually delete (default: dry-run)")
-    ap.add_argument("--limit", type=int, default=0, help="Only process first N ids (0=all)")
-    ap.add_argument("--keep-open", action="store_true", help="Leave AdsPower browser open at the end")
-    ap.add_argument("--sleep", type=float, default=1.5, help="Seconds between deletes")
-    args = ap.parse_args()
+def process_profile(base: str, profile_id: str, items: list, *, apply: bool, limit: int,
+                    sleep: float, keep_open: bool, pubkey_cache: dict) -> tuple[int, int]:
+    """Returns (deleted, failed) for this profile."""
+    if limit:
+        items = items[:limit]
 
-    base = (os.getenv("ADSPOWER_BASE") or DEFAULT_BASE).rstrip("/")
-    password = os.getenv("FB_PASSWORD", "")
-    if args.apply and not password:
-        print("ERROR: FB_PASSWORD env var required for --apply.")
-        return 2
+    username, password = adspower_account(base, profile_id)
+    print(f"\n=== Profile {profile_id}  (acct {username or '?'})  — {len(items)} number(s) ===")
+    if apply and not password:
+        print("  SKIP: no saved password in AdsPower profile.")
+        return 0, len(items)
 
-    ids = load_ids(args.ids_file)
-    if args.limit:
-        ids = ids[: args.limit]
-    print(f"Loaded {len(ids)} phone id(s) to process. Mode: {'APPLY' if args.apply else 'DRY RUN'}")
-
-    print(f"Opening AdsPower profile {args.profile} ...")
-    ws_url = adspower_start(base, args.profile)
-    cdp = CDP(ws_url)
+    time.sleep(1.0)  # AdsPower start is rate-limited (~1/s)
     try:
-        session_id = cdp.attach_page()
-        url = (f"https://business.facebook.com/latest/whatsapp_manager/phone_numbers/"
-               f"?business_id={args.business_id}&tab=phone-numbers")
-        print(f"Navigating to WhatsApp Manager ({args.business_id}) ...")
-        cdp.navigate(session_id, url)
+        ws_url = adspower_start(base, profile_id)
+    except Exception as e:
+        print(f"  SKIP: could not open profile: {e}")
+        return 0, len(items)
 
+    cdp = CDP(ws_url)
+    ok = err = 0
+    try:
+        session_id = cdp.open_page(MANAGER_URL)
         sess = harvest(cdp, session_id)
-        fb_dtsg = sess.get("fb_dtsg")
-        lsd = sess.get("lsd")
-        actor_id = sess.get("actor_id")
-        pubkey = os.getenv("FB_PUBKEY") or sess.get("publicKey")
+        fb_dtsg, lsd = sess.get("fb_dtsg"), sess.get("lsd")
+        actor_id = sess.get("actor_id") or username
+        pubkey = os.getenv("FB_PUBKEY") or sess.get("publicKey") or pubkey_cache.get("pubkey")
         keyid = os.getenv("FB_KEYID")
-        keyid = int(keyid) if keyid else sess.get("keyId")
+        keyid = int(keyid) if keyid else (sess.get("keyId") if sess.get("keyId") is not None else pubkey_cache.get("keyid"))
+        if pubkey and keyid is not None:
+            pubkey_cache["pubkey"], pubkey_cache["keyid"] = pubkey, keyid
 
-        print("Harvested session:")
-        print(f"  fb_dtsg : {'OK' if fb_dtsg else 'MISSING'}")
-        print(f"  lsd     : {'OK' if lsd else 'MISSING'}")
-        print(f"  actor_id: {actor_id}")
-        print(f"  keyId   : {keyid}")
-        print(f"  pubkey  : {'OK ('+str(len(pubkey))+' hex)' if pubkey else 'MISSING'}  {sess.get('err') or ''}")
+        print(f"  harvest: require={sess.get('hasRequire')} url={sess.get('url','')[:60]}")
+        print(f"  harvest: fb_dtsg={'OK' if fb_dtsg else 'MISSING'} lsd={'OK' if lsd else 'MISSING'} "
+              f"actor={actor_id} keyId={keyid} pubkey={'OK' if pubkey else 'MISSING'} {sess.get('err') or ''}")
 
         if not (fb_dtsg and lsd and actor_id):
-            print("ERROR: could not harvest fb_dtsg/lsd/actor_id from the page. Is the profile logged in to Business Manager?")
-            return 3
+            print("  SKIP: incomplete session harvest (profile logged in to Business Manager?).")
+            return 0, len(items)
 
-        if not args.apply:
-            print("\nDRY RUN — would delete:")
-            for it in ids:
-                print(f"  {it['phone_id']}  {it.get('display','')}  {it.get('status','')}")
-            print(f"\nTotal: {len(ids)}. Re-run with --apply (and FB_PASSWORD set) to delete.")
-            return 0
+        if not apply:
+            for it in items:
+                print(f"    would delete  {it['phone_id']}  {it.get('display','')}  {it.get('status','')}")
+            return 0, 0
 
         if not (pubkey and keyid is not None):
-            print("ERROR: missing password pubkey/keyId. Set FB_PUBKEY/FB_KEYID env (grab from devtools) and retry.")
-            return 4
+            print("  SKIP: missing password pubkey/keyId (set FB_PUBKEY/FB_KEYID to override).")
+            return 0, len(items)
 
-        ok = err = 0
-        print("\nDeleting...")
-        for it in ids:
+        for it in items:
             pid = str(it["phone_id"])
-            blob = encrypt_fb_password(password, pubkey, int(keyid))  # fresh timestamp each call
+            blob = encrypt_fb_password(password, pubkey, int(keyid))  # fresh timestamp per call
             res = delete_in_browser(cdp, session_id, fb_dtsg=fb_dtsg, lsd=lsd,
                                     actor_id=actor_id, phone_id=pid, encrypted_pwd=blob)
             if res.get("ok"):
                 ok += 1
-                print(f"  OK  {pid}  {it.get('display','')}")
+                print(f"    OK  {pid}  {it.get('display','')}")
             else:
                 err += 1
-                print(f"  ERR {pid}  {it.get('display','')}: {res.get('raw') or res.get('status')}")
-            time.sleep(args.sleep)
-        print(f"\nDone. deleted={ok} failed={err} total={len(ids)}")
-        return 0
+                print(f"    ERR {pid}  {it.get('display','')}: {res.get('raw') or res.get('status')}")
+            time.sleep(sleep)
+        return ok, err
     finally:
         cdp.close()
-        if not args.keep_open:
-            adspower_stop(base, args.profile)
-            print("AdsPower browser stopped.")
-        else:
-            print("Left AdsPower browser open (--keep-open).")
+        if not keep_open:
+            adspower_stop(base, profile_id)
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ids-file", required=True, help="JSON dump from cleanup_disconnected_numbers.py --dump")
+    ap.add_argument("--profile", default="", help="Only process this AdsPower profile id")
+    ap.add_argument("--apply", action="store_true", help="Actually delete (default: dry-run)")
+    ap.add_argument("--limit", type=int, default=0, help="Per-profile cap on numbers (0=all)")
+    ap.add_argument("--keep-open", action="store_true", help="Leave each AdsPower browser open")
+    ap.add_argument("--sleep", type=float, default=1.5, help="Seconds between deletes")
+    args = ap.parse_args()
+
+    base = (os.getenv("ADSPOWER_BASE") or DEFAULT_BASE).rstrip("/")
+    groups = load_groups(args.ids_file)
+    if args.profile:
+        groups = OrderedDict((k, v) for k, v in groups.items() if k == args.profile)
+        if not groups:
+            print(f"No numbers for profile {args.profile} in {args.ids_file}")
+            return 1
+
+    total = sum(len(v) for v in groups.values())
+    print(f"{'APPLY' if args.apply else 'DRY RUN'} | {len(groups)} profile(s), {total} number(s) | base={base}")
+
+    # Pure grouping view when dry-run with no specific profile (don't open browsers).
+    if not args.apply and not args.profile:
+        for prof, items in groups.items():
+            print(f"  {prof or '(none)'}: {len(items)}")
+        print("\nDry-run grouping only. Use --profile <id> to test harvest on one profile, "
+              "or --apply to delete.")
+        return 0
+
+    pubkey_cache: dict = {}
+    tot_ok = tot_err = 0
+    for prof, items in groups.items():
+        if not prof:
+            print(f"\n=== (no profile id) — {len(items)} number(s): cannot delete without a session, skipping ===")
+            tot_err += len(items)
+            continue
+        ok, err = process_profile(base, prof, items, apply=args.apply, limit=args.limit,
+                                  sleep=args.sleep, keep_open=args.keep_open, pubkey_cache=pubkey_cache)
+        tot_ok += ok
+        tot_err += err
+
+    if args.apply:
+        print(f"\n==== DONE: deleted={tot_ok} failed={tot_err} total={total} ====")
+    return 0
 
 
 if __name__ == "__main__":
