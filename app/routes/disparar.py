@@ -13,7 +13,7 @@ from werkzeug.utils import secure_filename
 from .. import db
 from ..models import DisparoJob
 from ..json_store import load_user_bms
-from ..services.meta import get_templates as meta_get_templates
+from ..services.meta import get_templates as meta_get_templates, _count_body_vars as _count_tpl_vars
 from ..config import Config
 from ..services.disparar_service import (
     start_disparo_job,
@@ -235,11 +235,12 @@ def waba_templates(waba_id):
                 body_text = comp.get("text", "")
                 break
         result.append({
-            "name":     t.get("name", ""),
-            "category": t.get("category", ""),
-            "status":   t.get("status", ""),
-            "language": t.get("language", ""),
-            "body":     body_text[:120],
+            "name":      t.get("name", ""),
+            "category":  t.get("category", ""),
+            "status":    t.get("status", ""),
+            "language":  t.get("language", ""),
+            "body":      body_text[:120],
+            "var_count": _count_tpl_vars(t),
         })
 
     return jsonify({"templates": result})

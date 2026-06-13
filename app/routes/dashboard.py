@@ -1,4 +1,5 @@
 import os
+import re
 import time
 from flask import (
     Blueprint,
@@ -33,6 +34,15 @@ from ..services.health_test_service import (
 )
 
 bp = Blueprint("dashboard", __name__)
+
+
+def _pick_connected_br_phone(phone_numbers: list) -> str:
+    """Return the id of the first CONNECTED Brazilian (+55) number, or ''."""
+    for p in phone_numbers:
+        digits = re.sub(r"\D", "", str(p.get("display_phone_number") or ""))
+        if digits.startswith("55") and (p.get("status") or "").upper() == "CONNECTED":
+            return p.get("id", "") or ""
+    return ""
 
 
 @bp.route("/api-settings")
@@ -302,16 +312,14 @@ def travar_start():
         phone_numbers = snap.get("phone_numbers") or []
         waba_name = snap.get("name") or entry.get("name") or str(waba_id)
 
-        phone_number_id = ""
-        if phone_numbers:
-            phone_number_id = phone_numbers[0].get("id", "")
-        if not phone_number_id:
-            phone_number_id = (entry.get("phone_number_id") or "").strip()
+        phone_number_id = _pick_connected_br_phone(phone_numbers)
 
         if not token:
             return waba_id, None, None, None, None, f"{waba_id}: token vazio"
         if not phone_number_id:
-            return waba_id, None, None, None, None, f"{waba_id}: sem phone_number_id (sincronize o dashboard)"
+            return waba_id, None, None, None, None, (
+                f"{waba_id}: sem número brasileiro (+55) conectado — WABA ignorada"
+            )
 
         try:
             templates, err_tpl = get_templates(api_version, token, waba_id)

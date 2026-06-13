@@ -200,13 +200,13 @@ def _send_template(phone: str, phone_number_id: str, token: str,
 
     components = []
     if parameters:
-        components.append({
-            "type": "body",
-            "parameters": [
-                {"type": "text", "parameter_name": p["name"], "text": p["value"]}
-                for p in parameters
-            ],
-        })
+        body_params = []
+        for p in parameters:
+            param = {"type": "text", "text": p["value"]}
+            if p.get("name"):
+                param["parameter_name"] = p["name"]
+            body_params.append(param)
+        components.append({"type": "body", "parameters": body_params})
 
     payload = {
         "messaging_product": "whatsapp",
@@ -237,13 +237,13 @@ async def _send_template_async(session, phone, phone_number_id, token,
     hdrs = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
     components = []
     if parameters:
-        components.append({
-            "type": "body",
-            "parameters": [
-                {"type": "text", "parameter_name": p["name"], "text": p["value"]}
-                for p in parameters
-            ],
-        })
+        body_params = []
+        for p in parameters:
+            param = {"type": "text", "text": p["value"]}
+            if p.get("name"):
+                param["parameter_name"] = p["name"]
+            body_params.append(param)
+        components.append({"type": "body", "parameters": body_params})
     payload = {
         "messaging_product": "whatsapp",
         "type": "template",
@@ -269,13 +269,14 @@ async def _send_template_async(session, phone, phone_number_id, token,
 
 async def _run_async_jobs(state, pending, phone_col, phone_number_id, token,
                           template_name, template_language, param_map, namespace,
-                          sent_path, log_path, skip_log, user_id=0, waba_id=""):
+                          sent_path, log_path, skip_log, user_id=0, waba_id="",
+                          async_limit=500):
     import aiohttp as _aiohttp
-    sem = asyncio.Semaphore(500)
+    sem = asyncio.Semaphore(async_limit)
     # Collect results in memory — no file I/O inside coroutines (would block event loop)
     results = []  # list of (phone, success, msg, ts)
 
-    connector = _aiohttp.TCPConnector(limit=500, limit_per_host=500)
+    connector = _aiohttp.TCPConnector(limit=async_limit, limit_per_host=async_limit)
     async with _aiohttp.ClientSession(connector=connector) as session:
         async def _task(row):
             async with sem:
@@ -286,7 +287,7 @@ async def _run_async_jobs(state, pending, phone_col, phone_number_id, token,
                     state["skipped"] += 1
                     return
                 params = [
-                    {"name": pm["name"],
+                    {"name": pm.get("name", ""),
                      "value": str(row.get(pm.get("column", ""), "")).strip()}
                     for pm in param_map
                 ]
@@ -335,7 +336,8 @@ def _run_disparo(app, job_id: int, user_id: int,
                  waba_id: str = "",
                  has_header: bool = True,
                  max_leads: int = 0,
-                 preloaded_rows: list | None = None):
+                 preloaded_rows: list | None = None,
+                 async_limit: int = 500):
     """
     Runs in a single daemon thread (the 'orchestrator').
     All counters live in RAM (_live_jobs). DB is only written at start and end.
@@ -425,7 +427,7 @@ def _run_disparo(app, job_id: int, user_id: int,
         if not phone:
             return phone, None, "telefone vazio"
         params = [
-            {"name": pm["name"],
+            {"name": pm.get("name", ""),
              "value": str(row.get(pm.get("column", ""), "")).strip()}
             for pm in param_map
         ]
@@ -447,6 +449,7 @@ def _run_disparo(app, job_id: int, user_id: int,
                         state, pending, phone_col, phone_number_id, token,
                         template_name, template_language, param_map, namespace,
                         sent_path, log_path, skip_log, user_id, waba_id,
+                        async_limit,
                     ))
                 finally:
                     _loop.close()
@@ -456,6 +459,7 @@ def _run_disparo(app, job_id: int, user_id: int,
                     state, pending, phone_col, phone_number_id, token,
                     template_name, template_language, param_map, namespace,
                     sent_path, log_path, skip_log, user_id, waba_id,
+                    async_limit,
                 ))
             if state["stop_requested"]:
                 _finish("stopped", "Envio interrompido pelo usuário.")
@@ -519,7 +523,8 @@ def start_disparo_job(app, user_id: int, csv_filename: str,
                       waba_id: str = "",
                       has_header: bool = True,
                       max_leads: int = 0,
-                      preloaded_rows: list | None = None) -> int:
+                      preloaded_rows: list | None = None,
+                      async_limit: int = 500) -> int:
     csv_path = os.path.join(csvs_dir(user_id), csv_filename)
 
     with app.app_context():
@@ -536,7 +541,7 @@ def start_disparo_job(app, user_id: int, csv_filename: str,
         args=(app, job_id, user_id, csv_path, phone_col,
               phone_number_id, token, template_name, template_language,
               param_map, max_workers, skip_log, waba_id, has_header, max_leads,
-              preloaded_rows),
+              preloaded_rows, async_limit),
         daemon=True,
     )
     t.start()

@@ -550,40 +550,18 @@
       {# Right: template config #}
       <div class="space-y-4">
         <div>
-          <label class="text-xs text-zinc-400 font-medium">Templates</label>
-          <div class="mt-1 flex gap-2">
-            <button type="button" id="btnTplSame" onclick="setTemplateMode('same')"
-                    class="tpl-mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-indigo-500 bg-indigo-700 text-white">
-              Mesmo template
-            </button>
-            <button type="button" id="btnTplDiff" onclick="setTemplateMode('different')"
-                    class="tpl-mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800">
-              Templates diferentes
-            </button>
-          </div>
+          <label class="text-xs text-zinc-400 font-medium">Templates por BM</label>
+          <p class="text-xs text-zinc-600 mt-0.5">Selecione o template em cada BM. O mapeamento de variáveis é gerado automaticamente por número de variáveis.</p>
         </div>
 
-        {# Per-BM template pickers — rendered in both modes by JS #}
+        {# Per-BM template pickers — rendered by JS when BMs are selected #}
         <div id="perBmTemplateRows" class="space-y-3">
           {# Injected by JS when BMs are selected #}
         </div>
 
-        {# Global param mapping — visible in "same" mode only #}
-        <div id="tplSamePanel" class="space-y-2">
-          <div class="flex items-center justify-between">
-            <label class="text-xs text-zinc-400">Parâmetros do template (mapeamento único para todos os BMs)</label>
-            <button type="button" onclick="addMultiParamRow()"
-                    class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold">
-              + Adicionar
-            </button>
-          </div>
-          <div id="multiParamRows" class="space-y-2"></div>
-          <p class="text-xs text-zinc-600">Coluna CSV = nome canônico que você mapeou no passo 1.</p>
-        </div>
-
-        {# Hint shown in "different" mode (no extra content — params are per-BM) #}
-        <div id="tplDiffPanel" class="hidden">
-          <p class="text-xs text-zinc-500">Cada BM tem seu próprio template e mapeamento de parâmetros abaixo.</p>
+        {# Auto-generated variable mapping groups — rendered by JS #}
+        <div id="groupMappingPanel" class="space-y-3">
+          {# Injected by JS when templates are selected #}
         </div>
       </div>
     </div>
@@ -1089,12 +1067,11 @@ function setMode(mode) {
 // ── multi state ───────────────────────────────────────────────────────────────
 let _multiSelectedFiles = {};   // filename → {columns, has_header}
 let _multiSelectedBms   = [];   // [{waba_id, phone_number_id, token, name, tier}]
-let _multiTemplateMode  = 'same';
 let _multiWorkers       = 1;
 let _activeBatchId      = null;
 let _batchPollTimer     = null;
-let _perBmTemplates     = {};   // waba_id → [{name, language, ...}] (loaded on demand)
-let _canonicalFields    = [];   // derived from param rows for file mapping
+let _perBmTemplates     = {};   // waba_id → [{name, language, var_count, ...}] (loaded on demand)
+let _bmVarCount         = {};   // waba_id → int (var_count of selected template)
 
 // ── file checkbox ─────────────────────────────────────────────────────────────
 async function onMultiCsvChange() {
@@ -1123,6 +1100,7 @@ async function onMultiCsvChange() {
   }
 
   unlockMultiConfig();
+  rerenderGroupMappings();
   refreshBatchPreview();
 }
 
@@ -1149,10 +1127,8 @@ function renderFileMapping(filename, columns) {
         ${colOpts}
       </select>
     </div>
-    <div class="file-extra-fields space-y-1.5" data-filename="${escHtml(filename)}"></div>
   `;
   container.appendChild(div);
-  refreshFileMappingFields(filename);
 }
 
 function onFileHeaderChange(filename) {
@@ -1168,44 +1144,11 @@ function onFileHeaderChange(filename) {
       // Rebuild phone-col select
       const sel = document.querySelector(`.file-phone-col[data-filename="${filename}"]`);
       if (sel) sel.innerHTML = cols.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
-      refreshFileMappingFields(filename);
+      rerenderGroupMappings();
       refreshBatchPreview();
     }).catch(() => {});
 }
 
-function refreshFileMappingFields(filename) {
-  const container = document.querySelector(`.file-extra-fields[data-filename="${filename}"]`);
-  if (!container) return;
-  const cols = (_multiSelectedFiles[filename] || {}).columns || [];
-  const colOpts = '<option value="">— coluna —</option>' + cols.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
-
-  // One row per canonical param field from the current param mapping
-  const fields = getCanonicalFields();
-  container.innerHTML = fields.map(cf => `
-    <div class="flex items-center gap-2">
-      <span class="text-xs text-zinc-500 w-24 shrink-0 font-mono">${escHtml(cf)}</span>
-      <select class="flex-1 px-2 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-xs outline-none file-field-col"
-              data-filename="${escHtml(filename)}" data-field="${escHtml(cf)}">
-        ${colOpts}
-      </select>
-    </div>
-  `).join('');
-}
-
-function getCanonicalFields() {
-  // Gather param names from multi param rows
-  const names = [];
-  document.querySelectorAll('#multiParamRows .multi-param-name').forEach(inp => {
-    const v = inp.value.trim();
-    if (v) names.push(v);
-  });
-  // Also from per-BM configs
-  document.querySelectorAll('.per-bm-param-name').forEach(inp => {
-    const v = inp.value.trim();
-    if (v && !names.includes(v)) names.push(v);
-  });
-  return names;
-}
 
 // ── BM checkbox ───────────────────────────────────────────────────────────────
 function onMultiBmChange() {
@@ -1217,9 +1160,10 @@ function onMultiBmChange() {
     const boxEl  = document.getElementById('perBmTplBox_'  + bm.waba_id);
     if (nameEl && nameEl.value) {
       savedTpl[bm.waba_id] = {
-        name:     nameEl.value,
-        language: langEl ? langEl.value : 'en',
-        label:    boxEl  ? boxEl.textContent : nameEl.value,
+        name:      nameEl.value,
+        language:  langEl ? langEl.value : 'en',
+        label:     boxEl  ? boxEl.textContent : nameEl.value,
+        var_count: _bmVarCount[bm.waba_id],
       };
     }
   });
@@ -1237,10 +1181,14 @@ function onMultiBmChange() {
       });
     }
   });
+  // Prune var-count cache for deselected BMs
+  const activeIds = new Set(_multiSelectedBms.map(b => b.waba_id));
+  Object.keys(_bmVarCount).forEach(id => { if (!activeIds.has(id)) delete _bmVarCount[id]; });
 
   // Always re-render per-BM rows; pass saved selections to restore them
   renderPerBmTemplateRows(savedTpl);
   unlockMultiConfig();
+  rerenderGroupMappings();
   refreshBatchPreview();
 }
 
@@ -1269,59 +1217,30 @@ function setMultiWorkers(val) {
   });
 }
 
-// ── template mode ─────────────────────────────────────────────────────────────
-function setTemplateMode(mode) {
-  _multiTemplateMode = mode;
-  const samePanel = document.getElementById('tplSamePanel');
-  const diffPanel = document.getElementById('tplDiffPanel');
-  const btnS = document.getElementById('btnTplSame');
-  const btnD = document.getElementById('btnTplDiff');
-
-  if (mode === 'same') {
-    samePanel.classList.remove('hidden');
-    diffPanel.classList.add('hidden');
-    btnS.className = 'tpl-mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-indigo-500 bg-indigo-700 text-white';
-    btnD.className = 'tpl-mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800';
-  } else {
-    samePanel.classList.add('hidden');
-    diffPanel.classList.remove('hidden');
-    btnD.className = 'tpl-mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-indigo-500 bg-indigo-700 text-white';
-    btnS.className = 'tpl-mode-btn px-4 py-2 rounded-xl border text-xs font-semibold transition-colors border-zinc-700 bg-zinc-900 text-zinc-400 hover:bg-zinc-800';
-  }
-  // Re-render per-BM pickers with the new mode (show/hide params section per BM)
-  renderPerBmTemplateRows();
-}
-
-// ── per-BM template rows (used in both modes) ─────────────────────────────────
-// savedTpl: optional {waba_id: {name, language, label}} to restore after rebuild
+// ── per-BM template rows ──────────────────────────────────────────────────────
+// savedTpl: optional {waba_id: {name, language, label, var_count}} to restore after rebuild
 function renderPerBmTemplateRows(savedTpl) {
   savedTpl = savedTpl || {};
-  const showParams = _multiTemplateMode === 'different';
-  const container  = document.getElementById('perBmTemplateRows');
+  const container = document.getElementById('perBmTemplateRows');
   container.innerHTML = '';
 
   _multiSelectedBms.forEach(bm => {
     const saved = savedTpl[bm.waba_id] || {};
-    const tplLabel = saved.label || '— selecione um template —';
+    const tplLabel    = saved.label || '— selecione um template —';
     const tplSelected = !!saved.name;
+    if (saved.var_count !== undefined) _bmVarCount[bm.waba_id] = saved.var_count;
 
     const div = document.createElement('div');
     div.id = 'perBmTpl_' + bm.waba_id;
     div.className = 'rounded-xl border border-zinc-700 bg-zinc-950 p-3 space-y-2';
-
-    // Header row: BM name + fetch button + (same mode) "apply name to all" button
-    const applyAllBtn = !showParams
-      ? `<button type="button" onclick="applyTemplateNameToAll('${escHtml(bm.waba_id)}')"
-                class="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-400">
-           Aplicar nome a todos
-         </button>`
-      : '';
-
     div.innerHTML = `
       <div class="flex items-center justify-between gap-2 flex-wrap">
         <span class="text-xs font-semibold text-zinc-200">${escHtml(bm.name)}</span>
         <div class="flex items-center gap-2">
-          ${applyAllBtn}
+          <button type="button" onclick="applyTemplateNameToAll('${escHtml(bm.waba_id)}')"
+                  class="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs text-zinc-400">
+            Aplicar a todos
+          </button>
           <button type="button" onclick="fetchPerBmTemplates('${escHtml(bm.waba_id)}', '${escHtml(bm.token)}')"
                   class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold">
             Buscar templates
@@ -1338,15 +1257,6 @@ function renderPerBmTemplateRows(savedTpl) {
       <div id="perBmPickerPanel_${escHtml(bm.waba_id)}" class="hidden rounded-lg border border-zinc-700 bg-zinc-950 overflow-hidden">
         <div id="perBmPickerList_${escHtml(bm.waba_id)}" class="max-h-40 overflow-y-auto divide-y divide-zinc-800"></div>
       </div>
-      ${showParams ? `
-      <div>
-        <div class="flex items-center justify-between mb-1">
-          <span class="text-xs text-zinc-500">Parâmetros</span>
-          <button type="button" onclick="addPerBmParamRow('${escHtml(bm.waba_id)}')"
-                  class="px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-xs">+ param</button>
-        </div>
-        <div id="perBmParams_${escHtml(bm.waba_id)}" class="space-y-1.5"></div>
-      </div>` : ''}
     `;
     container.appendChild(div);
   });
@@ -1369,7 +1279,9 @@ function applyTemplateNameToAll(sourceWabaId) {
     if (nameEl) nameEl.value = match.name;
     if (langEl) langEl.value = match.language || 'en';
     if (boxEl)  { boxEl.textContent = match.name; boxEl.className = 'px-3 py-2 rounded-lg bg-zinc-900 border border-indigo-600 text-xs text-zinc-200 font-mono cursor-pointer'; }
+    _bmVarCount[bm.waba_id] = match.var_count || 0;
   });
+  rerenderGroupMappings();
 }
 
 async function fetchPerBmTemplates(wabaId, token) {
@@ -1397,32 +1309,12 @@ function selectPerBmTemplate(wabaId, name, rowEl) {
   const tpl  = tpls.find(t => t.name === name);
   document.getElementById('perBmTplName_' + wabaId).value = name;
   document.getElementById('perBmTplLang_' + wabaId).value = tpl ? (tpl.language || 'en') : 'en';
+  _bmVarCount[wabaId] = tpl ? (tpl.var_count || 0) : 0;
   const box = document.getElementById('perBmTplBox_' + wabaId);
-  box.textContent = name;
+  box.textContent = name + (tpl ? ` (${tpl.var_count || 0} var)` : '');
   box.className = 'px-3 py-2 rounded-lg bg-zinc-900 border border-indigo-600 text-xs text-zinc-200 font-mono cursor-pointer';
   document.getElementById('perBmPickerPanel_' + wabaId).classList.add('hidden');
-}
-
-function addPerBmParamRow(wabaId) {
-  const container = document.getElementById('perBmParams_' + wabaId);
-  const id = 'pbp_' + wabaId + '_' + Date.now();
-  const canonicals = getCanonicalFields();
-  const colOpts = '<option value="">— campo —</option>' +
-    canonicals.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
-  const div = document.createElement('div');
-  div.id = id;
-  div.className = 'flex items-center gap-2';
-  div.innerHTML = `
-    <input type="text" placeholder="parameter_name"
-           class="flex-1 px-2 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 outline-none text-xs font-mono per-bm-param-name">
-    <span class="text-zinc-600 text-xs">→</span>
-    <select class="flex-1 px-2 py-1.5 rounded-lg bg-zinc-900 border border-zinc-800 outline-none text-xs per-bm-param-col">
-      ${colOpts}
-    </select>
-    <button type="button" onclick="document.getElementById('${id}').remove()"
-            class="px-1.5 py-1.5 rounded bg-zinc-800 hover:bg-red-900/50 text-zinc-500 hover:text-red-300 text-xs">✕</button>
-  `;
-  container.appendChild(div);
+  rerenderGroupMappings();
 }
 
 // ── shared template picker renderer ──────────────────────────────────────────
@@ -1466,34 +1358,83 @@ function renderMultiTemplatePicker(templates, listId, onSelect) {
   }).join('');
 }
 
-// ── same-mode param rows ──────────────────────────────────────────────────────
-let _multiParamRowId = 0;
-function addMultiParamRow(name = '', col = '') {
-  _multiParamRowId++;
-  const id = 'mpr' + _multiParamRowId;
-  const canonicals = getCanonicalFields();
-  const colOpts = '<option value="">— campo —</option>' +
-    canonicals.map(c => `<option value="${escHtml(c)}"${c===col?' selected':''}>${escHtml(c)}</option>`).join('');
-  const div = document.createElement('div');
-  div.id = id;
-  div.className = 'flex items-center gap-2';
-  div.innerHTML = `
-    <input type="text" placeholder="parameter_name"
-           class="flex-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-xs font-mono multi-param-name"
-           value="${escHtml(name)}" oninput="onMultiParamNameChange()">
-    <span class="text-zinc-600 text-xs">→</span>
-    <select class="flex-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-xs multi-param-col">
-      ${colOpts}
-    </select>
-    <button type="button" onclick="document.getElementById('${id}').remove(); onMultiParamNameChange()"
-            class="px-2 py-2 rounded-lg bg-zinc-800 hover:bg-red-900/50 text-zinc-500 hover:text-red-300 text-xs">✕</button>
-  `;
-  document.getElementById('multiParamRows').appendChild(div);
+// ── auto-grouped variable mapping ─────────────────────────────────────────────
+
+function buildGroups() {
+  // Group selected BMs by var_count of their chosen template.
+  // Returns [{var_count, bm_ids:[...]}] sorted ascending by var_count.
+  const map = {};
+  _multiSelectedBms.forEach(bm => {
+    const vc = _bmVarCount[bm.waba_id];
+    if (vc === undefined) return; // template not yet chosen
+    if (!map[vc]) map[vc] = [];
+    map[vc].push(bm.waba_id);
+  });
+  return Object.keys(map)
+    .map(k => ({var_count: parseInt(k), bm_ids: map[k]}))
+    .sort((a, b) => a.var_count - b.var_count);
 }
 
-function onMultiParamNameChange() {
-  // Update all file mapping panels to reflect new canonical fields
-  Object.keys(_multiSelectedFiles).forEach(fn => refreshFileMappingFields(fn));
+function rerenderGroupMappings() {
+  const panel = document.getElementById('groupMappingPanel');
+  if (!panel) return;
+  const groups = buildGroups();
+  const files  = Object.keys(_multiSelectedFiles);
+
+  if (!groups.length) {
+    panel.innerHTML = '';
+    return;
+  }
+
+  panel.innerHTML = groups.map(g => {
+    const N = g.var_count;
+    const bmNames = g.bm_ids.map(id => {
+      const bm = _multiSelectedBms.find(b => b.waba_id === id);
+      return bm ? bm.name : id;
+    }).join(', ');
+    const header = `
+      <div class="text-xs font-semibold text-zinc-300 mb-2">
+        ${N} variável${N !== 1 ? 'is' : ''} · ${g.bm_ids.length} BM${g.bm_ids.length !== 1 ? 's' : ''}
+        <span class="font-normal text-zinc-500">(${escHtml(bmNames)})</span>
+      </div>`;
+
+    if (N === 0) {
+      return `<div class="rounded-xl border border-zinc-700 bg-zinc-950 p-3">
+        ${header}
+        <p class="text-xs text-zinc-600">Sem variáveis — nada a mapear.</p>
+      </div>`;
+    }
+
+    const rows = [];
+    for (let i = 1; i <= N; i++) {
+      const canonKey = `g${N}_v${i}`;
+      if (files.length === 0) {
+        rows.push(`<div class="text-xs text-zinc-600 pl-1">Variável {{${i}}} — selecione uma lista primeiro.</div>`);
+      } else {
+        const fileSelects = files.map(fn => {
+          const cols = (_multiSelectedFiles[fn] || {}).columns || [];
+          const colOpts = '<option value="">— coluna —</option>' +
+            cols.map(c => `<option value="${escHtml(c)}">${escHtml(c)}</option>`).join('');
+          return `<div class="flex items-center gap-2 mt-1">
+            <span class="text-xs text-zinc-600 w-32 shrink-0 truncate" title="${escHtml(fn)}">${escHtml(fn.length > 20 ? fn.slice(0,18)+'…' : fn)}</span>
+            <select class="flex-1 px-2 py-1.5 rounded-lg bg-zinc-900 border border-zinc-700 text-xs outline-none group-var-col"
+                    data-canon="${escHtml(canonKey)}" data-filename="${escHtml(fn)}">
+              ${colOpts}
+            </select>
+          </div>`;
+        }).join('');
+        rows.push(`<div class="mb-2">
+          <div class="text-xs text-zinc-400 font-mono">{{${i}}}</div>
+          ${fileSelects}
+        </div>`);
+      }
+    }
+
+    return `<div class="rounded-xl border border-zinc-700 bg-zinc-950 p-3">
+      ${header}
+      ${rows.join('')}
+    </div>`;
+  }).join('');
 }
 
 // ── preview / allocation ──────────────────────────────────────────────────────
@@ -1550,12 +1491,22 @@ function renderBatchPreview(d) {
 
 // ── collect payload helpers ───────────────────────────────────────────────────
 function buildFilesSpec() {
+  // field_map uses canonical keys g{N}_v{i} read from the group-mapping panel.
+  // Build a combined map first: canon_key → {filename → chosen_column}
+  const groupVarMap = {};   // canon_key → {filename: col}
+  document.querySelectorAll('.group-var-col').forEach(sel => {
+    const canon = sel.dataset.canon;
+    const fn    = sel.dataset.filename;
+    if (!groupVarMap[canon]) groupVarMap[canon] = {};
+    if (sel.value) groupVarMap[canon][fn] = sel.value;
+  });
+
   return Object.entries(_multiSelectedFiles).map(([filename, info]) => {
-    const phoneSel = document.querySelector(`.file-phone-col[data-filename="${filename}"]`);
+    const phoneSel  = document.querySelector(`.file-phone-col[data-filename="${filename}"]`);
     const phone_col = phoneSel ? phoneSel.value : '';
     const field_map = {};
-    document.querySelectorAll(`.file-field-col[data-filename="${filename}"]`).forEach(sel => {
-      if (sel.value) field_map[sel.dataset.field] = sel.value;
+    Object.entries(groupVarMap).forEach(([canon, fileMap]) => {
+      if (fileMap[filename]) field_map[canon] = fileMap[filename];
     });
     return {filename, has_header: info.has_header, phone_col, field_map};
   });
@@ -1563,47 +1514,30 @@ function buildFilesSpec() {
 
 function buildWabasSpec() {
   return _multiSelectedBms.map(bm => ({
-    waba_id: bm.waba_id,
+    waba_id:         bm.waba_id,
     phone_number_id: bm.phone_number_id,
-    token: bm.token,
-    name: bm.name,
-    tier_str: bm.tier_str,
+    token:           bm.token,
+    name:            bm.name,
+    tier_str:        bm.tier_str,
   }));
 }
 
 function buildTemplatesCfg() {
-  if (_multiTemplateMode === 'same') {
-    // Shared param_map; per-BM template names (names vary per BM)
+  // Always emit per-BM array (backend "different" mode).
+  // param_map uses positional canonical keys (no name → positional send).
+  return _multiSelectedBms.map(bm => {
+    const N = _bmVarCount[bm.waba_id] || 0;
     const paramMap = [];
-    document.querySelectorAll('#multiParamRows > div').forEach(row => {
-      const nm  = row.querySelector('.multi-param-name').value.trim();
-      const col = row.querySelector('.multi-param-col').value;
-      if (nm) paramMap.push({name: nm, column: col});
-    });
-    const perBm = {};
-    _multiSelectedBms.forEach(bm => {
-      perBm[bm.waba_id] = {
-        template_name:     (document.getElementById('perBmTplName_' + bm.waba_id) || {}).value || '',
-        template_language: (document.getElementById('perBmTplLang_' + bm.waba_id) || {}).value || 'en',
-      };
-    });
-    return { param_map: paramMap, per_bm: perBm };
-  } else {
-    return _multiSelectedBms.map(bm => {
-      const paramMap = [];
-      document.querySelectorAll(`#perBmParams_${bm.waba_id} > div`).forEach(row => {
-        const nm  = row.querySelector('.per-bm-param-name').value.trim();
-        const col = row.querySelector('.per-bm-param-col').value;
-        if (nm) paramMap.push({name: nm, column: col});
-      });
-      return {
-        waba_id:           bm.waba_id,
-        template_name:     (document.getElementById('perBmTplName_' + bm.waba_id) || {}).value || '',
-        template_language: (document.getElementById('perBmTplLang_' + bm.waba_id) || {}).value || 'en',
-        param_map:         paramMap,
-      };
-    });
-  }
+    for (let i = 1; i <= N; i++) {
+      paramMap.push({column: `g${N}_v${i}`});  // no name → positional
+    }
+    return {
+      waba_id:           bm.waba_id,
+      template_name:     (document.getElementById('perBmTplName_' + bm.waba_id) || {}).value || '',
+      template_language: (document.getElementById('perBmTplLang_' + bm.waba_id) || {}).value || 'en',
+      param_map:         paramMap,
+    };
+  });
 }
 
 // ── start batch ───────────────────────────────────────────────────────────────
@@ -1613,9 +1547,7 @@ async function startBatch() {
   if (!filesSpec.length)  { alert('Selecione pelo menos um arquivo.'); return; }
   if (!wabasSpec.length)  { alert('Selecione pelo menos um BM.'); return; }
 
-  const templatesCfg = buildTemplatesCfg();
-
-  // Both modes require every selected BM to have a template name chosen
+  // Validate: every BM must have a template selected
   const missingTpl = _multiSelectedBms.filter(bm => {
     const nm = (document.getElementById('perBmTplName_' + bm.waba_id) || {}).value || '';
     return !nm.trim();
@@ -1624,6 +1556,25 @@ async function startBatch() {
     alert('Selecione o template para: ' + missingTpl.map(b => b.name).join(', '));
     return;
   }
+
+  // Validate: every variable in every group must have a column mapped per file
+  const files = Object.keys(_multiSelectedFiles);
+  const groups = buildGroups();
+  for (const g of groups) {
+    if (g.var_count === 0) continue;
+    for (let i = 1; i <= g.var_count; i++) {
+      const canon = `g${g.var_count}_v${i}`;
+      for (const fn of files) {
+        const sel = document.querySelector(`.group-var-col[data-canon="${canon}"][data-filename="${CSS.escape(fn)}"]`);
+        if (!sel || !sel.value) {
+          alert(`Mapeie a variável {{${i}}} (${g.var_count} var) para o arquivo "${fn}".`);
+          return;
+        }
+      }
+    }
+  }
+
+  const templatesCfg = buildTemplatesCfg();
 
   const overage    = parseFloat(document.getElementById('multiOveragePct').value) || 0;
   const skipLog    = document.getElementById('multiSkipLog').checked;
@@ -1639,7 +1590,7 @@ async function startBatch() {
     body: JSON.stringify({
       files_spec:    filesSpec,
       wabas_spec:    wabasSpec,
-      template_mode: _multiTemplateMode,
+      template_mode: 'different',
       templates_cfg: templatesCfg,
       overage_pct:   overage,
       max_workers:   maxWorkers,

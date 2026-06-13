@@ -24,6 +24,8 @@ from .disparar_service import (
     get_live_state,
     request_stop,
     csvs_dir,
+    count_sent_from_log,
+    stamp_disparo_events,
 )
 from .meta import get_phone_messaging_limit
 from ..json_store import load_user_bms, patch_snapshot
@@ -38,7 +40,8 @@ TIER_VALUES: dict[str, int] = {
     "TIER_100K":   100_000,
 }
 
-GLOBAL_BATCH_BUDGET = 200   # max total concurrent requests across all children
+GLOBAL_BATCH_BUDGET = 200   # max total thread-workers across all children (thread mode)
+GLOBAL_ASYNC_BUDGET = 500   # max total async coroutines across all children (MAX mode)
 
 
 def tier_to_int(tier: str | None) -> int | None:
@@ -237,13 +240,15 @@ def start_batch(app, user_id: int,
     if alloc["error"]:
         return alloc
 
-    # Compute per-child worker count within global budget
+    # Compute per-child concurrency within global budget
     n_children = len(alloc["assignments"])
     if max_workers == 0:
-        # MAX mode: cap each child so total ≤ GLOBAL_BATCH_BUDGET, min 1
-        child_workers = max(1, GLOBAL_BATCH_BUDGET // n_children)
+        # MAX mode: children use async aiohttp; split GLOBAL_ASYNC_BUDGET across them
+        child_workers = 0
+        child_async_limit = max(1, GLOBAL_ASYNC_BUDGET // n_children)
     else:
         child_workers = max(1, min(max_workers, GLOBAL_BATCH_BUDGET // max(1, n_children)))
+        child_async_limit = 500  # unused in thread mode
 
     batch_id = str(uuid.uuid4())[:8]
     children = []
@@ -285,6 +290,7 @@ def start_batch(app, user_id: int,
             has_header=True,
             max_leads=0,
             preloaded_rows=rows_slice,
+            async_limit=child_async_limit,
         )
 
         children.append({
@@ -343,22 +349,44 @@ def batch_status(user_id: int, batch_id: str) -> dict | None:
             any_error = any_error or live["status"] == "error"
         else:
             # Try DB
+            st = None
             try:
+                import datetime as _dt
                 with flask.current_app.app_context():
                     job = db.session.get(DisparoJob, job_id)
+                    if job:
+                        # Self-heal: DB says still active but thread is gone — mark stopped.
+                        # Grace of 60s avoids the race between DB insert and thread registration.
+                        if job.status in ("queued", "running"):
+                            age = (_dt.datetime.utcnow() - job.created_at).total_seconds()
+                            if age > 60:
+                                try:
+                                    if getattr(job, "waba_id", "") and not getattr(job, "skip_log", False):
+                                        recovered = count_sent_from_log(job.user_id, job.id)
+                                        if recovered > 0:
+                                            stamp_disparo_events(job.user_id, job.waba_id, recovered)
+                                            job.sent = recovered
+                                    job.status = "stopped"
+                                    job.last_message = "Interrompido: processo encerrado."
+                                    db.session.commit()
+                                except Exception:
+                                    try:
+                                        db.session.rollback()
+                                    except Exception:
+                                        pass
+                        st = {
+                            "status": job.status,
+                            "total": job.total,
+                            "sent": job.sent,
+                            "failed": job.failed,
+                            "skipped": job.skipped,
+                            "last_message": job.last_message,
+                        }
+                        if job.status == "error":
+                            any_error = True
             except RuntimeError:
-                job = None
-            if job:
-                st = {
-                    "status": job.status,
-                    "total": job.total,
-                    "sent": job.sent,
-                    "failed": job.failed,
-                    "skipped": job.skipped,
-                    "last_message": job.last_message,
-                }
-                any_error = any_error or job.status == "error"
-            else:
+                pass
+            if st is None:
                 st = {"status": "unknown", "total": 0, "sent": 0,
                       "failed": 0, "skipped": 0, "last_message": ""}
 
