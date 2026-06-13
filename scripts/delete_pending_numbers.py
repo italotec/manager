@@ -290,7 +290,9 @@ def process_profile(base: str, profile_id: str, items: list, *, apply: bool, lim
         print("  SKIP: no saved password in AdsPower profile.")
         return 0, len(items)
 
-    time.sleep(1.0)  # AdsPower start is rate-limited (~1/s)
+    # Start clean: stop any stale/half-open session left from a prior interrupted run.
+    adspower_stop(base, profile_id)
+    time.sleep(2.0)  # let it fully close; AdsPower API is rate-limited (~1/s)
     try:
         ws_url = adspower_start(base, profile_id)
     except Exception as e:
@@ -300,7 +302,12 @@ def process_profile(base: str, profile_id: str, items: list, *, apply: bool, lim
     cdp = CDP(ws_url)
     ok = err = 0
     try:
-        session_id = cdp.open_page(MANAGER_URL)
+        try:
+            session_id = cdp.open_page(MANAGER_URL)
+        except RuntimeError:
+            # one retry: reopen the tab (transient slow load / redirect)
+            print("  retry: navigation timed out, retrying once...")
+            session_id = cdp.open_page(MANAGER_URL)
         sess = harvest(cdp, session_id)
         fb_dtsg, lsd = sess.get("fb_dtsg"), sess.get("lsd")
         actor_id = sess.get("actor_id") or username
@@ -377,18 +384,28 @@ def main() -> int:
 
     pubkey_cache: dict = {}
     tot_ok = tot_err = 0
+    failed_profiles = []
     for prof, items in groups.items():
         if not prof:
             print(f"\n=== (no profile id) — {len(items)} number(s): cannot delete without a session, skipping ===")
             tot_err += len(items)
             continue
-        ok, err = process_profile(base, prof, items, apply=args.apply, limit=args.limit,
-                                  sleep=args.sleep, keep_open=args.keep_open, pubkey_cache=pubkey_cache)
+        try:
+            ok, err = process_profile(base, prof, items, apply=args.apply, limit=args.limit,
+                                      sleep=args.sleep, keep_open=args.keep_open, pubkey_cache=pubkey_cache)
+        except Exception as e:
+            # One bad profile (nav timeout, checkpoint, AdsPower hiccup) must not abort the rest.
+            print(f"  EXC: profile {prof} failed: {type(e).__name__}: {str(e)[:200]}")
+            adspower_stop(base, prof)
+            ok, err = 0, len(items[: args.limit] if args.limit else items)
+            failed_profiles.append(prof)
         tot_ok += ok
         tot_err += err
 
     if args.apply:
         print(f"\n==== DONE: deleted={tot_ok} failed={tot_err} total={total} ====")
+        if failed_profiles:
+            print(f"Profiles to retry ({len(failed_profiles)}): {' '.join(failed_profiles)}")
     return 0
 
 
