@@ -11,6 +11,7 @@ Usage (from repo root on the VPS):
 """
 
 import argparse
+import json
 import os
 import sys
 
@@ -28,6 +29,7 @@ def main():
     parser.add_argument("--user-id", type=int, default=1, help="User ID (default: 1)")
     parser.add_argument("--apply", action="store_true", help="Actually delete (default is dry-run)")
     parser.add_argument("--api-version", default=os.environ.get("META_API_VERSION", "v23.0"))
+    parser.add_argument("--dump", default="", help="Write deletable ids to this JSON file (for delete_pending_numbers.py)")
     args = parser.parse_args()
 
     user_id = args.user_id
@@ -79,6 +81,15 @@ def main():
             print(f"    -- KEEP    id={pid}  {disp}  status={st}")
 
     print(f"\nTotal to delete: {len(to_delete)}")
+
+    if args.dump:
+        dump = [
+            {"phone_id": pid, "waba_id": waba_id, "display": disp, "status": status}
+            for (waba_id, token, pid, disp, status, bms_key) in to_delete
+        ]
+        with open(args.dump, "w", encoding="utf-8") as f:
+            json.dump(dump, f, indent=2, ensure_ascii=False)
+        print(f"Wrote {len(dump)} deletable ids to {args.dump}")
 
     if not apply:
         print("\nDRY RUN — nothing deleted. Re-run with --apply to execute.")
