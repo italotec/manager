@@ -77,6 +77,8 @@ def _wabas_with_phones(user_id: int) -> list:
         tier = snap.get("messaging_limit_tier") or ""
         health_ok_at = snap.get("health_test_ok_at") or 0
         health_ok = bool(health_ok_at) and (time.time() - health_ok_at) < 86400
+        disparou_at = snap.get("disparou_at") or 0
+        disparou = bool(disparou_at) and (time.time() - disparou_at) < 86400
         result.append({
             "waba_id": waba_id,
             "name": snap.get("waba_name") or waba_id,
@@ -84,6 +86,7 @@ def _wabas_with_phones(user_id: int) -> list:
             "phones": phones,
             "tier": tier,
             "health_ok": health_ok,
+            "disparou": disparou,
         })
     return result
 
@@ -175,6 +178,12 @@ def delete_csv(filename):
         os.remove(path)
         flash(f"CSV '{fn}' removido.", "success")
     return redirect(url_for("disparar.disparar_page"))
+
+
+@bp.route("/disparar/wabas")
+@login_required
+def disparar_wabas():
+    return jsonify({"wabas": _wabas_with_phones(current_user.id)})
 
 
 @bp.route("/disparar/csv-list")

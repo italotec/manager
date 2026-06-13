@@ -166,7 +166,16 @@
     {# ── WABA + phone_number_id ── #}
     <div class="space-y-3">
       <div>
-        <label class="text-xs text-zinc-400">WABA / remetente</label>
+        <div class="flex items-center justify-between">
+          <label class="text-xs text-zinc-400">WABA / remetente</label>
+          <button type="button" id="btnRefreshWabas" onclick="refreshWabas()"
+                  class="px-3 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-semibold">
+            ↻ Atualizar
+          </button>
+        </div>
+        <input id="wabaSearch" type="text" placeholder="Buscar WABA…"
+               oninput="applyWabaFilters()"
+               class="w-full mt-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm text-zinc-200 placeholder-zinc-600">
         <select id="wabaSelect" onchange="onWabaSelect()"
                 class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm">
           <option value="">— selecione —</option>
@@ -176,7 +185,8 @@
                     data-phone-number-id="{{ ph.phone_number_id }}"
                     data-token="{{ w.token }}"
                     data-name="{{ w.name }}"
-                    data-health-ok="{{ '1' if w.health_ok else '0' }}">
+                    data-health-ok="{{ '1' if w.health_ok else '0' }}"
+                    data-disparou="{{ '1' if w.disparou else '0' }}">
               {{ w.name }} · {{ ph.display }}{% if w.health_ok %} ✓{% endif %}
             </option>
             {% endfor %}
@@ -186,6 +196,7 @@
                     data-token="{{ w.token }}"
                     data-name="{{ w.name }}"
                     data-health-ok="{{ '1' if w.health_ok else '0' }}"
+                    data-disparou="{{ '1' if w.disparou else '0' }}"
                     class="text-zinc-500">
               {{ w.name }} (sem telefone cadastrado — sincronize o dashboard)
             </option>
@@ -196,7 +207,7 @@
           <p class="text-xs text-yellow-400 mt-1">Nenhum WABA encontrado. Adicione no Dashboard.</p>
         {% endif %}
         <label class="inline-flex items-center gap-2 mt-2 cursor-pointer select-none">
-          <input type="checkbox" id="filterHealthOk" onchange="applyHealthFilter()"
+          <input type="checkbox" id="filterHealthOk" onchange="applyWabaFilters()"
                  class="w-3.5 h-3.5 rounded accent-teal-500">
           <span class="text-xs text-zinc-400">Somente WABAs aprovadas no teste (24h)</span>
         </label>
@@ -662,27 +673,77 @@ async function onCsvSelect(filename) {
   cfg.classList.remove("opacity-40", "pointer-events-none");
 }
 
-// ── Health filter ───────────────────────────────────────────────────────────
-function applyHealthFilter() {
+// ── WABA filter (health + disparou + search) ────────────────────────────────
+function applyWabaFilters() {
   const filterOn = document.getElementById("filterHealthOk").checked;
+  const q = (document.getElementById("wabaSearch").value || "").trim().toLowerCase();
   const sel = document.getElementById("wabaSelect");
   const currentVal = sel.value;
-  let currentFiltered = false;
+  let currentHidden = false;
   Array.from(sel.options).forEach(opt => {
     if (!opt.value) return; // skip the "— selecione —" placeholder
-    const passes = opt.dataset.healthOk === "1";
-    if (filterOn && !passes) {
-      opt.hidden = true;
-      opt.disabled = true;
-      if (opt.value === currentVal) currentFiltered = true;
-    } else {
-      opt.hidden = false;
-      opt.disabled = false;
-    }
+    const approved = opt.dataset.healthOk === "1" && opt.dataset.disparou !== "1";
+    const matches  = !q || opt.textContent.toLowerCase().includes(q);
+    const show = (!filterOn || approved) && matches;
+    opt.hidden = !show;
+    opt.disabled = !show;
+    if (!show && opt.value === currentVal) currentHidden = true;
   });
-  if (currentFiltered) {
-    sel.value = "";
-    onWabaSelect();
+  if (currentHidden) { sel.value = ""; onWabaSelect(); }
+}
+
+// ── WABA refresh (no page reload) ───────────────────────────────────────────
+async function refreshWabas() {
+  const btn = document.getElementById("btnRefreshWabas");
+  const prevText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "…";
+  try {
+    const res = await fetch("/disparar/wabas");
+    if (!res.ok) throw new Error(res.status);
+    const { wabas } = await res.json();
+    const sel = document.getElementById("wabaSelect");
+    const prevVal = sel.value;
+    sel.innerHTML = '<option value="">— selecione —</option>';
+    wabas.forEach(w => {
+      const healthOk = w.health_ok ? "1" : "0";
+      const disparou = w.disparou  ? "1" : "0";
+      const suffix   = w.health_ok ? " ✓" : "";
+      if (w.phones && w.phones.length) {
+        w.phones.forEach(ph => {
+          const o = document.createElement("option");
+          o.value = w.waba_id;
+          o.dataset.phoneNumberId = ph.phone_number_id;
+          o.dataset.token         = w.token;
+          o.dataset.name          = w.name;
+          o.dataset.healthOk      = healthOk;
+          o.dataset.disparou      = disparou;
+          o.textContent           = `${w.name} · ${ph.display}${suffix}`;
+          sel.appendChild(o);
+        });
+      } else {
+        const o = document.createElement("option");
+        o.value = w.waba_id;
+        o.dataset.phoneNumberId = "";
+        o.dataset.token         = w.token;
+        o.dataset.name          = w.name;
+        o.dataset.healthOk      = healthOk;
+        o.dataset.disparou      = disparou;
+        o.className             = "text-zinc-500";
+        o.textContent           = `${w.name} (sem telefone cadastrado — sincronize o dashboard)`;
+        sel.appendChild(o);
+      }
+    });
+    // restore previous selection if still present
+    if (prevVal && Array.from(sel.options).some(o => o.value === prevVal)) {
+      sel.value = prevVal;
+    }
+    applyWabaFilters();
+  } catch(e) {
+    console.error("refreshWabas:", e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = prevText;
   }
 }
 
