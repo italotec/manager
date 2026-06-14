@@ -25,6 +25,7 @@ from ..services.disparar_service import (
     get_live_state,
     request_stop,
     _read_rows,
+    iter_rows,
 )
 from ..services.disparo_multi import (
     start_batch,
@@ -119,14 +120,18 @@ def disparar_page():
             continue
         path = os.path.join(csv_d, fn)
         try:
-            cols = get_csv_columns(path)
             size = os.path.getsize(path)
-            rows_data = _read_rows(path)
-            row_count = len(rows_data)
-            sent_in_csv = sum(
-                1 for row in rows_data
-                if any(str(v).strip() in sent_set for v in row.values())
-            )
+            # Stream the file row-by-row: never hold the whole thing in RAM. Loading
+            # a 1M-row file into a list here cost 1-2 GB on every page view → OOM.
+            cols = []
+            row_count = 0
+            sent_in_csv = 0
+            for row in iter_rows(path):
+                if not cols:
+                    cols = list(row.keys())
+                row_count += 1
+                if any(str(v).strip() in sent_set for v in row.values()):
+                    sent_in_csv += 1
         except Exception:
             cols = []
             size = 0

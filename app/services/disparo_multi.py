@@ -21,6 +21,7 @@ from .disparar_service import (
     start_disparo_job,
     sent_log_path,
     _read_rows,
+    iter_rows,
     get_live_state,
     request_stop,
     csvs_dir,
@@ -108,8 +109,7 @@ def build_pool(user_id: int, files_spec: list, skip_log: bool) -> list:
         phone_col = spec["phone_col"]
         field_map: dict = spec.get("field_map", {})  # {canonical: raw_col}
 
-        rows = _read_rows(path, has_header=has_header)
-        for row in rows:
+        for row in iter_rows(path, has_header=has_header):  # stream — don't hold full file
             phone = str(row.get(phone_col, "")).strip()
             if not phone:
                 continue

@@ -8,7 +8,8 @@ import time
 import uuid
 import random
 import string
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import concurrent.futures as _cf
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from zoneinfo import ZoneInfo
 _SP = ZoneInfo("America/Sao_Paulo")
@@ -145,45 +146,71 @@ def _random_param_name(length: int = 7) -> str:
 
 # ── CSV / XLSX helpers ────────────────────────────────────────────────────────
 
-def _read_rows(path: str, has_header: bool = True) -> list:
-    """Read all rows as list of dicts. Supports .csv and .xlsx."""
+def iter_rows(path: str, has_header: bool = True):
+    """Yield rows one at a time as dicts, WITHOUT holding the whole file in RAM.
+
+    Supports .csv and .xlsx. Use this for counting/scanning large files — building
+    a full list() of a 1M-row file costs 1-2 GB and was the source of an OOM crash.
+    """
     if path.lower().endswith(".xlsx"):
         import openpyxl
         wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
-        ws = wb.active
-        all_rows = list(ws.iter_rows(values_only=True))
-        wb.close()
-        if not all_rows:
-            return []
-        if has_header:
-            headers = [str(c) if c is not None else "" for c in all_rows[0]]
-            data_rows = all_rows[1:]
-        else:
-            headers = [f"Coluna {i+1}" for i in range(len(all_rows[0]))]
-            data_rows = all_rows
-        return [dict(zip(headers, [str(v) if v is not None else "" for v in row])) for row in data_rows]
+        try:
+            ws = wb.active
+            row_iter = ws.iter_rows(values_only=True)
+            first = next(row_iter, None)
+            if first is None:
+                return
+            if has_header:
+                headers = [str(c) if c is not None else "" for c in first]
+            else:
+                headers = [f"Coluna {i+1}" for i in range(len(first))]
+                yield dict(zip(headers, [str(v) if v is not None else "" for v in first]))
+            for row in row_iter:
+                yield dict(zip(headers, [str(v) if v is not None else "" for v in row]))
+        finally:
+            wb.close()
     else:
         with open(path, "r", encoding="utf-8-sig", newline="") as f:
-            raw = list(csv.reader(f))
-        if not raw:
-            return []
-        if has_header:
-            headers = raw[0]
-            data_rows = raw[1:]
-        else:
-            headers = [f"Coluna {i+1}" for i in range(len(raw[0]))]
-            data_rows = raw
-        return [dict(zip(headers, row)) for row in data_rows]
+            reader = csv.reader(f)
+            first = next(reader, None)
+            if first is None:
+                return
+            if has_header:
+                headers = first
+            else:
+                headers = [f"Coluna {i+1}" for i in range(len(first))]
+                yield dict(zip(headers, first))
+            for row in reader:
+                yield dict(zip(headers, row))
+
+
+def _read_rows(path: str, has_header: bool = True) -> list:
+    """Read all rows as list of dicts. Supports .csv and .xlsx.
+
+    Materializes the whole file in RAM — only use when every row is genuinely
+    needed at once. For counting/scanning, prefer iter_rows() (streaming).
+    """
+    return list(iter_rows(path, has_header=has_header))
+
+
+def count_rows(path: str, has_header: bool = True) -> int:
+    """Count data rows without holding the file in RAM."""
+    return sum(1 for _ in iter_rows(path, has_header=has_header))
 
 
 def get_csv_columns(csv_path: str, has_header: bool = True) -> list:
-    rows = _read_rows(csv_path, has_header=has_header)
-    if not rows:
-        return []
-    return list(rows[0].keys())
+    for row in iter_rows(csv_path, has_header=has_header):
+        return list(row.keys())
+    return []
 
 def get_csv_preview(csv_path: str, n: int = 3, has_header: bool = True) -> list:
-    return _read_rows(csv_path, has_header=has_header)[:n]
+    out = []
+    for row in iter_rows(csv_path, has_header=has_header):
+        out.append(row)
+        if len(out) >= n:
+            break
+    return out
 
 
 # ── Meta API call (runs inside worker threads) ────────────────────────────────
@@ -384,33 +411,43 @@ def _run_disparo(app, job_id: int, user_id: int,
     sent_path = sent_log_path(user_id)
     log_path = disparo_log_path(user_id, job_id)
 
-    # Load already-sent (skip if skip_log)
+    # Load already-sent set. This is the dedup guard: any phone already present in
+    # sent_log.txt is NEVER re-sent (unless skip_log is explicitly on, which means
+    # "send to everyone, don't dedup, don't log").
     already_sent: set = set()
     if not skip_log and os.path.exists(sent_path):
         with open(sent_path, "r", encoding="utf-8") as f:
             already_sent = {ln.strip() for ln in f if ln.strip()}
 
-    # Use preloaded rows (multi-BM mode) or read from disk
-    if preloaded_rows is not None:
-        rows = preloaded_rows
-    else:
-        try:
-            rows = _read_rows(csv_path, has_header=has_header)
-        except Exception as exc:
-            _finish("error", f"Erro ao ler arquivo: {exc}")
-            return
-
-    if rows and phone_col not in rows[0]:
-        _finish("error", f"Coluna '{phone_col}' não encontrada no CSV.")
+    # Build `pending` in a SINGLE streaming pass. We never materialize the full file
+    # and the filtered list at the same time (the old approach held both → OOM on
+    # large files). preloaded_rows (multi-BM) is already an in-memory list.
+    pending: list = []
+    total = 0
+    col_checked = False
+    try:
+        source = preloaded_rows if preloaded_rows is not None else iter_rows(csv_path, has_header=has_header)
+        for row in source:
+            total += 1
+            if not col_checked:
+                if phone_col not in row:
+                    _finish("error", f"Coluna '{phone_col}' não encontrada no CSV.")
+                    return
+                col_checked = True
+            # max_leads caps how many we SEND; keep counting total for the progress bar
+            if max_leads > 0 and len(pending) >= max_leads:
+                continue
+            phone = str(row.get(phone_col, "")).strip()
+            # ── dedup: skip leads already in sent_log.txt ──
+            if not skip_log and phone in already_sent:
+                continue
+            pending.append(row)
+    except Exception as exc:
+        _finish("error", f"Erro ao ler arquivo: {exc}")
         return
 
-    pending = [r for r in rows if str(r.get(phone_col, "")).strip() not in already_sent]
-
-    if max_leads > 0:
-        pending = pending[:max_leads]
-
-    state["total"] = len(rows)
-    state["skipped"] = len(rows) - len(pending)
+    state["total"] = total
+    state["skipped"] = total - len(pending)
 
     if not pending:
         _finish("done", f"Concluído — Enviados: 0  |  Falhas: 0  |  Pulados: {state['skipped']}")
@@ -465,42 +502,61 @@ def _run_disparo(app, job_id: int, user_id: int,
                 _finish("stopped", "Envio interrompido pelo usuário.")
                 return
         else:
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_map = {executor.submit(_worker, row): row for row in pending}
+            # Sliding-window submission: never hold more than WINDOW futures in RAM
+            # at once. Submitting all rows up-front (old approach) created 1M Future
+            # objects + 1M row dicts simultaneously → 1-2 GB for large CSV files.
+            WINDOW = max(max_workers * 4, 200)
 
-                for future in as_completed(future_map):
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                row_iter = iter(pending)
+                live: dict = {}
+
+                # Seed the initial window
+                for row in row_iter:
+                    if len(live) >= WINDOW:
+                        break
+                    live[executor.submit(_worker, row)] = row
+
+                while live:
                     if state["stop_requested"]:
-                        for f in future_map:
+                        for f in list(live):
                             f.cancel()
                         _finish("stopped", "Envio interrompido pelo usuário.")
                         return
 
-                    try:
-                        phone, success, msg = future.result()
-                    except Exception as exc:
-                        phone, success, msg = "?", False, str(exc)
+                    done, _ = _cf.wait(live, return_when=_cf.FIRST_COMPLETED)
+                    for future in done:
+                        live.pop(future)
 
-                    if success is None:           # empty phone
-                        state["skipped"] += 1
-                    elif success:
-                        state["sent"] += 1
-                        if not skip_log:
-                            with LOCK:
-                                with open(sent_path, "a", encoding="utf-8") as sf:
-                                    sf.write(phone + "\n")
-                    else:
-                        state["failed"] += 1
-                        _flag_erro_generic_if_needed(user_id, waba_id, state, msg)
+                        try:
+                            phone, success, msg = future.result()
+                        except Exception as exc:
+                            phone, success, msg = "?", False, str(exc)
 
-                    _append_log({
-                        "ts":      datetime.now(_SP).strftime("%H:%M:%S"),
-                        "phone":   phone,
-                        "status":  "sent" if success else "failed",
-                        "message": msg,
-                    })
+                        if success is None:           # empty phone
+                            state["skipped"] += 1
+                        elif success:
+                            state["sent"] += 1
+                            if not skip_log:
+                                with LOCK:
+                                    with open(sent_path, "a", encoding="utf-8") as sf:
+                                        sf.write(phone + "\n")
+                        else:
+                            state["failed"] += 1
+                            _flag_erro_generic_if_needed(user_id, waba_id, state, msg)
 
-                    icon = "✓" if success else "✗"
-                    state["last_message"] = f"{icon} {phone}: {msg}"
+                        _append_log({
+                            "ts":      datetime.now(_SP).strftime("%H:%M:%S"),
+                            "phone":   phone,
+                            "status":  "sent" if success else "failed",
+                            "message": msg,
+                        })
+                        state["last_message"] = f"{'✓' if success else '✗'} {phone}: {msg}"
+
+                        # Pull in the next row to refill the window
+                        next_row = next(row_iter, None)
+                        if next_row is not None:
+                            live[executor.submit(_worker, next_row)] = next_row
 
     except Exception as exc:
         _finish("error", f"Erro inesperado: {str(exc)[:300]}")
