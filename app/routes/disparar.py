@@ -462,10 +462,10 @@ def batch_preview():
     if not files_spec or not wabas_spec:
         return jsonify({"error": "files_spec and wabas_spec required"}), 400
 
-    # Resolve tiers in-place
+    # Resolve tiers — trust tier_str from frontend first, fallback to snapshot
     resolved = []
     for spec in wabas_spec:
-        tier = _resolve_tier(current_user.id, spec.get("waba_id", ""), spec.get("token", ""))
+        tier = spec.get("tier_str") or _resolve_tier(current_user.id, spec.get("waba_id", ""), spec.get("token", ""))
         if tier_to_int(tier) is None:
             continue
         resolved.append({**spec, "tier_str": tier})

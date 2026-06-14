@@ -220,12 +220,11 @@ def start_batch(app, user_id: int,
       {batch_id, children, stripped, leftover, pool_size, error}
     On allocation error: {error: "insufficient_leads" | "no_valid_bms"}
     """
-    # Resolve tiers for each BM in wabas_spec
+    # Resolve tiers — trust tier_str from frontend first, fallback to snapshot
     resolved_wabas = []
     for spec in wabas_spec:
-        tier = _resolve_tier(user_id, spec["waba_id"], spec.get("token", ""))
-        t_int = tier_to_int(tier)
-        if t_int is None:
+        tier = spec.get("tier_str") or _resolve_tier(user_id, spec["waba_id"], spec.get("token", ""))
+        if tier_to_int(tier) is None:
             continue   # skip unlimited / unknown
         resolved_wabas.append({**spec, "tier_str": tier})
 

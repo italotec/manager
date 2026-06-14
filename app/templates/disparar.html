@@ -1582,6 +1582,11 @@ function renderBatchPreview(d) {
     box.classList.remove('hidden');
     return;
   }
+  if (d.error) {
+    box.innerHTML = `<span class="text-red-400">${escHtml(d.error)}</span>`;
+    box.classList.remove('hidden');
+    return;
+  }
   const lines = [];
   lines.push(`<span class="text-zinc-300">Pool: <b>${d.pool_size}</b> leads únicos</span>`);
   lines.push(`<span class="text-zinc-300">Capacidade total: <b>${d.total_capacity}</b></span>`);
