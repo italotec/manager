@@ -62,9 +62,18 @@
       <label class="cursor-pointer px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">
         + Upload CSV / XLSX
         <input type="file" name="csv_file" accept=".csv,.xlsx" class="hidden"
-               onchange="this.closest('form').submit()">
+               onchange="uploadWithProgress(this)">
       </label>
     </form>
+  </div>
+  <div class="upload-progress hidden mt-2 w-full px-1">
+    <div class="flex items-center justify-between text-xs text-zinc-400 mb-1">
+      <span class="upload-progress-label">Enviando…</span>
+      <span class="upload-progress-pct">0%</span>
+    </div>
+    <div class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
+      <div class="upload-progress-bar h-full bg-indigo-600 transition-all duration-150" style="width:0%"></div>
+    </div>
   </div>
 
   {% if not csv_files %}
@@ -403,9 +412,18 @@
         <label class="cursor-pointer px-4 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">
           + Upload CSV / XLSX
           <input type="file" name="csv_file" accept=".csv,.xlsx" class="hidden"
-                 onchange="this.closest('form').submit()">
+                 onchange="uploadWithProgress(this)">
         </label>
       </form>
+    </div>
+    <div class="upload-progress hidden mt-2 w-full px-1">
+      <div class="flex items-center justify-between text-xs text-zinc-400 mb-1">
+        <span class="upload-progress-label">Enviando…</span>
+        <span class="upload-progress-pct">0%</span>
+      </div>
+      <div class="w-full h-2 rounded-full bg-zinc-800 overflow-hidden">
+        <div class="upload-progress-bar h-full bg-indigo-600 transition-all duration-150" style="width:0%"></div>
+      </div>
     </div>
 
     {% if not csv_files %}
@@ -621,6 +639,38 @@
    JAVASCRIPT
 ═══════════════════════════════════════════════════════════════════════════ #}
 <script>
+// ── upload with progress bar ────────────────────────────────────────────────
+function uploadWithProgress(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const section = input.closest('form').closest('div').parentElement;
+  const box = section.querySelector('.upload-progress');
+  const bar = box.querySelector('.upload-progress-bar');
+  const pct = box.querySelector('.upload-progress-pct');
+  const lbl = box.querySelector('.upload-progress-label');
+  box.classList.remove('hidden');
+  input.disabled = true;
+
+  const fd = new FormData();
+  fd.append(input.name, file);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', input.form.action);
+  xhr.upload.onprogress = (e) => {
+    if (!e.lengthComputable) return;
+    const p = Math.round((e.loaded / e.total) * 100);
+    bar.style.width = p + '%';
+    pct.textContent = p + '%';
+    if (p >= 100) lbl.textContent = 'Processando…';
+  };
+  xhr.onload = () => {
+    if (xhr.status < 400) { location.reload(); }
+    else { lbl.textContent = 'Falha no upload'; input.disabled = false; input.value = ''; }
+  };
+  xhr.onerror = () => { lbl.textContent = 'Erro de rede'; input.disabled = false; input.value = ''; };
+  xhr.send(fd);
+}
+
 // ── state ──────────────────────────────────────────────────────────────────
 let selectedCsv     = null;
 let csvColumns      = [];

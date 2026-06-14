@@ -553,6 +553,8 @@
                 <span class="px-2 py-0.5 rounded text-xs font-bold bg-yellow-900/60 text-yellow-400">Developers Travado</span>
               {% elif row.status_label == "Erro" %}
                 <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/60 text-red-400">Erro</span>
+              {% elif row.status_label == "DESABILITADA" %}
+                <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/60 text-red-300">DESABILITADA</span>
               {% elif row.status_label == "PERMANENTE" %}
                 <span class="px-2 py-0.5 rounded text-xs font-bold bg-red-900/60 text-red-300">PERMANENTE</span>
               {% elif row.status_label == "RESTRITA" %}
@@ -2298,7 +2300,7 @@ async function stopTplJob() {
 
     // Status options — sorted by known order, unknowns appended
     const STATUS_ORDER = ['OK','DESATIVADA','LIMITADA','PROBLEMA CARTÃO','ERRO GENERIC',
-                          'Developers Travado','Erro','PERMANENTE','RESTRITA','ANALISANDO','RETENÇÃO'];
+                          'Developers Travado','Erro','DESABILITADA','PERMANENTE','RESTRITA','ANALISANDO','RETENÇÃO'];
     const statuses = new Set();
     rows.forEach(r => statuses.add(r.dataset.status || 'OK'));
     const statusContainer = document.querySelector('#filter-panel-status .filter-options');

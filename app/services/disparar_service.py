@@ -22,7 +22,7 @@ from ..json_store import patch_snapshot, load_user_bms
 
 LOCK = threading.Lock()
 
-_WEBHOOK_PROTECTED = {"PERMANENTE", "ANALISANDO", "RESTRITA", "RETENÇÃO"}
+_WEBHOOK_PROTECTED = {"PERMANENTE", "DESABILITADA", "ANALISANDO", "RESTRITA", "RETENÇÃO"}
 
 def _flag_erro_generic_if_needed(user_id: int, waba_id: str, state: dict, msg: str) -> None:
     if not waba_id or state.get("erro_generic_marked"):

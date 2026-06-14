@@ -17,7 +17,7 @@ import requests
 from ..json_store import load_user_bms, patch_snapshot, find_users_with_waba
 from .meta import get_templates, pick_test_template, _count_body_vars
 
-_WEBHOOK_PROTECTED = {"PERMANENTE", "ANALISANDO", "RESTRITA"}
+_WEBHOOK_PROTECTED = {"PERMANENTE", "DESABILITADA", "ANALISANDO", "RESTRITA"}
 
 _jobs: dict[int, dict] = {}
 _job_counter = 0

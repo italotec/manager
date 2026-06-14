@@ -177,7 +177,7 @@ def mark_phone_connected(user_id: int, waba_id: str, phone_id: str = "", phone: 
 
 
 # Labels that this webhook is allowed to flip back to OK
-_WEBHOOK_BAD_LABELS = {"PERMANENTE", "RESTRITA", "ANALISANDO"}
+_WEBHOOK_BAD_LABELS = {"PERMANENTE", "DESABILITADA", "RESTRITA", "ANALISANDO"}
 
 # ── RETENÇÃO: payment-restriction failed sends ────────────────────────────────
 
@@ -270,7 +270,7 @@ def apply_account_update(waba_id: str, value: dict) -> None:
 
     if event == "DISABLED_UPDATE":
         if ban_state in ("DISABLE", "SCHEDULE_FOR_DISABLE"):
-            new_label  = "PERMANENTE"
+            new_label  = "DESABILITADA"
             new_detail = ban_state
         elif ban_state == "REINSTATE":
             new_label = "OK"
