@@ -136,6 +136,21 @@
         </svg>
       </button>
 
+      <!-- Add virtual phone number button (admin only) -->
+      {% if current_user.is_admin %}
+      <button type="button"
+              title="Adicionar número virtual às WABAs selecionadas (admin)"
+              onclick="openVirtualPhoneModal()"
+              class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-cyan-900/60 text-zinc-400 hover:text-cyan-300 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.07 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21 16.92z"/>
+          <line x1="12" y1="5" x2="12" y2="11"/>
+          <line x1="9" y1="8" x2="15" y2="8"/>
+        </svg>
+      </button>
+      {% endif %}
+
       <!-- Add card button -->
       <button type="button"
               title="Adicionar cartão de crédito às WABAs selecionadas"
@@ -2056,6 +2071,156 @@ async function pollCardJob() {
     </div>
   </div>
 </div>
+
+<!-- ── Virtual phone bulk-add modal (admin only) ───────────────────────────── -->
+{% if current_user.is_admin %}
+<div id="virtualPhoneModal" class="fixed inset-0 z-40 bg-black/60 flex items-center justify-center hidden">
+  <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-base font-bold">Adicionar Número Virtual às WABAs</h2>
+      <button onclick="closeVirtualPhoneModal()" class="text-zinc-500 hover:text-zinc-300">✕</button>
+    </div>
+
+    <p id="virtualPhoneModalStatus" class="text-sm text-zinc-400 mb-3"></p>
+
+    <p class="text-xs text-zinc-500 mb-4">
+      Provisiona um número virtual no Meta para cada WABA selecionada, usando o perfil AdsPower
+      vinculado. O nome de exibição é lido automaticamente de cada conta.
+    </p>
+
+    <div id="virtualPhoneModalErr" class="hidden mb-3 px-3 py-2 rounded-xl bg-red-950/50 border border-red-800 text-red-300 text-sm"></div>
+
+    <div id="virtualPhoneResultBox"
+         class="hidden mb-4 max-h-60 overflow-y-auto bg-zinc-950/60 rounded-xl border border-zinc-800 px-3 py-2 space-y-0.5">
+    </div>
+
+    <div class="flex justify-end gap-2">
+      <button onclick="closeVirtualPhoneModal()" class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">Fechar</button>
+      <button id="virtualPhoneStopBtn" onclick="stopVirtualPhoneJob()"
+              class="hidden px-4 py-2 rounded-xl bg-red-900/60 hover:bg-red-800/60 text-sm text-red-300 border border-red-800/40">
+        Parar
+      </button>
+      <button id="virtualPhoneDoneBtn" onclick="closeVirtualPhoneModal()"
+              class="hidden px-4 py-2 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-sm">
+        OK
+      </button>
+      <button id="virtualPhoneStartBtn" onclick="startVirtualPhoneJob()"
+              class="px-4 py-2 rounded-xl bg-cyan-700 hover:bg-cyan-600 text-sm font-semibold">
+        Adicionar Números
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Virtual phone bulk-add ────────────────────────────────────────────────────
+let _vpWabaIds = [], _vpJobId = null, _vpPollInterval = null;
+
+function openVirtualPhoneModal() {
+  const checks = Array.from(document.querySelectorAll('input[name="waba_ids"]:checked'));
+  if (!checks.length) { alert("Selecione ao menos 1 WABA."); return; }
+  _vpWabaIds = checks.map(c => c.value);
+  document.getElementById("virtualPhoneModal").classList.remove("hidden");
+  document.getElementById("virtualPhoneModalStatus").textContent = _vpWabaIds.length + " WABA(s) selecionada(s).";
+  document.getElementById("virtualPhoneResultBox").classList.add("hidden");
+  document.getElementById("virtualPhoneResultBox").innerHTML = "";
+  document.getElementById("virtualPhoneModalErr").classList.add("hidden");
+  document.getElementById("virtualPhoneStopBtn").classList.add("hidden");
+  document.getElementById("virtualPhoneDoneBtn").classList.add("hidden");
+  document.getElementById("virtualPhoneStartBtn").classList.remove("hidden");
+  document.getElementById("virtualPhoneStartBtn").disabled = false;
+  document.getElementById("virtualPhoneStartBtn").textContent = "Adicionar Números";
+}
+
+function closeVirtualPhoneModal() {
+  document.getElementById("virtualPhoneModal").classList.add("hidden");
+  if (_vpJobId) clearInterval(_vpPollInterval);
+  _vpJobId = null;
+}
+
+async function startVirtualPhoneJob() {
+  const btn = document.getElementById("virtualPhoneStartBtn");
+  btn.disabled = true;
+  btn.textContent = "Iniciando…";
+  document.getElementById("virtualPhoneModalErr").classList.add("hidden");
+  document.getElementById("virtualPhoneResultBox").innerHTML = "";
+  document.getElementById("virtualPhoneResultBox").classList.add("hidden");
+
+  try {
+    const r = await fetch("{{ url_for('dashboard.add_virtual_phone_start') }}", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ waba_ids: _vpWabaIds }),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      const errEl = document.getElementById("virtualPhoneModalErr");
+      errEl.textContent = d.error || "Erro desconhecido";
+      errEl.classList.remove("hidden");
+      btn.disabled = false;
+      btn.textContent = "Adicionar Números";
+      return;
+    }
+    _vpJobId = d.job_id;
+    btn.classList.add("hidden");
+    document.getElementById("virtualPhoneStopBtn").classList.remove("hidden");
+    document.getElementById("virtualPhoneResultBox").classList.remove("hidden");
+    document.getElementById("virtualPhoneModalStatus").textContent = "Processando…";
+    _vpPollInterval = setInterval(pollVirtualPhoneJob, 2000);
+  } catch (e) {
+    const errEl = document.getElementById("virtualPhoneModalErr");
+    errEl.textContent = "Erro de rede: " + e;
+    errEl.classList.remove("hidden");
+    btn.disabled = false;
+    btn.textContent = "Adicionar Números";
+  }
+}
+
+async function stopVirtualPhoneJob() {
+  if (!_vpJobId) return;
+  await fetch(`/add-virtual-phone/job/${_vpJobId}/stop`, { method: "POST" });
+  document.getElementById("virtualPhoneStopBtn").disabled = true;
+  document.getElementById("virtualPhoneStopBtn").textContent = "Parando…";
+}
+
+async function pollVirtualPhoneJob() {
+  if (!_vpJobId) return;
+  try {
+    const r = await fetch(`/add-virtual-phone/job/${_vpJobId}`);
+    const d = await r.json();
+
+    const statusEl = document.getElementById("virtualPhoneModalStatus");
+    const box = document.getElementById("virtualPhoneResultBox");
+
+    const done = d.done || 0, total = d.total || 0;
+    const pct = total ? Math.round(done / total * 100) : 0;
+    statusEl.textContent = `${done}/${total} (${pct}%) — ✅ ${d.success || 0}  ❌ ${d.failed || 0}`;
+
+    let html = "";
+    for (const row of (d.results || [])) {
+      const icon = row.ok ? "✅" : "❌";
+      const phoneTag = row.phone ? `<span class="font-mono text-cyan-400">${row.phone}</span>` : "";
+      html += `<div class="flex items-start gap-2 py-1 border-b border-zinc-800/60 text-xs">
+        <span class="w-5 shrink-0">${icon}</span>
+        <div>
+          <span class="text-zinc-200">${row.waba_name || row.waba_id}</span>
+          ${phoneTag}
+          ${!row.ok ? `<div class="text-red-400">${row.msg}</div>` : ""}
+        </div>
+      </div>`;
+    }
+    box.innerHTML = html;
+
+    if (d.status === "done" || d.status === "stopped" || d.status === "error") {
+      clearInterval(_vpPollInterval);
+      document.getElementById("virtualPhoneStopBtn").classList.add("hidden");
+      document.getElementById("virtualPhoneDoneBtn").classList.remove("hidden");
+      statusEl.textContent += d.status === "done" ? " — Concluído" : " — Parado";
+    }
+  } catch {}
+}
+</script>
+{% endif %}
 
 <!-- ── Templates bulk-add modal ────────────────────────────────────────────── -->
 <div id="tplModal" class="fixed inset-0 z-40 bg-black/60 flex items-center justify-center hidden">

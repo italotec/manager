@@ -712,6 +712,113 @@ async def _handle_add_card(msg: dict, outbox: asyncio.Queue, log=print):
     await outbox.put(json.dumps(result))
 
 
+def _execute_add_virtual_phone_sync(msg: dict, log=print) -> dict:
+    """Open the AdsPower profile, attach Playwright via CDP, fire the virtual-phone mutation."""
+    cmd_id      = msg.get("cmd_id")
+    profile_id  = msg.get("profile_id", "")
+    waba_id     = msg.get("waba_id", "") or ""
+    business_id = msg.get("business_id", "") or ""
+    display_name = msg.get("display_name", "") or ""
+
+    def _result(ok: bool, **extra) -> dict:
+        return {"type": "virtual_phone_result", "cmd_id": cmd_id, "ok": ok, **extra}
+
+    log(f"[PHONE {profile_id}] Iniciando add_virtual_phone waba={waba_id}")
+
+    try:
+        from services.adspower import connect_cdp_with_retry
+        from services.facebook_bot import FacebookBot
+        from services.gerador_facade import GeradorService
+        from services.sms_factory import get_sms_service
+        from playwright.sync_api import sync_playwright
+        import facebook_phone
+    except Exception as exc:
+        return _result(False, error=f"Falha ao importar dependências: {exc}")
+
+    try:
+        browser_data = _client.open_browser(profile_id)
+        _open_pids.add(profile_id)
+    except Exception as exc:
+        return _result(False, error=f"Falha ao abrir perfil AdsPower: {exc}")
+
+    ws_endpoint = (browser_data.get("ws") or {}).get("puppeteer", "")
+    if not ws_endpoint:
+        try:
+            _client.close_browser(profile_id)
+        except Exception:
+            pass
+        return _result(False, error="Sem WebSocket endpoint do AdsPower")
+
+    try:
+        with sync_playwright() as p:
+            browser, _ws = connect_cdp_with_retry(
+                p, ws_endpoint,
+                profile_id=profile_id,
+                ads_client=_client,
+            )
+            ctx  = browser.contexts[0] if browser.contexts else browser.new_context()
+            page = ctx.new_page()
+
+            # Auto-discover business_id from the live session when not provided.
+            if not business_id:
+                try:
+                    gerador = GeradorService()
+                    sms     = get_sms_service()
+                    bot = FacebookBot(
+                        ws_endpoint=ws_endpoint,
+                        run_data={},
+                        gerador=gerador,
+                        sms=sms,
+                        profile_user_id=profile_id,
+                        adspower_client=_client,
+                    )
+                    page.goto(
+                        "https://business.facebook.com/latest/settings/whatsapp_account",
+                        timeout=30000,
+                    )
+                    page.wait_for_load_state("networkidle", timeout=20000)
+                    bid = bot._resolve_owning_business_id(page)
+                    if bid:
+                        business_id = bid
+                        log(f"[PHONE {profile_id}] business_id={bid} resolvido live")
+                except Exception as exc:
+                    log(f"[PHONE {profile_id}] Falha ao resolver business_id: {exc}")
+
+            if not business_id:
+                return _result(False, error="Não foi possível resolver o business_id do perfil")
+
+            res = facebook_phone.add_phone_via_cdp(
+                page,
+                business_id=business_id,
+                waba_id=waba_id,
+                display_name_fallback=display_name,
+                log=log,
+            )
+            return _result(
+                bool(res.get("ok")),
+                display_phone_number=res.get("display_phone_number", ""),
+                current_status_id=res.get("current_status_id", ""),
+                stage=res.get("stage", ""),
+                error=res.get("error", "") or "",
+            )
+
+    except Exception as exc:
+        import traceback as _tb
+        log(f"[PHONE {profile_id}] Exceção no browser: {exc}")
+        print(_tb.format_exc(), flush=True)
+        return _result(False, error=str(exc)[:500])
+    finally:
+        try:
+            _client.close_browser(profile_id)
+        except Exception:
+            pass
+
+
+async def _handle_add_virtual_phone(msg: dict, outbox: asyncio.Queue, log=print):
+    result = await asyncio.to_thread(_execute_add_virtual_phone_sync, msg, log)
+    await outbox.put(json.dumps(result))
+
+
 async def _handle_cancel_job(msg: dict, outbox: asyncio.Queue, log=print):
     job_id = msg.get("job_id")
     if job_id is None:
@@ -893,6 +1000,8 @@ async def _receiver(ws, outbox: asyncio.Queue, is_verificador: bool,
         elif t == "add_card":
             # BMs feature — runs on the manager connection (and would on verif too).
             asyncio.create_task(_handle_add_card(msg, outbox, log))
+        elif t == "add_virtual_phone":
+            asyncio.create_task(_handle_add_virtual_phone(msg, outbox, log))
         elif not is_verificador:
             continue
         elif t == "run_job":

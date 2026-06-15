@@ -557,3 +557,50 @@ def register_phones():
 
     return jsonify({"results": results})
 
+
+# ── Virtual phone number (admin-only, CDP/AdsPower) ───────────────────────────
+
+@bp.route("/add-virtual-phone/start", methods=["POST"])
+@login_required
+def add_virtual_phone_start():
+    if not current_user.is_admin:
+        return jsonify({"ok": False, "error": "Acesso restrito a administradores"}), 403
+
+    from ..routes.agent_ws import is_agent_connected
+    if not is_agent_connected(current_user.id):
+        return jsonify({"ok": False, "error": "Agente não conectado. Conecte o cliente local primeiro."}), 400
+
+    from ..services.virtual_phone_service import start_virtual_phone_job
+
+    payload = request.get_json(silent=True) or {}
+    waba_ids = payload.get("waba_ids") or []
+    if not isinstance(waba_ids, list) or not waba_ids:
+        return jsonify({"ok": False, "error": "Selecione pelo menos 1 WABA"}), 400
+
+    job_id = start_virtual_phone_job(current_user.id, waba_ids)
+    return jsonify({"ok": True, "job_id": job_id})
+
+
+@bp.route("/add-virtual-phone/job/<int:job_id>", methods=["GET"])
+@login_required
+def add_virtual_phone_job_status(job_id: int):
+    if not current_user.is_admin:
+        return jsonify({"error": "forbidden"}), 403
+
+    from ..services.virtual_phone_service import get_job
+    state = get_job(job_id)
+    if state is None:
+        return jsonify({"error": "Job não encontrado"}), 404
+    return jsonify(state)
+
+
+@bp.route("/add-virtual-phone/job/<int:job_id>/stop", methods=["POST"])
+@login_required
+def add_virtual_phone_job_stop(job_id: int):
+    if not current_user.is_admin:
+        return jsonify({"error": "forbidden"}), 403
+
+    from ..services.virtual_phone_service import request_stop
+    request_stop(job_id)
+    return jsonify({"ok": True})
+
