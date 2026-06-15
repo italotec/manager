@@ -14,6 +14,7 @@ Flow:
 
 import json
 import os
+import re
 import threading
 import uuid
 
@@ -37,9 +38,12 @@ from ..config import Config
 TIER_VALUES: dict[str, int] = {
     "TIER_250":    250,
     "TIER_1K":     1_000,
+    "TIER_2K":     2_000,
     "TIER_10K":    10_000,
     "TIER_100K":   100_000,
 }
+
+_TIER_RE = re.compile(r"^TIER_(\d+)(K|M)?$")
 
 GLOBAL_BATCH_BUDGET = 200   # max total thread-workers across all children (thread mode)
 GLOBAL_ASYNC_BUDGET = 500   # max total async coroutines across all children (MAX mode)
@@ -48,7 +52,13 @@ GLOBAL_ASYNC_BUDGET = 500   # max total async coroutines across all children (MA
 def tier_to_int(tier: str | None) -> int | None:
     if not tier:
         return None
-    return TIER_VALUES.get(tier)          # None for UNLIMITED / unknown
+    if tier in TIER_VALUES:
+        return TIER_VALUES[tier]
+    m = _TIER_RE.match(tier)
+    if not m:
+        return None          # UNLIMITED / unknown
+    n = int(m.group(1))
+    return n * {"K": 1_000, "M": 1_000_000}.get(m.group(2), 1)
 
 
 # ── in-memory batch registry ───────────────────────────────────────────────────
