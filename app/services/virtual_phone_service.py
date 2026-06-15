@@ -80,14 +80,82 @@ def _run_job(app, job_id: int, user_id: int, waba_ids: list[str], bms: dict):
 
         res = send_command_and_wait(user_id, cmd, timeout=300.0)
 
-        ok = bool(res.get("ok"))
-        return {
-            "waba_id": waba_id,
-            "waba_name": waba_name,
-            "ok": ok,
-            "phone": res.get("display_phone_number", ""),
-            "msg": res.get("error", "Número adicionado com sucesso") if not ok else "Número adicionado com sucesso",
-        }
+        if not res.get("ok"):
+            return {
+                "waba_id": waba_id,
+                "waba_name": waba_name,
+                "ok": False,
+                "phone": res.get("display_phone_number", ""),
+                "msg": res.get("error", "Falha ao criar número virtual"),
+            }
+
+        created_phone = res.get("display_phone_number", "")
+
+        # Resolve phone_number_id via Graph API and register (connect) the new number.
+        from flask import current_app
+        from ..services.meta import get_phone_numbers, register_number
+
+        token = (entry.get("token") or "").strip()
+        if not token:
+            return {
+                "waba_id": waba_id, "waba_name": waba_name,
+                "ok": False, "phone": created_phone,
+                "msg": "Número criado, mas registro falhou: WABA sem token configurado",
+            }
+
+        api_version = current_app.config["META_API_VERSION"]
+        phones, fetch_err = get_phone_numbers(api_version, token, waba_id)
+
+        def _digits(s: str) -> str:
+            return "".join(c for c in (s or "") if c.isdigit())
+
+        created_digits = _digits(created_phone)
+        phone_id = ""
+        display = created_phone
+
+        non_connected = [p for p in phones if (p.get("status") or "").upper() != "CONNECTED"]
+        if created_digits:
+            for p in non_connected:
+                if _digits(p.get("display_phone_number", "")) == created_digits:
+                    phone_id = p.get("id", "")
+                    display = p.get("display_phone_number", created_phone)
+                    break
+        if not phone_id and len(non_connected) == 1:
+            phone_id = non_connected[0].get("id", "")
+            display = non_connected[0].get("display_phone_number", created_phone)
+
+        if not phone_id:
+            reason = fetch_err or "phone_number_id não encontrado — sincronize e use 'Registrar pendentes'"
+            return {
+                "waba_id": waba_id, "waba_name": waba_name,
+                "ok": False, "phone": created_phone,
+                "msg": f"Número criado, mas registro falhou: {reason}",
+            }
+
+        try:
+            reg = register_number(api_version, token, phone_id, "123456", None)
+            try:
+                rj = reg.json()
+            except Exception:
+                rj = {}
+            if reg.status_code == 200 and rj.get("success"):
+                return {
+                    "waba_id": waba_id, "waba_name": waba_name,
+                    "ok": True, "phone": display,
+                    "msg": "Número adicionado e registrado",
+                }
+            err_detail = (rj.get("error") or {}).get("message") or f"HTTP {reg.status_code}"
+            return {
+                "waba_id": waba_id, "waba_name": waba_name,
+                "ok": False, "phone": display,
+                "msg": f"Número criado, mas registro falhou: {err_detail}",
+            }
+        except Exception as exc:
+            return {
+                "waba_id": waba_id, "waba_name": waba_name,
+                "ok": False, "phone": created_phone,
+                "msg": f"Número criado, mas registro falhou: {str(exc)[:300]}",
+            }
 
     with app.app_context():
         with ThreadPoolExecutor(max_workers=_max_concurrency()) as pool:

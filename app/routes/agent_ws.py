@@ -103,16 +103,16 @@ def _handle_agent_message(user_id: int, data: str):
         msg = json.loads(data)
     except Exception:
         return
-    msg_type = msg.get("type", "")
-    if msg_type == "browser_status":
+    if msg.get("type") == "browser_status":
         _handle_browser_status(user_id, msg.get("open_profile_ids", []))
-    elif msg_type == "card_result":
-        cmd_id = msg.get("cmd_id", "")
+        return
+    cmd_id = msg.get("cmd_id")
+    if cmd_id:
         with _pending_lock:
             q = _pending.get(cmd_id)
         if q:
             q.put(msg)
-    # "ping" and unknown types → silently ignored
+    # ping / unknown (no cmd_id) → silently ignored
 
 
 # ── WebSocket handler (registered via sock.route in __init__.py) ──────────────
