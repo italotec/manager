@@ -92,7 +92,8 @@ def _run_job(app, job_id: int, user_id: int, waba_ids: list[str], bms: dict):
         created_phone = res.get("display_phone_number", "")
 
         # Resolve phone_number_id via Graph API and register (connect) the new number.
-        from flask import current_app
+        # api_version captured from app.config before the ThreadPoolExecutor (app context
+        # is not inherited by worker threads, so current_app cannot be used here).
         from ..services.meta import get_phone_numbers, register_number
 
         token = (entry.get("token") or "").strip()
@@ -103,7 +104,6 @@ def _run_job(app, job_id: int, user_id: int, waba_ids: list[str], bms: dict):
                 "msg": "Número criado, mas registro falhou: WABA sem token configurado",
             }
 
-        api_version = current_app.config["META_API_VERSION"]
         phones, fetch_err = get_phone_numbers(api_version, token, waba_id)
 
         def _digits(s: str) -> str:
@@ -158,12 +158,21 @@ def _run_job(app, job_id: int, user_id: int, waba_ids: list[str], bms: dict):
             }
 
     with app.app_context():
+        api_version = app.config["META_API_VERSION"]
         with ThreadPoolExecutor(max_workers=_max_concurrency()) as pool:
             futures = {pool.submit(_process_one, waba_id): waba_id for waba_id in waba_ids}
             for future in as_completed(futures):
                 if state.get("stop_requested"):
                     break
-                row = future.result()
+                try:
+                    row = future.result()
+                except Exception as exc:
+                    waba_id_f = futures[future]
+                    print(f"[VPHONE] worker exception waba={waba_id_f}: {exc}", flush=True)
+                    row = {
+                        "waba_id": waba_id_f, "waba_name": waba_id_f,
+                        "ok": False, "phone": "", "msg": f"Erro interno: {str(exc)[:300]}",
+                    }
 
                 with _jobs_lock:
                     state["done"] += 1
