@@ -1,4 +1,5 @@
 import requests
+from urllib.parse import quote
 from flask import current_app
 
 _TIMEOUT = 30
@@ -15,7 +16,7 @@ def send_text(number: str, text: str) -> tuple[bool, str | None]:
 
     try:
         resp = requests.post(
-            f"{base}/message/sendText/{instance}",
+            f"{base}/message/sendText/{quote(instance, safe='')}",
             json={"number": number, "text": text},
             headers={"apikey": api_key, "Content-Type": "application/json"},
             timeout=_TIMEOUT,

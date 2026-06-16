@@ -66,8 +66,8 @@ class Config:
 
     # Evolution API (WhatsApp bot)
     EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "https://evolution.verifywaba.store")
-    EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
-    EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "")
+    EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "evolution_api_key_change_me")
+    EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "Prosperidade Bot")
     EVOLUTION_WEBHOOK_SECRET = os.getenv("EVOLUTION_WEBHOOK_SECRET", "")
     # Comma-separated E.164 numbers allowed to receive /info replies (e.g. "5511999998888")
     INFO_BOT_ALLOWED_NUMBERS = [
