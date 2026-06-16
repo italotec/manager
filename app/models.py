@@ -167,6 +167,17 @@ class LoginLog(db.Model):
     created_at = db.Column(db.DateTime, default=_now_sp, nullable=False)
 
 
+class InfoSnapshot(db.Model):
+    """Cached BM metrics for the /info bot. One row per change event."""
+    id              = db.Column(db.Integer, primary_key=True)
+    user_id         = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
+    day             = db.Column(db.String(10), nullable=False, index=True)  # "YYYY-MM-DD" SP tz
+    bms_disparadas  = db.Column(db.Integer, default=0, nullable=False)
+    total_sent      = db.Column(db.Integer, default=0, nullable=False)
+    total_delivered = db.Column(db.Integer, default=0, nullable=False)
+    created_at      = db.Column(db.DateTime, default=_now_sp, nullable=False)
+
+
 class AppSetting(db.Model):
     """Generic key-value store for persistent admin settings."""
     key   = db.Column(db.String(64),  primary_key=True)

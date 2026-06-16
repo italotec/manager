@@ -26,19 +26,14 @@ def _extract_message(payload: dict) -> tuple[str | None, str | None]:
         return None, None
 
     remote_jid: str = key.get("remoteJid") or ""
+    if not remote_jid:
+        return None, None
 
-    # Evolution wraps @lid contacts (real number hidden by WhatsApp privacy) in remoteJid,
-    # but sendText only accepts plain phone digits or @s.whatsapp.net JIDs.
-    # The top-level "sender" field always contains the real @s.whatsapp.net JID — use that.
-    # For groups (remoteJid @g.us), reply to the group JID so everyone sees it.
-    if "@g.us" in remote_jid:
-        reply_to = remote_jid
-    else:
-        sender_jid: str = payload.get("sender") or ""
-        if not sender_jid and not remote_jid:
-            return None, None
-        # Strip @s.whatsapp.net — Evolution sendText wants just the digits
-        reply_to = (sender_jid or remote_jid).split("@")[0]
+    # Reply to remoteJid directly for all cases:
+    # - @g.us  → group chat (reply visible to the group)
+    # - @lid   → Evolution 2.3.x resolves LID to the real phone number
+    # - @s.whatsapp.net → plain DM
+    reply_to = remote_jid
 
     message = data.get("message") or {}
     text = (

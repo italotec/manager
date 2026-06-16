@@ -86,15 +86,12 @@ def _fmt_brl(value) -> str:
 
 
 def build_info_report() -> str:
-    from ..models import User
+    from ..models import User, InfoSnapshot
+    from .info_refresh import _get_report_user, refresh_snapshot
 
-    start_ts, end_ts, label = _today_window()
+    _start_ts, end_ts, label = _today_window()
 
-    # Find admin (df) with a Prosperidade key set
-    admin = User.query.filter_by(is_admin=True).filter(
-        User.prosperidade_api_key.isnot(None),
-        User.prosperidade_api_key != "",
-    ).first()
+    admin = _get_report_user()
 
     if not admin:
         return (
@@ -103,12 +100,35 @@ def build_info_report() -> str:
             "Acesse *Minha Conta* e salve sua API Key para ativar este relatório."
         )
 
-    # BM metrics — only the df admin's account
-    bm = compute_bm_metrics(start_ts, end_ts, admin.id)
+    today = datetime.now(_SP).strftime("%Y-%m-%d")
 
-    # Financial data
+    snap = (
+        InfoSnapshot.query
+        .filter_by(user_id=admin.id, day=today)
+        .order_by(InfoSnapshot.id.desc())
+        .first()
+    )
+    if snap is None:
+        # Cache miss (e.g. first call of the day) — compute synchronously
+        refresh_snapshot()
+        snap = (
+            InfoSnapshot.query
+            .filter_by(user_id=admin.id, day=today)
+            .order_by(InfoSnapshot.id.desc())
+            .first()
+        )
+
+    if snap:
+        bms_disparadas  = snap.bms_disparadas
+        total_sent      = snap.total_sent
+        total_delivered = snap.total_delivered
+    else:
+        bms_disparadas = total_sent = total_delivered = 0
+
+    # Financial data — always live
+    start_ts, _, _ = _today_window()
     start_str = datetime.fromtimestamp(start_ts, tz=_SP).strftime("%Y-%m-%dT%H:%M:%S")
-    end_str = datetime.fromtimestamp(end_ts, tz=_SP).strftime("%Y-%m-%dT%H:%M:%S")
+    end_str   = datetime.fromtimestamp(end_ts,   tz=_SP).strftime("%Y-%m-%dT%H:%M:%S")
     stats, err = get_sales_statistics(admin.prosperidade_api_key, start_str, end_str)
 
     if err or not stats:
@@ -118,7 +138,7 @@ def build_info_report() -> str:
         received_cents = (stats.get("amountPixSales") or 0) + (stats.get("amountCreditCardSales") or 0)
         faturamento = received_cents / 100.0
         conversion = stats.get("conversionRate") or 0
-        media = faturamento / bm["wabas_disparadas"] if bm["wabas_disparadas"] > 0 else 0
+        media = faturamento / bms_disparadas if bms_disparadas > 0 else 0
 
         finance_block = (
             f"💰 Faturamento: *R$ {_fmt_brl(faturamento)}*\n"
@@ -128,8 +148,8 @@ def build_info_report() -> str:
 
     return (
         f"📊 *Relatório de Hoje* — {label}\n\n"
-        f"🚀 BMs disparadas: *{bm['wabas_disparadas']}*\n"
-        f"📨 Enviados: *{bm['total_sent']}*\n"
-        f"✅ Entregues: *{bm['total_delivered']}*\n\n"
+        f"🚀 BMs disparadas: *{bms_disparadas}*\n"
+        f"📨 Enviados: *{total_sent}*\n"
+        f"✅ Entregues: *{total_delivered}*\n\n"
         f"{finance_block}"
     )

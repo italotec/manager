@@ -73,3 +73,5 @@ class Config:
     INFO_BOT_ALLOWED_NUMBERS = [
         n.strip() for n in os.getenv("INFO_BOT_ALLOWED_NUMBERS", "").split(",") if n.strip()
     ]
+    # How often (seconds) the background refresher re-computes BM metrics and saves to InfoSnapshot
+    INFO_REFRESH_INTERVAL_SECONDS = int(os.getenv("INFO_REFRESH_INTERVAL_SECONDS", "300"))

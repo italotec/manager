@@ -171,4 +171,7 @@ def create_app():
         if users_without_key:
             db.session.commit()
 
+    from .services.info_refresh import ensure_refresher
+    ensure_refresher(app)
+
     return app
