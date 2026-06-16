@@ -5,7 +5,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from ..json_store import load_user_bms
-from .prosperidade import get_sales_statistics
+from .prosperidade import get_sales_statistics, get_balance, request_withdraw
 
 _SP = ZoneInfo("America/Sao_Paulo")
 
@@ -83,6 +83,50 @@ def _fmt_brl(value) -> str:
     except (TypeError, ValueError):
         return "0,00"
     return f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def build_resumir_report() -> str:
+    from flask import current_app
+    from .info_refresh import _get_report_user
+
+    admin = _get_report_user()
+    if not admin:
+        return (
+            "⚠️ *Saque*\n\n"
+            "Nenhum administrador configurou a chave da Prosperidade Payments.\n"
+            "Acesse *Minha Conta* e salve sua API Key para ativar este comando."
+        )
+
+    balance, err = get_balance(admin.prosperidade_api_key)
+    if err or not balance:
+        return f"❌ Erro ao consultar saldo: {err or 'resposta vazia'}"
+
+    available = balance.get("availableBalance") or 0
+
+    if available < 10:
+        return (
+            "ℹ️ *Saque*\n\n"
+            f"Saldo disponível insuficiente para saque (R$ {_fmt_brl(available / 100)}).\n"
+            "Nenhuma operação realizada."
+        )
+
+    bank_account_id = current_app.config["WITHDRAW_BANK_ACCOUNT_ID"]
+    password = current_app.config["WITHDRAW_PASSWORD"]
+
+    result, err = request_withdraw(admin.prosperidade_api_key, available, bank_account_id, "PIX", password)
+    if err or not result:
+        return f"❌ Erro ao solicitar saque: {err or 'resposta vazia'}"
+
+    amount_brl = _fmt_brl((result.get("amount") or available) / 100)
+    status = result.get("status") or "—"
+
+    return (
+        f"💸 *Saque solicitado com sucesso!*\n\n"
+        f"💰 Valor: *R$ {amount_brl}*\n"
+        f"🏦 Tipo: PIX\n"
+        f"📌 Status: {status}\n\n"
+        f"✅ O saque foi registrado e está em processamento."
+    )
 
 
 def build_info_report() -> str:

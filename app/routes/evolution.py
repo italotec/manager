@@ -45,6 +45,33 @@ def _extract_message(payload: dict) -> tuple[str | None, str | None]:
     return reply_to, text
 
 
+def _handle_resumir(app, reply_to: str) -> None:
+    """Execute /resumir: fetch balance, request withdrawal, reply. Runs in a background thread."""
+    global _last_send
+    with app.app_context():
+        from ..services.info_report import build_resumir_report
+        from ..services.evolution import send_text
+
+        try:
+            report = build_resumir_report()
+        except Exception as e:
+            report = f"❌ Erro ao processar saque: {e}"
+
+        ok, err = send_text(reply_to, report)
+        _last_send = {
+            "at": datetime.now(_SP).isoformat(),
+            "reply_to": reply_to,
+            "ok": ok,
+            "error": err,
+            "preview": report[:300],
+        }
+        if not ok:
+            try:
+                print(f"[EVOLUTION] send_text failed for {reply_to}: {err}", flush=True)
+            except Exception:
+                pass
+
+
 def _handle_info(app, reply_to: str) -> None:
     """Build the /info report and send it back. Runs in a background thread."""
     global _last_send
@@ -103,11 +130,12 @@ def evolution_webhook():
     if not reply_to or not text:
         return "OK", 200
 
-    if text.lower() != "/info":
-        return "OK", 200
-
+    cmd = text.lower()
     app = current_app._get_current_object()
-    threading.Thread(target=_handle_info, args=(app, reply_to), daemon=True).start()
+    if cmd == "/info":
+        threading.Thread(target=_handle_info, args=(app, reply_to), daemon=True).start()
+    elif cmd == "/resumir":
+        threading.Thread(target=_handle_resumir, args=(app, reply_to), daemon=True).start()
 
     return "OK", 200
 

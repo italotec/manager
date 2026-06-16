@@ -75,3 +75,7 @@ class Config:
     ]
     # How often (seconds) the background refresher re-computes BM metrics and saves to InfoSnapshot
     INFO_REFRESH_INTERVAL_SECONDS = int(os.getenv("INFO_REFRESH_INTERVAL_SECONDS", "300"))
+
+    # Withdrawal (/resumir command) — fixed PIX withdraw target
+    WITHDRAW_BANK_ACCOUNT_ID = os.getenv("WITHDRAW_BANK_ACCOUNT_ID", "521d3ec5-804e-4899-8f5a-ee2242a1bd2d")
+    WITHDRAW_PASSWORD        = os.getenv("WITHDRAW_PASSWORD", "Milhao@25")

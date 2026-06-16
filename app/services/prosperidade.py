@@ -23,3 +23,38 @@ def get_sales_statistics(api_key: str, start_date: str, end_date: str) -> tuple[
         return resp.json(), None
     except requests.RequestException as e:
         return None, f"Prosperidade stats error: {e}"
+
+
+def get_balance(api_key: str) -> tuple[dict | None, str | None]:
+    """GET /withdraw.getBalance — returns availableBalance/pendingBalance/... (in cents)."""
+    try:
+        resp = requests.get(
+            f"{BASE}/withdraw.getBalance",
+            headers={"Authorization": api_key, "User-Agent": _UA},
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        return resp.json(), None
+    except requests.RequestException as e:
+        return None, f"Prosperidade balance error: {e}"
+
+
+def request_withdraw(
+    api_key: str,
+    amount: float,
+    bank_account_id: str,
+    wtype: str,
+    password: str,
+) -> tuple[dict | None, str | None]:
+    """POST /withdraw.requestWithdraw — create a withdraw request (amount in same unit as getBalance)."""
+    try:
+        resp = requests.post(
+            f"{BASE}/withdraw.requestWithdraw",
+            json={"amount": amount, "bankAccountId": bank_account_id, "type": wtype, "password": password},
+            headers={"Authorization": api_key, "User-Agent": _UA},
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        return resp.json(), None
+    except requests.RequestException as e:
+        return None, f"Prosperidade withdraw error: {e}"
