@@ -113,18 +113,18 @@ def build_resumir_report() -> str:
     bank_account_id = current_app.config["WITHDRAW_BANK_ACCOUNT_ID"]
     password = current_app.config["WITHDRAW_PASSWORD"]
 
-    result, err = request_withdraw(admin.prosperidade_api_key, available_reais, bank_account_id, "PIX", password)
+    result, err = request_withdraw(admin.prosperidade_api_key, available_cents, bank_account_id, "TED", password)
     if err or not result:
         return f"❌ Erro ao solicitar saque: {err or 'resposta vazia'}"
 
-    # result.amount is already in reais
-    amount_brl = _fmt_brl(result.get("amount") or available_reais)
+    # amount field in response is in cents — divide by 100 to display R$
+    amount_brl = _fmt_brl((result.get("amount") or available_cents) / 100)
     status = result.get("status") or "—"
 
     return (
         f"💸 *Saque solicitado com sucesso!*\n\n"
         f"💰 Valor: *R$ {amount_brl}*\n"
-        f"🏦 Tipo: PIX\n"
+        f"🏦 Tipo: TED\n"
         f"📌 Status: {status}\n\n"
         f"✅ O saque foi registrado e está em processamento."
     )

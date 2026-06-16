@@ -45,17 +45,17 @@ def get_balance(api_key: str) -> tuple[dict | None, str | None]:
 
 def request_withdraw(
     api_key: str,
-    amount_reais: float,
+    amount_cents: int,
     bank_account_id: str,
     wtype: str,
     password: str,
 ) -> tuple[dict | None, str | None]:
-    """POST /withdraw.requestWithdraw — amount in REAIS (gateway rejects amounts in cents)."""
+    """POST /withdraw.requestWithdraw — amount in CENTS (same unit as getBalance.availableBalance)."""
     resp = None
     try:
         resp = requests.post(
             f"{BASE}/withdraw.requestWithdraw",
-            json={"amount": amount_reais, "bankAccountId": bank_account_id, "type": wtype, "password": password},
+            json={"amount": amount_cents, "bankAccountId": bank_account_id, "type": wtype, "password": password},
             headers={"Authorization": api_key, "User-Agent": _UA},
             timeout=_TIMEOUT,
         )
