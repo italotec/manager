@@ -427,8 +427,12 @@ def _resolve_business_ids(page, bot, log, fallback_id: str = "") -> list:
             seen = []
             for href in (hrefs or []):
                 m = _re.search(r"business_id=(\d+)", href or "")
-                if m and m.group(1) not in seen:
-                    seen.append(m.group(1))
+                if not m:
+                    continue
+                bid = m.group(1)
+                if bid == "0" or bid in seen:
+                    continue
+                seen.append(bid)
             if seen:
                 log(f"[BM-ENUM] {len(seen)} BMs detectados na /select: {seen}")
                 return seen

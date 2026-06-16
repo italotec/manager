@@ -493,6 +493,9 @@
         <div>
           <label class="text-xs text-zinc-400 font-medium">Business Managers</label>
           <p class="text-xs text-zinc-600 mb-2">Apenas BMs com limite de envio definido são listados. BMs UNLIMITED devem ser disparados individualmente.</p>
+          <input id="multiBmSearch" type="text" placeholder="Buscar BM…"
+                 oninput="applyMultiBmFilter()"
+                 class="w-full mb-2 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm text-zinc-200 placeholder-zinc-600">
           <div class="space-y-1 max-h-64 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950 p-2">
             {% for w in wabas %}
               {% if w.tier and w.tier != 'TIER_UNLIMITED' %}
@@ -721,6 +724,15 @@ async function onCsvSelect(filename) {
   // enable config section
   const cfg = document.getElementById("configSection");
   cfg.classList.remove("opacity-40", "pointer-events-none");
+}
+
+// ── Multi-BM search filter ───────────────────────────────────────────────────
+function applyMultiBmFilter() {
+  const q = (document.getElementById("multiBmSearch").value || "").trim().toLowerCase();
+  document.querySelectorAll(".multi-bm-row").forEach(row => {
+    const hay = (row.dataset.name + " " + row.textContent).toLowerCase();
+    row.hidden = q && !hay.includes(q);
+  });
 }
 
 // ── WABA filter (health + disparou + search) ────────────────────────────────
