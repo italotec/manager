@@ -7,6 +7,7 @@ from flask import Blueprint, request, current_app, jsonify
 _SP = ZoneInfo("America/Sao_Paulo")
 _recent_payloads: deque = deque(maxlen=100)
 _buf_lock = threading.Lock()
+_last_send: dict | None = None
 
 bp = Blueprint("evolution", __name__)
 
@@ -28,12 +29,13 @@ def _extract_message(payload: dict) -> tuple[str | None, str | None]:
     if not remote_jid:
         return None, None
 
-    # For groups, reply to the group JID so everyone sees the answer.
-    # For DMs, remote_jid is "55...@s.whatsapp.net"; strip the suffix for Evolution sendText.
-    if "@g.us" in remote_jid:
-        reply_to = remote_jid  # keep full group JID
-    else:
-        reply_to = remote_jid.split("@")[0]  # just the number digits
+    # Reply to the FULL JID — Evolution's sendText accepts a JID in `number`.
+    #   @g.us           → groups
+    #   @lid            → LID-addressed contact (real phone hidden by WhatsApp)
+    #   @s.whatsapp.net → normal contact
+    # Stripping the suffix breaks @lid: Evolution would re-append @s.whatsapp.net
+    # to the LID digits and misroute the reply. Keep the JID intact for all cases.
+    reply_to = remote_jid
 
     message = data.get("message") or {}
     text = (
@@ -45,8 +47,9 @@ def _extract_message(payload: dict) -> tuple[str | None, str | None]:
     return reply_to, text
 
 
-def _handle_info(app, sender: str) -> None:
+def _handle_info(app, reply_to: str) -> None:
     """Build the /info report and send it back. Runs in a background thread."""
+    global _last_send
     with app.app_context():
         from ..services.info_report import build_info_report
         from ..services.evolution import send_text
@@ -56,10 +59,17 @@ def _handle_info(app, sender: str) -> None:
         except Exception as e:
             report = f"❌ Erro ao gerar relatório: {e}"
 
-        ok, err = send_text(sender, report)
+        ok, err = send_text(reply_to, report)
+        _last_send = {
+            "at": datetime.now(_SP).isoformat(),
+            "reply_to": reply_to,
+            "ok": ok,
+            "error": err,
+            "preview": report[:300],
+        }
         if not ok:
             try:
-                print(f"[EVOLUTION] send_text failed for {sender}: {err}", flush=True)
+                print(f"[EVOLUTION] send_text failed for {reply_to}: {err}", flush=True)
             except Exception:
                 pass
 
@@ -85,7 +95,9 @@ def evolution_webhook():
         if received != secret:
             return "Forbidden", 403
 
-    event = payload.get("event") or ""
+    # Evolution sends the event name as "messages.upsert" (lowercase, dotted) in the
+    # webhook body, even though it's registered as MESSAGES_UPSERT. Normalize before comparing.
+    event = (payload.get("event") or "").upper().replace(".", "_")
     if event != "MESSAGES_UPSERT":
         return "OK", 200
 
@@ -110,5 +122,6 @@ def evolution_logs():
     return jsonify({
         "count": len(logs),
         "maxlen": _recent_payloads.maxlen,
+        "last_send": _last_send,
         "logs": logs,
     })
