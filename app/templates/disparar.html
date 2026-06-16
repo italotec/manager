@@ -731,7 +731,8 @@ function applyMultiBmFilter() {
   const q = (document.getElementById("multiBmSearch").value || "").trim().toLowerCase();
   document.querySelectorAll(".multi-bm-row").forEach(row => {
     const hay = (row.dataset.name + " " + row.textContent).toLowerCase();
-    row.hidden = q && !hay.includes(q);
+    const match = !q || hay.includes(q);
+    row.style.display = match ? "" : "none";
   });
 }
 
