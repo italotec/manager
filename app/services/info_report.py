@@ -101,23 +101,24 @@ def build_resumir_report() -> str:
     if err or not balance:
         return f"❌ Erro ao consultar saldo: {err or 'resposta vazia'}"
 
-    available = balance.get("availableBalance") or 0
+    available_cents = balance.get("availableBalance") or 0
+    available_reais = available_cents / 100
 
-    if available < 10:
+    if available_cents == 0:
         return (
             "ℹ️ *Saque*\n\n"
-            f"Saldo disponível insuficiente para saque (R$ {_fmt_brl(available / 100)}).\n"
-            "Nenhuma operação realizada."
+            "Saldo disponível é R$ 0,00. Nenhuma operação realizada."
         )
 
     bank_account_id = current_app.config["WITHDRAW_BANK_ACCOUNT_ID"]
     password = current_app.config["WITHDRAW_PASSWORD"]
 
-    result, err = request_withdraw(admin.prosperidade_api_key, available, bank_account_id, "PIX", password)
+    result, err = request_withdraw(admin.prosperidade_api_key, available_reais, bank_account_id, "PIX", password)
     if err or not result:
         return f"❌ Erro ao solicitar saque: {err or 'resposta vazia'}"
 
-    amount_brl = _fmt_brl((result.get("amount") or available) / 100)
+    # result.amount is already in reais
+    amount_brl = _fmt_brl(result.get("amount") or available_reais)
     status = result.get("status") or "—"
 
     return (
