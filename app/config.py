@@ -63,3 +63,13 @@ class Config:
     # Proxies (optional)
     # format: ip:port:user:pass separated by commas
     PROXIES_RAW = [p.strip() for p in os.getenv("PROXIES_RAW", "").split(",") if p.strip()]
+
+    # Evolution API (WhatsApp bot)
+    EVOLUTION_API_URL = os.getenv("EVOLUTION_API_URL", "https://evolution.verifywaba.store")
+    EVOLUTION_API_KEY = os.getenv("EVOLUTION_API_KEY", "")
+    EVOLUTION_INSTANCE = os.getenv("EVOLUTION_INSTANCE", "")
+    EVOLUTION_WEBHOOK_SECRET = os.getenv("EVOLUTION_WEBHOOK_SECRET", "")
+    # Comma-separated E.164 numbers allowed to receive /info replies (e.g. "5511999998888")
+    INFO_BOT_ALLOWED_NUMBERS = [
+        n.strip() for n in os.getenv("INFO_BOT_ALLOWED_NUMBERS", "").split(",") if n.strip()
+    ]

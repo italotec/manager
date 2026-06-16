@@ -34,6 +34,16 @@ def save_token():
     return redirect(url_for("account.account_page"))
 
 
+@bp.route("/conta/prosperidade", methods=["POST"])
+@login_required
+def save_prosperidade_key():
+    key = request.form.get("prosperidade_api_key", "").strip()
+    current_user.prosperidade_api_key = key or None
+    db.session.commit()
+    flash("Chave da Prosperidade salva com sucesso.", "success")
+    return redirect(url_for("account.account_page"))
+
+
 @bp.route("/conta/telefone", methods=["POST"])
 @login_required
 def save_test_phone():

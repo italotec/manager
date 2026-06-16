@@ -26,6 +26,7 @@ class User(db.Model, UserMixin):
     api_key = db.Column(db.String(64), unique=True, nullable=True, index=True)
     agent_token = db.Column(db.String(64), unique=True, nullable=True, index=True)
     test_phone = db.Column(db.String(32), nullable=True)
+    prosperidade_api_key = db.Column(db.String(255), nullable=True)
 
     wabas = db.relationship("Waba", backref="user", lazy=True, cascade="all, delete-orphan")
 
