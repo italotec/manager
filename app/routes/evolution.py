@@ -1,5 +1,12 @@
 import threading
-from flask import Blueprint, request, current_app
+from collections import deque
+from datetime import datetime
+from zoneinfo import ZoneInfo
+from flask import Blueprint, request, current_app, jsonify
+
+_SP = ZoneInfo("America/Sao_Paulo")
+_recent_payloads: deque = deque(maxlen=100)
+_buf_lock = threading.Lock()
 
 bp = Blueprint("evolution", __name__)
 
@@ -64,6 +71,13 @@ def evolution_webhook():
     if not payload:
         return "OK", 200
 
+    with _buf_lock:
+        _recent_payloads.appendleft({
+            "received_at": datetime.now(_SP).isoformat(),
+            "event": payload.get("event", ""),
+            "payload": payload,
+        })
+
     # Optional shared-secret check
     secret = current_app.config.get("EVOLUTION_WEBHOOK_SECRET", "")
     if secret:
@@ -86,3 +100,15 @@ def evolution_webhook():
     threading.Thread(target=_handle_info, args=(app, reply_to), daemon=True).start()
 
     return "OK", 200
+
+
+@bp.route("/webhook/evolution/logs", methods=["GET"])
+def evolution_logs():
+    """Public endpoint — returns the last 100 Evolution webhook payloads (newest first)."""
+    with _buf_lock:
+        logs = list(_recent_payloads)
+    return jsonify({
+        "count": len(logs),
+        "maxlen": _recent_payloads.maxlen,
+        "logs": logs,
+    })
