@@ -21,14 +21,13 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import requests
 from requests.adapters import HTTPAdapter
 
 from .. import db
-from ..models import ListaJob, WebhookLog, AppSetting
+from ..models import ListaJob, ListaWebhook, AppSetting
 
 _SP = ZoneInfo("America/Sao_Paulo")
 _LOCK = threading.Lock()
@@ -355,20 +354,6 @@ _TITLE_HAS_WA = "Business eligibility payment issue"
 _TITLE_NO_WA  = "Message undeliverable"
 
 
-def _extract_statuses(payload_json: str) -> list[dict]:
-    """Pull all status entries out of a raw webhook payload JSON string."""
-    statuses = []
-    try:
-        data = json.loads(payload_json)
-        for entry in data.get("entry", []):
-            for change in entry.get("changes", []):
-                for status in change.get("value", {}).get("statuses", []):
-                    statuses.append(status)
-    except (json.JSONDecodeError, AttributeError):
-        pass
-    return statuses
-
-
 def _classify(status: dict) -> bool | None:
     for error in status.get("errors", []):
         title = error.get("title", "")
@@ -379,29 +364,27 @@ def _classify(status: dict) -> bool | None:
     return None
 
 
-def _poll_webhook_logs(app, pending_wamids: set, batch_start_time: datetime,
-                       poll_attempts: int, poll_interval: int) -> dict[str, bool | None]:
-    """
-    Query WebhookLog table directly for entries since batch_start_time.
-    Returns {wamid: True/False/None} for resolved wamids.
-    """
-    resolved = {}
+def _poll_listas_webhooks(app, pending_wamids: set,
+                          poll_attempts: int, poll_interval: int) -> dict[str, bool | None]:
+    """Query ListaWebhook by wamid — no time window, no shared-log eviction risk."""
+    resolved: dict[str, bool | None] = {}
     remaining = set(pending_wamids)
 
     for attempt in range(poll_attempts):
         with app.app_context():
-            logs = WebhookLog.query.filter(
-                WebhookLog.created_at >= batch_start_time
+            rows = ListaWebhook.query.filter(
+                ListaWebhook.wamid.in_(remaining)
             ).all()
 
-        for log in logs:
-            for status in _extract_statuses(log.payload_json):
-                wamid = status.get("id")
-                if wamid in remaining:
-                    result = _classify(status)
-                    if result is not None:
-                        resolved[wamid] = result
-                        remaining.discard(wamid)
+        for row in rows:
+            try:
+                status = json.loads(row.status_json)
+            except Exception:
+                continue
+            result = _classify(status)
+            if result is not None and row.wamid in remaining:
+                resolved[row.wamid] = result
+                remaining.discard(row.wamid)
 
         if not remaining:
             break
@@ -570,7 +553,6 @@ def _run_lista_job(app, job_id: int, user_id: int,
             break
 
         wamid_to_phone: dict[str, str] = {}
-        batch_start = datetime.now(_SP)
 
         # Send template messages in parallel
         def _send_one(row):
@@ -604,10 +586,9 @@ def _run_lista_job(app, job_id: int, user_id: int,
 
         # Poll webhook logs
         state["last_message"] = f"Batch {batch_idx}/{total_batches}: coletando resultados..."
-        resolved = _poll_webhook_logs(
+        resolved = _poll_listas_webhooks(
             app,
             set(wamid_to_phone.keys()),
-            batch_start,
             cfg["webhook_poll_attempts"],
             cfg["webhook_poll_interval"],
         )

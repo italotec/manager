@@ -390,7 +390,68 @@ def _execute_job_sync(job: dict, log=print, progress=None) -> dict:
 
 # ── Link-WABA execution ───────────────────────────────────────────────────────
 
-def _execute_link_waba_sync(msg: dict, log=print) -> dict:
+import re as _re
+
+
+def _resolve_business_ids(page, bot, log, fallback_id: str = "") -> list:
+    """Navigate to /select and return all business_ids the profile owns.
+
+    Single-BM profiles: Meta redirects away from /select → extract id from URL.
+    Multi-BM profiles: page stays on /select → collect anchor hrefs.
+    Falls back to bot._resolve_owning_business_id then to fallback_id.
+    """
+    try:
+        page.goto("https://business.facebook.com/select", timeout=30000)
+        page.wait_for_load_state("networkidle", timeout=20000)
+    except Exception as exc:
+        log(f"[BM-ENUM] Falha ao navegar para /select: {exc}")
+        return [fallback_id] if fallback_id else []
+
+    current_url = page.url or ""
+
+    # Meta redirected → single BM
+    if "business_home" in current_url or ("business_id=" in current_url and "/select" not in current_url):
+        m = _re.search(r"business_id=(\d+)", current_url)
+        if m:
+            bid = m.group(1)
+            log(f"[BM-ENUM] 1 BM detectado (redirect) → {bid}")
+            return [bid]
+
+    # Still on /select → collect all anchors
+    if "/select" in current_url:
+        try:
+            hrefs = page.eval_on_selector_all(
+                'a[href*="business_id="]',
+                "els => els.map(e => e.getAttribute('href'))",
+            )
+            seen = []
+            for href in (hrefs or []):
+                m = _re.search(r"business_id=(\d+)", href or "")
+                if m and m.group(1) not in seen:
+                    seen.append(m.group(1))
+            if seen:
+                log(f"[BM-ENUM] {len(seen)} BMs detectados na /select: {seen}")
+                return seen
+        except Exception as exc:
+            log(f"[BM-ENUM] Falha ao extrair hrefs de /select: {exc}")
+
+    # Fallback: live resolution via FacebookBot
+    try:
+        bid = bot._resolve_owning_business_id(page)
+        if bid:
+            log(f"[BM-ENUM] 1 BM via _resolve_owning_business_id → {bid}")
+            return [bid]
+    except Exception:
+        pass
+
+    if fallback_id:
+        log(f"[BM-ENUM] Usando fallback_id={fallback_id}")
+        return [fallback_id]
+
+    return []
+
+
+def _execute_link_waba_sync(msg: dict, log=print, emit=None) -> dict:
     waba_record_id   = msg["waba_record_id"]
     profile_id       = msg["profile_id"]
     business_id      = msg.get("business_id") or ""
@@ -459,6 +520,11 @@ def _execute_link_waba_sync(msg: dict, log=print) -> dict:
             pass
         return _result("error", "Sem WebSocket endpoint do AdsPower")
 
+    # Counts for multi-BM summary
+    _n_ok = 0
+    _n_err = 0
+    _n_restrita = 0
+
     try:
         with sync_playwright() as p:
             browser, _ws = connect_cdp_with_retry(
@@ -468,14 +534,6 @@ def _execute_link_waba_sync(msg: dict, log=print) -> dict:
             )
             ctx = browser.contexts[0] if browser.contexts else browser.new_context()
             page = ctx.new_page()
-
-            base_url = (
-                f"https://business.facebook.com/latest/settings/whatsapp_account?business_id={business_id}"
-                if business_id
-                else "https://business.facebook.com/latest/settings/whatsapp_account"
-            )
-            page.goto(base_url, timeout=30000)
-            page.wait_for_load_state("networkidle", timeout=20000)
 
             gerador = GeradorService()
             sms = get_sms_service()
@@ -488,34 +546,144 @@ def _execute_link_waba_sync(msg: dict, log=print) -> dict:
                 adspower_client=_client,
             )
 
-            if not business_id:
-                bid = bot._resolve_owning_business_id(page)
-                if bid:
-                    business_id = bid
-                    log(f"[LINK {waba_record_id}] business_id={bid} resolvido live")
-                else:
-                    return _result("error", "Não foi possível resolver o business_id do perfil")
+            business_ids = _resolve_business_ids(page, bot, log, fallback_id=business_id)
+            if not business_ids:
+                return _result("error", "Não foi possível resolver nenhum business_id do perfil")
 
-            if not waba_id:
-                wid = bot._extract_waba_id_graphql(
-                    page, business_id, expected_name=waba_name or None
-                )
-                if wid:
-                    waba_id = wid
-                    log(f"[LINK {waba_record_id}] waba_id={wid} extraído")
-                else:
-                    return _result("error", "Não foi possível identificar o ID da WABA")
+            total = len(business_ids)
+            log(f"[LINK {waba_record_id}] {total} BM(s) encontrado(s): {business_ids}")
 
-            try:
-                ok = bot._share_waba_graphql(page, business_id, partner_biz_id, waba_id)
-            except BmRestrictedException as exc:
-                log(f"[LINK {waba_record_id}] BM restrito: {exc}")
-                return _result("restrita", str(exc))
+            for idx, bid in enumerate(business_ids, start=1):
+                cur_waba_id = ""
+                try:
+                    # Navigate to this BM's WABA settings
+                    page.goto(
+                        f"https://business.facebook.com/latest/settings/whatsapp_account?business_id={bid}",
+                        timeout=30000,
+                    )
+                    page.wait_for_load_state("networkidle", timeout=20000)
 
-            if not ok:
-                return _result("error", f"Falha ao compartilhar WABA com BM parceiro (waba_id={waba_id})")
+                    # Use caller-supplied waba_id / waba_name only when there is exactly one BM
+                    if total == 1 and waba_id:
+                        cur_waba_id = waba_id
+                    else:
+                        expected = waba_name if total == 1 else None
+                        cur_waba_id = bot._extract_waba_id_graphql(
+                            page, bid, expected_name=expected
+                        )
 
-            log(f"[LINK {waba_record_id}] WABA compartilhada com partner={partner_biz_id}")
+                    if not cur_waba_id:
+                        msg_err = f"Não foi possível identificar WABA do BM {bid}"
+                        log(f"[LINK {waba_record_id}] [{idx}/{total}] {msg_err}")
+                        _n_err += 1
+                        if total == 1:
+                            return _result("error", msg_err)
+                        if emit:
+                            emit({
+                                "type": "link_done", "waba_record_id": waba_record_id,
+                                "status": "error", "message": msg_err,
+                                "waba_id": "", "business_id": bid,
+                                "bm_index": idx, "bm_total": total,
+                            })
+                        continue
+
+                    log(f"[LINK {waba_record_id}] [{idx}/{total}] waba_id={cur_waba_id} bid={bid}")
+
+                    try:
+                        ok = bot._share_waba_graphql(page, bid, partner_biz_id, cur_waba_id)
+                    except BmRestrictedException as exc:
+                        log(f"[LINK {waba_record_id}] [{idx}/{total}] BM restrito: {exc}")
+                        _n_restrita += 1
+                        if total == 1:
+                            return _result("restrita", str(exc))
+                        if emit:
+                            emit({
+                                "type": "link_done", "waba_record_id": waba_record_id,
+                                "status": "restrita", "message": str(exc),
+                                "waba_id": cur_waba_id, "business_id": bid,
+                                "bm_index": idx, "bm_total": total,
+                            })
+                        continue
+
+                    if not ok:
+                        msg_err = f"Falha ao compartilhar WABA {cur_waba_id} do BM {bid}"
+                        log(f"[LINK {waba_record_id}] [{idx}/{total}] {msg_err}")
+                        _n_err += 1
+                        if total == 1:
+                            return _result("error", msg_err)
+                        if emit:
+                            emit({
+                                "type": "link_done", "waba_record_id": waba_record_id,
+                                "status": "error", "message": msg_err,
+                                "waba_id": cur_waba_id, "business_id": bid,
+                                "bm_index": idx, "bm_total": total,
+                            })
+                        continue
+
+                    log(f"[LINK {waba_record_id}] [{idx}/{total}] WABA compartilhada com partner={partner_biz_id}")
+
+                    # Register on manager platform
+                    try:
+                        reg = register_business_manager(
+                            base_url=manager_base_url,
+                            api_key=manager_api_key,
+                            waba_id=cur_waba_id,
+                            token=meta_token,
+                            adspower_profile_id=profile_id,
+                        )
+                        if not reg["ok"]:
+                            raise RuntimeError(reg.get("error") or "Manager API error")
+                        log(f"[LINK {waba_record_id}] [{idx}/{total}] Registrado no manager platform")
+                    except Exception as exc_reg:
+                        msg_err = f"Falha ao registrar no manager: {exc_reg}"
+                        log(f"[LINK {waba_record_id}] [{idx}/{total}] {msg_err}")
+                        _n_err += 1
+                        if total == 1:
+                            return _result("error", msg_err)
+                        if emit:
+                            emit({
+                                "type": "link_done", "waba_record_id": waba_record_id,
+                                "status": "error", "message": msg_err,
+                                "waba_id": cur_waba_id, "business_id": bid,
+                                "bm_index": idx, "bm_total": total,
+                            })
+                        continue
+
+                    _n_ok += 1
+                    log(f"[LINK {waba_record_id}] [{idx}/{total}] ✓ BM {bid} vinculado")
+
+                    if total == 1:
+                        # Preserve exact original shape for single-BM callers
+                        return {
+                            "type": "link_done", "waba_record_id": waba_record_id,
+                            "status": "ok", "message": "",
+                            "waba_id": cur_waba_id, "business_id": bid,
+                            "shared": True, "registered": True,
+                        }
+
+                    if emit:
+                        emit({
+                            "type": "link_done", "waba_record_id": waba_record_id,
+                            "status": "ok", "message": "",
+                            "waba_id": cur_waba_id, "business_id": bid,
+                            "shared": True, "registered": True,
+                            "bm_index": idx, "bm_total": total,
+                        })
+
+                except Exception as exc_bm:
+                    import traceback as _tb
+                    log(f"[LINK {waba_record_id}] [{idx}/{total}] Exceção no BM {bid}: {exc_bm}")
+                    print(_tb.format_exc(), flush=True)
+                    _n_err += 1
+                    if total == 1:
+                        return _result("error", str(exc_bm)[:500])
+                    if emit:
+                        emit({
+                            "type": "link_done", "waba_record_id": waba_record_id,
+                            "status": "error", "message": str(exc_bm)[:500],
+                            "waba_id": cur_waba_id, "business_id": bid,
+                            "bm_index": idx, "bm_total": total,
+                        })
 
     except Exception as exc:
         import traceback as _tb
@@ -528,22 +696,18 @@ def _execute_link_waba_sync(msg: dict, log=print) -> dict:
         except Exception:
             pass
 
-    try:
-        reg = register_business_manager(
-            base_url=manager_base_url,
-            api_key=manager_api_key,
-            waba_id=waba_id,
-            token=meta_token,
-            adspower_profile_id=profile_id,
-        )
-        if not reg["ok"]:
-            return _result("error", f"Manager API error: {reg.get('error')}")
-        log(f"[LINK {waba_record_id}] Registrado no manager platform")
-    except Exception as exc:
-        return _result("error", f"Falha ao registrar no manager: {exc}")
-
-    log(f"[LINK {waba_record_id}] ✓ Vinculado com sucesso")
-    return _result("ok", shared=True, registered=True)
+    # Multi-BM summary frame (single-BM returns early above)
+    summary_status = "ok" if _n_ok > 0 else "error"
+    log(f"[LINK {waba_record_id}] Resumo: ok={_n_ok} erro={_n_err} restrita={_n_restrita}")
+    return {
+        "type": "link_summary",
+        "waba_record_id": waba_record_id,
+        "status": summary_status,
+        "total": _n_ok + _n_err + _n_restrita,
+        "ok": _n_ok,
+        "failed": _n_err,
+        "restrita": _n_restrita,
+    }
 
 
 # ── Profile sync ──────────────────────────────────────────────────────────────
@@ -600,7 +764,10 @@ async def _handle_link_waba(msg: dict, outbox: asyncio.Queue, log=print):
     waba_record_id = msg.get("waba_record_id")
     log(f"[LINK {waba_record_id}] Recebido link_waba do VPS")
     await outbox.put(json.dumps({"type": "link_start", "waba_record_id": waba_record_id}))
-    result = await asyncio.to_thread(_execute_link_waba_sync, msg, log)
+    loop = asyncio.get_event_loop()
+    def emit(frame: dict):
+        loop.call_soon_threadsafe(outbox.put_nowait, json.dumps(frame))
+    result = await asyncio.to_thread(_execute_link_waba_sync, msg, log, emit)
     await outbox.put(json.dumps(result))
 
 

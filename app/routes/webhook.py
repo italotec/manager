@@ -1,9 +1,10 @@
 import json
 import queue
 import threading
+import time
 from flask import Blueprint, request, current_app, jsonify
 from .. import db
-from ..models import WebhookLog
+from ..models import WebhookLog, ListaWebhook, AppSetting
 from ..json_store import load_user_bms, patch_snapshot, find_users_with_waba
 from ..services.chat_service import save_message, update_message_status
 from ..services.health_test_service import mark_health_test
@@ -15,6 +16,72 @@ from ..services.waba_events import (
 )
 
 bp = Blueprint("webhook", __name__)
+
+# ── listas phone-number-id cache ─────────────────────────────────────────────
+_listas_pnid_cache: str | None = None
+_listas_pnid_fetched_at: float = 0.0
+_LISTAS_PNID_TTL = 60  # seconds
+
+
+def _get_listas_pnid() -> str:
+    global _listas_pnid_cache, _listas_pnid_fetched_at
+    now = time.monotonic()
+    if now - _listas_pnid_fetched_at < _LISTAS_PNID_TTL and _listas_pnid_cache is not None:
+        return _listas_pnid_cache
+    try:
+        row = db.session.get(AppSetting, "listas_phone_number_id")
+        _listas_pnid_cache = (row.value if row else "") or ""
+    except Exception:
+        _listas_pnid_cache = ""
+    _listas_pnid_fetched_at = now
+    return _listas_pnid_cache
+
+
+def _is_listas_payload(payload: dict, pnid: str) -> bool:
+    """True if any change in the payload has field==messages from the listas phone number."""
+    for entry in (payload.get("entry") or []):
+        for change in (entry.get("changes") or []):
+            if change.get("field") != "messages":
+                continue
+            if (change.get("value") or {}).get("metadata", {}).get("phone_number_id") == pnid:
+                return True
+    return False
+
+
+_listas_insert_counter = 0
+
+
+def _store_listas_statuses(payload: dict) -> None:
+    """Insert one ListaWebhook row per status object from a listas validation payload."""
+    global _listas_insert_counter
+    try:
+        for entry in (payload.get("entry") or []):
+            for change in (entry.get("changes") or []):
+                if change.get("field") != "messages":
+                    continue
+                for status in (change.get("value") or {}).get("statuses") or []:
+                    wamid = status.get("id")
+                    if not wamid:
+                        continue
+                    db.session.add(ListaWebhook(
+                        wamid=wamid,
+                        status_json=json.dumps(status, ensure_ascii=False),
+                    ))
+                    _listas_insert_counter += 1
+
+        db.session.flush()
+
+        # Prune rows older than 24 h every 500 inserts
+        if _listas_insert_counter % 500 == 0:
+            from datetime import datetime, timedelta
+            cutoff = datetime.utcnow() - timedelta(hours=24)
+            db.session.query(ListaWebhook).filter(
+                ListaWebhook.created_at < cutoff
+            ).delete(synchronize_session=False)
+
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 # ── Async webhook processing ────────────────────────────────────────────────────
 # Meta floods this endpoint (~16 req/s of message/status events). Processing each
@@ -106,6 +173,12 @@ def process_webhook_payload(payload):
         return
     if isinstance(payload, dict) and "asset_id" in payload:
         _handle_bms_status([payload])
+        return
+
+    # ── Listas validation statuses — dedicated store, bypasses general log ────
+    pnid = _get_listas_pnid()
+    if pnid and _is_listas_payload(payload, pnid):
+        _store_listas_statuses(payload)
         return
 
     # Log raw payload if admin has enabled it

@@ -149,6 +149,15 @@ class WebhookLog(db.Model):
     created_at   = db.Column(db.DateTime,   default=_now_sp, nullable=False)
 
 
+class ListaWebhook(db.Model):
+    """Status webhooks do número de validação de listas, indexados por wamid.
+    Isolado do WebhookLog geral para não sofrer flood/poda dos demais webhooks."""
+    id          = db.Column(db.Integer,     primary_key=True)
+    wamid       = db.Column(db.String(128), nullable=False, index=True)
+    status_json = db.Column(db.Text,        nullable=False)
+    created_at  = db.Column(db.DateTime,    default=_now_sp, nullable=False, index=True)
+
+
 class LoginLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
