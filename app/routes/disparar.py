@@ -2,6 +2,9 @@ import os
 import json
 import csv as _csv
 import time
+import re
+import random
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from flask import (
     Blueprint, render_template, request,
@@ -29,6 +32,7 @@ from ..services.disparar_service import (
 )
 from ..services.disparo_multi import (
     start_batch,
+    start_travar_broadcast,
     batch_status as _batch_status,
     batch_stop as _batch_stop,
     build_pool,
@@ -537,6 +541,113 @@ def batch_start():
         return jsonify({"error": result["error"]}), 400
 
     return jsonify(result)
+
+
+# ── travar broadcast ─────────────────────────────────────────────────────────
+
+def _pick_connected_br_phone(phone_numbers: list) -> str:
+    """Return the id of the first CONNECTED Brazilian (+55) number, or ''."""
+    for p in phone_numbers:
+        digits = re.sub(r"\D", "", str(p.get("display_phone_number") or ""))
+        if digits.startswith("55") and (p.get("status") or "").upper() == "CONNECTED":
+            return p.get("id", "") or ""
+    return ""
+
+
+@bp.route("/disparar/travar/start", methods=["POST"])
+@login_required
+def travar_start():
+    data = request.get_json(silent=True) or {}
+    waba_ids     = data.get("waba_ids") or []
+    csv_filename = (data.get("csv_filename") or "").strip()
+    phone_col    = (data.get("phone_col") or "").strip()
+    param_map    = data.get("param_map") or []
+    max_workers  = int(data.get("max_workers") or 1)
+    has_header   = data.get("has_header", True)
+
+    if not waba_ids or not csv_filename or not phone_col:
+        return jsonify({"error": "Campos obrigatórios faltando."}), 400
+
+    csv_path = os.path.join(csvs_dir(current_user.id), secure_filename(csv_filename))
+    if not os.path.exists(csv_path):
+        return jsonify({"error": f"CSV '{csv_filename}' não encontrado."}), 404
+
+    api_version = current_app.config["META_API_VERSION"]
+    bms = load_user_bms(current_user.id)
+    user_id = current_user.id
+
+    def _fetch_templates(waba_id):
+        entry = bms.get(str(waba_id))
+        if not isinstance(entry, dict):
+            return waba_id, None, f"{waba_id}: não encontrado no bms.json"
+        token = (entry.get("token") or "").strip()
+        snap = entry.get("snapshot", {}) or {}
+        phone_numbers = snap.get("phone_numbers") or []
+        waba_name = snap.get("name") or entry.get("name") or str(waba_id)
+        phone_number_id = _pick_connected_br_phone(phone_numbers)
+        if not token:
+            return waba_id, None, f"{waba_id}: token vazio"
+        if not phone_number_id:
+            return waba_id, None, f"{waba_id}: sem número brasileiro (+55) conectado"
+        try:
+            templates, err_tpl = meta_get_templates(api_version, token, waba_id)
+        except Exception as exc:
+            return waba_id, None, f"{waba_id}: erro ao buscar templates — {exc}"
+        if err_tpl or not templates:
+            return waba_id, None, f"{waba_id}: {err_tpl or 'lista vazia'}"
+        approved = [t for t in templates if t.get("status") == "APPROVED"]
+        if not approved:
+            return waba_id, None, f"{waba_id}: nenhum template APPROVED disponível"
+        chosen = random.choice(approved)
+        return waba_id, {
+            "waba_id": waba_id,
+            "name": waba_name,
+            "phone_number_id": phone_number_id,
+            "token": token,
+            "template_name": chosen.get("name", ""),
+            "template_language": chosen.get("language", "pt"),
+        }, None
+
+    errors = []
+    wabas_resolved = []
+
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(_fetch_templates, wid): wid for wid in waba_ids}
+        for future in as_completed(futures):
+            try:
+                waba_id, spec, err = future.result()
+            except Exception as exc:
+                wid = futures[future]
+                errors.append(f"{wid}: erro interno — {exc}")
+                continue
+            if err:
+                errors.append(err)
+            else:
+                wabas_resolved.append(spec)
+
+    if not wabas_resolved:
+        return jsonify({"batch_id": None, "children": [], "errors": errors}), 400
+
+    try:
+        rows = _read_rows(csv_path, has_header=has_header)
+    except Exception as exc:
+        return jsonify({"error": f"Erro ao ler CSV: {exc}"}), 500
+
+    if not rows:
+        return jsonify({"error": "O CSV está vazio ou sem linhas de dados."}), 400
+
+    result = start_travar_broadcast(
+        app=current_app._get_current_object(),
+        user_id=user_id,
+        wabas_resolved=wabas_resolved,
+        rows=rows,
+        phone_col=phone_col,
+        param_map=param_map,
+        max_workers=max_workers,
+        skip_log=True,
+    )
+
+    return jsonify({**result, "errors": errors})
 
 
 # ── batch status ──────────────────────────────────────────────────────────────

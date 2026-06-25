@@ -332,6 +332,89 @@ def start_batch(app, user_id: int,
     }
 
 
+# ── travar broadcast ──────────────────────────────────────────────────────────
+
+def start_travar_broadcast(app, user_id: int,
+                           wabas_resolved: list,
+                           rows: list,
+                           phone_col: str,
+                           param_map: list,
+                           max_workers: int,
+                           skip_log: bool = True) -> dict:
+    """
+    Broadcast the same full `rows` list once to every WABA in `wabas_resolved`.
+    Templates are pre-resolved (auto-picked APPROVED) by the caller.
+
+    wabas_resolved: [{waba_id, name, phone_number_id, token,
+                      template_name, template_language}, ...]
+    rows: raw CSV dicts keyed by real column names (as from _read_rows)
+    skip_log=True: don't filter/write sent_log (same leads go to all WABAs)
+
+    Returns {batch_id, children, pool_size, error: None}
+    """
+    n_children = len(wabas_resolved)
+    if n_children == 0:
+        return {"error": "no_valid_wabas"}
+
+    if max_workers == 0:
+        child_workers = 0
+        child_async_limit = max(1, GLOBAL_ASYNC_BUDGET // n_children)
+    else:
+        child_workers = max(1, min(max_workers, GLOBAL_BATCH_BUDGET // n_children))
+        child_async_limit = 500
+
+    batch_id = str(uuid.uuid4())[:8]
+    children = []
+
+    for waba in wabas_resolved:
+        waba_id = waba["waba_id"]
+        job_id = start_disparo_job(
+            app=app,
+            user_id=user_id,
+            csv_filename=f"travar_{batch_id}_{waba_id}",
+            phone_col=phone_col,
+            phone_number_id=waba["phone_number_id"],
+            token=waba["token"],
+            template_name=waba["template_name"],
+            template_language=waba["template_language"],
+            param_map=param_map,
+            max_workers=child_workers,
+            skip_log=skip_log,
+            waba_id=waba_id,
+            has_header=True,
+            max_leads=0,
+            preloaded_rows=rows,
+            async_limit=child_async_limit,
+        )
+        children.append({
+            "job_id": job_id,
+            "waba_id": waba_id,
+            "name": waba.get("name", waba_id),
+            "quota": len(rows),
+            "template": waba["template_name"],
+        })
+
+    batch_data = {
+        "user_id": user_id,
+        "children": children,
+        "stripped": [],
+        "leftover": 0,
+        "pool_size": len(rows),
+    }
+
+    with _BATCH_LOCK:
+        _live_batches[batch_id] = batch_data
+
+    _save_batch_sidecar(user_id, batch_id, batch_data)
+
+    return {
+        "batch_id": batch_id,
+        "children": children,
+        "pool_size": len(rows),
+        "error": None,
+    }
+
+
 # ── batch status ───────────────────────────────────────────────────────────────
 
 def batch_status(user_id: int, batch_id: str) -> dict | None:
@@ -407,6 +490,7 @@ def batch_status(user_id: int, batch_id: str) -> dict | None:
             "waba_id": child["waba_id"],
             "name": child["name"],
             "quota": child["quota"],
+            "template": child.get("template", ""),
             "status": st.get("status", "unknown"),
             "sent": st.get("sent", 0),
             "failed": st.get("failed", 0),
