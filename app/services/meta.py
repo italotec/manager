@@ -379,3 +379,88 @@ def register_number(api_version: str, token: str, phone_id: str, pin: str, proxy
     payload = {"messaging_product": "whatsapp", "pin": pin}
     r = s.post(url, headers={"Authorization": f"Bearer {token}"}, json=payload, timeout=30)
     return r
+
+
+# ── Profile picture helpers ────────────────────────────────────────────────
+
+# Cache app_id per token to avoid repeated /app calls inside one job run.
+_app_id_cache: dict[str, str] = {}
+
+def get_app_id(api_version: str, token: str, fallback: str = "") -> str:
+    """Return the Facebook App ID associated with this token.
+
+    Tries GET /{ver}/app first (works for system-user tokens issued from the
+    app). Falls back to the supplied `fallback` (i.e. META_APP_ID env var)
+    when the call fails or the token has no app node.
+    """
+    if token in _app_id_cache:
+        return _app_id_cache[token]
+    try:
+        url = f"https://graph.facebook.com/{api_version}/app"
+        r = requests.get(url, headers=_auth_headers(token), timeout=15)
+        j = r.json() if r.text else {}
+        app_id = str(j.get("id") or "").strip()
+    except Exception:
+        app_id = ""
+    result = app_id or fallback
+    if result:
+        _app_id_cache[token] = result
+    return result
+
+
+def upload_resumable(api_version: str, app_id: str, token: str,
+                     file_bytes: bytes, mime: str = "image/jpeg") -> tuple[str, str | None]:
+    """Upload bytes via the Resumable Upload API and return (handle, err).
+
+    Two-step:
+      1. POST /{ver}/{app_id}/uploads?file_length=...&file_type=... → upload session id
+      2. POST /{ver}/{session_id} with raw bytes → file handle string
+    """
+    try:
+        # Step 1: create upload session
+        url1 = (
+            f"https://graph.facebook.com/{api_version}/{app_id}/uploads"
+            f"?file_length={len(file_bytes)}&file_type={mime}"
+        )
+        r1 = requests.post(url1, headers=_auth_headers(token), timeout=30)
+        j1 = r1.json() if r1.text else {}
+        session_id = str(j1.get("id") or "").strip()
+        if not session_id or r1.status_code not in (200, 201):
+            err = (j1.get("error") or {})
+            return "", (err.get("message") if isinstance(err, dict) else str(err)) or f"HTTP {r1.status_code}"
+
+        # Step 2: upload the bytes
+        url2 = f"https://graph.facebook.com/{api_version}/{session_id}"
+        headers2 = {
+            "Authorization": f"OAuth {token}",
+            "file_offset": "0",
+            "Content-Type": mime,
+        }
+        r2 = requests.post(url2, headers=headers2, data=file_bytes, timeout=60)
+        j2 = r2.json() if r2.text else {}
+        handle = str(j2.get("h") or "").strip()
+        if not handle or r2.status_code not in (200, 201):
+            err = (j2.get("error") or {})
+            return "", (err.get("message") if isinstance(err, dict) else str(err)) or f"HTTP {r2.status_code}"
+
+        return handle, None
+    except Exception as e:
+        return "", str(e)[:400]
+
+
+def set_profile_picture(api_version: str, token: str,
+                        phone_id: str, handle: str) -> tuple[bool, str | None]:
+    """POST whatsapp_business_profile to set profile_picture_handle for a phone number."""
+    url = f"https://graph.facebook.com/{api_version}/{phone_id}/whatsapp_business_profile"
+    payload = {"messaging_product": "whatsapp", "profile_picture_handle": handle}
+    try:
+        r = requests.post(url, headers={**_auth_headers(token), "Content-Type": "application/json"},
+                          json=payload, timeout=30)
+        j = r.json() if r.text else {}
+        if r.status_code == 200 and (j.get("success") or j.get("id")):
+            return True, None
+        err = j.get("error", {}) if isinstance(j, dict) else {}
+        msg = (err.get("message") if isinstance(err, dict) else str(err)) or f"HTTP {r.status_code}"
+        return False, msg
+    except Exception as e:
+        return False, str(e)[:400]

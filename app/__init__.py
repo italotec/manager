@@ -47,6 +47,7 @@ def create_app():
     from .routes.templates_bp import bp as templates_bp
     from .routes.debug import bp as debug_bp  # TEMP: leak hunting, remove later
     from .routes.evolution import bp as evolution_bp
+    from .routes.photos_bp import bp as photos_bp
 
     app.register_blueprint(billing_bp)
     app.register_blueprint(auth_bp)
@@ -66,6 +67,7 @@ def create_app():
     app.register_blueprint(templates_bp)
     app.register_blueprint(debug_bp)  # TEMP: leak hunting, remove later
     app.register_blueprint(evolution_bp)
+    app.register_blueprint(photos_bp)
 
     @sock.route("/agent/ws")
     def agent_ws_route(ws):
@@ -93,6 +95,19 @@ def create_app():
 
         # Enable WAL mode — allows concurrent reads while writing
         db.session.execute(db.text("PRAGMA journal_mode=WAL"))
+        db.session.commit()
+
+        # Ensure indexes that were missing on older DBs (create_all won't add
+        # indexes to already-existing tables, so we do it explicitly here).
+        db.session.execute(db.text(
+            "CREATE INDEX IF NOT EXISTS ix_webhook_log_created_at ON webhook_log (created_at)"
+        ))
+        db.session.execute(db.text(
+            "CREATE INDEX IF NOT EXISTS ix_webhook_log_waba_id ON webhook_log (waba_id)"
+        ))
+        db.session.execute(db.text(
+            "CREATE INDEX IF NOT EXISTS ix_chat_message_timestamp ON chat_message (timestamp)"
+        ))
         db.session.commit()
 
         # Add new columns to existing DBs (create_all won't add new columns)

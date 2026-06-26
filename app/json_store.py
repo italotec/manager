@@ -139,6 +139,12 @@ def patch_snapshot(user_id: int, waba_id: str, **fields) -> None:
         save_user_bms(user_id, data)
 
 
+def photos_dir(user_id: int) -> str:
+    path = os.path.join(user_dir(user_id), "photos")
+    os.makedirs(path, exist_ok=True)
+    return path
+
+
 def find_users_with_waba(waba_id: str) -> list:
     """Return list of user_ids whose bms.json contains the given WABA id."""
     key = str(waba_id).strip()

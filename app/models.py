@@ -139,15 +139,15 @@ class ChatMessage(db.Model):
     media_url       = db.Column(db.Text,        default="", nullable=False)
     wamid           = db.Column(db.String(128), default="", nullable=False, index=True)
     status          = db.Column(db.String(16),  default="sent", nullable=False)
-    timestamp       = db.Column(db.DateTime,    default=_now_sp,   nullable=False)
+    timestamp       = db.Column(db.DateTime,    default=_now_sp,   nullable=False, index=True)
     __table_args__  = (db.Index("ix_chat_conv", "waba_id", "phone_number_id", "contact_wa_id"),)
 
 
 class WebhookLog(db.Model):
     id           = db.Column(db.Integer,    primary_key=True)
-    waba_id      = db.Column(db.String(64), default="", nullable=False)
+    waba_id      = db.Column(db.String(64), default="", nullable=False, index=True)
     payload_json = db.Column(db.Text,       nullable=False)
-    created_at   = db.Column(db.DateTime,   default=_now_sp, nullable=False)
+    created_at   = db.Column(db.DateTime,   default=_now_sp, nullable=False, index=True)
 
 
 class ListaWebhook(db.Model):
@@ -273,4 +273,22 @@ class Card(db.Model):
             "status": self.status,
             "last_error": self.last_error,
             "created_at": self.created_at.strftime("%d/%m/%Y") if self.created_at else "",
+        }
+
+
+class PhotoModel(db.Model):
+    """Saved profile picture — reusable across WABAs."""
+    __tablename__ = "photo_model"
+    id         = db.Column(db.Integer,     primary_key=True)
+    user_id    = db.Column(db.Integer,     db.ForeignKey("user.id"), nullable=False, index=True)
+    name       = db.Column(db.String(128), nullable=False)
+    filename   = db.Column(db.String(256), nullable=False)
+    created_at = db.Column(db.DateTime,    default=_now_sp, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id":         self.id,
+            "name":       self.name,
+            "url":        f"/photos/{self.id}/file",
+            "created_at": self.created_at.strftime("%d/%m/%Y %H:%M") if self.created_at else "",
         }

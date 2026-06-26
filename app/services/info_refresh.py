@@ -63,6 +63,38 @@ def refresh_snapshot() -> None:
     print(f"[INFO_REFRESH] saved snapshot: bms={bms} sent={sent} delv={delv}", flush=True)
 
 
+def _db_maintenance() -> None:
+    """Periodic housekeeping: prune old rows and checkpoint the WAL.
+
+    Keeps ChatMessage under control (unbounded growth slows all chat queries)
+    and prevents the WAL file from growing large (large WAL = slow reads because
+    every SELECT must scan it for recent writes).
+    """
+    from .. import db
+    from ..models import ChatMessage
+    from datetime import datetime, timedelta
+
+    try:
+        cutoff = datetime.utcnow() - timedelta(days=30)
+        deleted = (
+            db.session.query(ChatMessage)
+            .filter(ChatMessage.timestamp < cutoff)
+            .delete(synchronize_session=False)
+        )
+        db.session.commit()
+        if deleted:
+            print(f"[DB_MAINT] pruned {deleted} chat_message rows older than 30 days", flush=True)
+    except Exception as exc:
+        db.session.rollback()
+        print(f"[DB_MAINT] chat_message prune error: {exc}", flush=True)
+
+    try:
+        db.session.execute(db.text("PRAGMA wal_checkpoint(PASSIVE)"))
+        db.session.commit()
+    except Exception as exc:
+        print(f"[DB_MAINT] WAL checkpoint error: {exc}", flush=True)
+
+
 def ensure_refresher(app) -> None:
     """Start the background BM-metrics refresh thread (idempotent — safe to call multiple times)."""
     global _started
@@ -79,6 +111,10 @@ def ensure_refresher(app) -> None:
                 refresh_snapshot()
             except Exception as exc:
                 print(f"[INFO_REFRESH] initial refresh error: {exc}", flush=True)
+            try:
+                _db_maintenance()
+            except Exception as exc:
+                print(f"[DB_MAINT] initial maintenance error: {exc}", flush=True)
         while True:
             time.sleep(interval)
             with app.app_context():
@@ -86,6 +122,10 @@ def ensure_refresher(app) -> None:
                     refresh_snapshot()
                 except Exception as exc:
                     print(f"[INFO_REFRESH] refresh error: {exc}", flush=True)
+                try:
+                    _db_maintenance()
+                except Exception as exc:
+                    print(f"[DB_MAINT] maintenance error: {exc}", flush=True)
 
     t = threading.Thread(target=_loop, daemon=True, name="info-refresher")
     t.start()

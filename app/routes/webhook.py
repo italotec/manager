@@ -347,9 +347,6 @@ def _handle_bms_status(profiles: list) -> None:
             patch_snapshot(user_id, asset_id, status_label=new_status)
 
 
-# Prune is expensive (per-WABA subquery DELETE); run it only occasionally instead of
-# on every webhook. Processing is now serialized on a tiny worker pool, so this
-# counter is effectively single-threaded cadence control.
 _log_counter = 0
 
 
@@ -358,34 +355,25 @@ def _maybe_log(payload: dict):
     global _log_counter
     try:
         payload_str = json.dumps(payload, ensure_ascii=False)[:50_000]
-        waba_ids_seen = []
 
         for entry in (payload.get("entry") or []):
             waba_id = str(entry.get("id") or "").strip()
             if not waba_id:
                 continue
-            log = WebhookLog(waba_id=waba_id, payload_json=payload_str)
-            db.session.add(log)
-            waba_ids_seen.append(waba_id)
+            db.session.add(WebhookLog(waba_id=waba_id, payload_json=payload_str))
 
         db.session.flush()
 
-        # Prune: keep only the newest 200 rows per WABA — but only every 100th call
-        # to avoid running a delete-subquery on every single webhook.
+        # Prune rows older than 48 h every 2 000 calls (~every 2 min at 16/s).
+        # A single range-DELETE on the indexed created_at column is O(log n) and
+        # replaces the old per-WABA NOT-IN subquery that did full-table scans.
         _log_counter += 1
-        if _log_counter % 100 == 0:
-            for waba_id in set(waba_ids_seen):
-                keep = (
-                    db.session.query(WebhookLog.id)
-                    .filter(WebhookLog.waba_id == waba_id)
-                    .order_by(WebhookLog.created_at.desc(), WebhookLog.id.desc())
-                    .limit(200)
-                    .subquery()
-                )
-                db.session.query(WebhookLog).filter(
-                    WebhookLog.waba_id == waba_id,
-                    ~WebhookLog.id.in_(keep),
-                ).delete(synchronize_session=False)
+        if _log_counter % 2000 == 0:
+            from datetime import datetime, timedelta
+            cutoff = datetime.utcnow() - timedelta(hours=48)
+            db.session.query(WebhookLog).filter(
+                WebhookLog.created_at < cutoff
+            ).delete(synchronize_session=False)
 
         db.session.commit()
     except Exception:

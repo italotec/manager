@@ -181,11 +181,23 @@
       <button type="button"
               title="Testar disparo das WABAs selecionadas"
               onclick="openHealthTestModal()"
-              class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-emerald-900/60 text-zinc-400 hover:text-emerald-300 transition-colors">
+              class="px-3 py2 rounded-xl bg-zinc-800 hover:bg-emerald-900/60 text-zinc-400 hover:text-emerald-300 transition-colors">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="22" y1="2" x2="11" y2="13"></line>
           <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+
+      <!-- Bulk profile photo button -->
+      <button type="button"
+              title="Definir foto de perfil nas WABAs selecionadas"
+              onclick="openPhotoModal()"
+              class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-pink-900/60 text-zinc-400 hover:text-pink-300 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+          <circle cx="12" cy="13" r="4"/>
         </svg>
       </button>
 
@@ -2739,6 +2751,251 @@ async function fetchDashboardAnalytics() {
 
 // Auto-load on page open with "Hoje" preset
 document.addEventListener('DOMContentLoaded', () => dashSetPreset('hoje'));
+</script>
+
+<!-- ── Profile Photo bulk modal ─────────────────────────────────────────────── -->
+<div id="photoModal" class="hidden fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4">
+  <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg space-y-4">
+    <div class="flex items-center justify-between">
+      <h3 class="text-base font-semibold text-zinc-100">Foto de Perfil — Bulk</h3>
+      <button onclick="closePhotoModal()" class="text-zinc-500 hover:text-zinc-300 text-xl leading-none">&times;</button>
+    </div>
+
+    <p id="photoModalStatus" class="text-sm text-zinc-400"></p>
+
+    <!-- Saved photos grid -->
+    <div>
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-xs text-zinc-500">Fotos salvas</span>
+        <label class="cursor-pointer text-xs px-3 py-1.5 rounded-lg bg-zinc-700 hover:bg-zinc-600 text-zinc-200">
+          + Upload nova foto
+          <input type="file" id="photoUploadInput" accept="image/*" class="hidden" onchange="photoUploadFile(this)">
+        </label>
+      </div>
+      <div id="photoGrid" class="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto"></div>
+      <p id="photoGridEmpty" class="hidden text-xs text-zinc-600 mt-1">Nenhuma foto salva. Faça upload de uma.</p>
+    </div>
+
+    <div id="photoUploadProgress" class="hidden text-xs text-zinc-400">Processando imagem…</div>
+    <div id="photoModalErr" class="hidden text-sm text-red-400 rounded-lg bg-red-950/40 px-3 py-2"></div>
+
+    <!-- Results box (shown while/after job runs) -->
+    <div id="photoResultBox" class="hidden max-h-48 overflow-y-auto space-y-0.5 rounded-xl border border-zinc-800 bg-zinc-950/60 p-2"></div>
+
+    <div class="flex items-center gap-3">
+      <button id="photoStartBtn" onclick="startPhotoJob()"
+              class="px-4 py-2 rounded-xl bg-pink-700 hover:bg-pink-600 text-sm font-semibold disabled:opacity-50">
+        Aplicar Foto
+      </button>
+      <button id="photoStopBtn" onclick="stopPhotoJob()"
+              class="hidden px-4 py-2 rounded-xl bg-red-900/60 hover:bg-red-800/60 text-sm font-semibold text-red-300">
+        Parar
+      </button>
+      <button id="photoDoneBtn" onclick="closePhotoModal()"
+              class="hidden px-4 py-2 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-sm font-semibold">
+        Fechar
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+let _photoWabaIds    = [];
+let _photoJobId      = null;
+let _photoPollInterval = null;
+let _photoSelectedId = null;  // currently selected PhotoModel id
+
+async function openPhotoModal() {
+  const checks = Array.from(document.querySelectorAll('input[name="waba_ids"]:checked'));
+  if (!checks.length) { alert("Selecione ao menos 1 WABA."); return; }
+  _photoWabaIds = checks.map(c => c.value);
+
+  const modal = document.getElementById("photoModal");
+  modal.classList.remove("hidden");
+  document.getElementById("photoModalStatus").textContent = _photoWabaIds.length + " WABA(s) selecionada(s).";
+  document.getElementById("photoModalErr").classList.add("hidden");
+  document.getElementById("photoResultBox").classList.add("hidden");
+  document.getElementById("photoResultBox").innerHTML = "";
+  document.getElementById("photoStopBtn").classList.add("hidden");
+  document.getElementById("photoDoneBtn").classList.add("hidden");
+  document.getElementById("photoStartBtn").classList.remove("hidden");
+  document.getElementById("photoStartBtn").disabled = false;
+  document.getElementById("photoStartBtn").textContent = "Aplicar Foto";
+  _photoJobId = null;
+  if (_photoPollInterval) clearInterval(_photoPollInterval);
+
+  await photoLoadGrid();
+}
+
+function closePhotoModal() {
+  document.getElementById("photoModal").classList.add("hidden");
+  if (_photoPollInterval) clearInterval(_photoPollInterval);
+  _photoPollInterval = null;
+  _photoJobId = null;
+}
+
+async function photoLoadGrid() {
+  try {
+    const r = await fetch("/photos/list");
+    const d = await r.json();
+    const grid = document.getElementById("photoGrid");
+    const empty = document.getElementById("photoGridEmpty");
+    grid.innerHTML = "";
+    _photoSelectedId = null;
+
+    if (!d.photos || !d.photos.length) {
+      empty.classList.remove("hidden");
+      return;
+    }
+    empty.classList.add("hidden");
+
+    d.photos.forEach(p => {
+      const div = document.createElement("div");
+      div.className = "relative cursor-pointer rounded-lg overflow-hidden border-2 border-transparent hover:border-pink-500 transition-colors";
+      div.dataset.photoId = p.id;
+      div.innerHTML = `
+        <img src="${p.url}" class="w-full aspect-square object-cover" alt="${escHtml(p.name)}">
+        <div class="absolute bottom-0 left-0 right-0 bg-black/60 text-zinc-200 text-[10px] px-1 py-0.5 truncate">${escHtml(p.name)}</div>
+        <div class="photo-check hidden absolute top-1 right-1 bg-pink-600 rounded-full w-4 h-4 flex items-center justify-center">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
+        </div>`;
+      div.addEventListener("click", () => photoSelectItem(div, p.id));
+      grid.appendChild(div);
+    });
+
+    // Auto-select first
+    const first = grid.firstElementChild;
+    if (first) photoSelectItem(first, parseInt(first.dataset.photoId));
+  } catch(e) {
+    document.getElementById("photoModalErr").textContent = "Erro ao carregar fotos: " + e;
+    document.getElementById("photoModalErr").classList.remove("hidden");
+  }
+}
+
+function photoSelectItem(el, id) {
+  document.querySelectorAll("#photoGrid > div").forEach(d => {
+    d.classList.remove("border-pink-500");
+    d.querySelector(".photo-check")?.classList.add("hidden");
+  });
+  el.classList.add("border-pink-500");
+  el.querySelector(".photo-check")?.classList.remove("hidden");
+  _photoSelectedId = id;
+}
+
+async function photoUploadFile(input) {
+  if (!input.files || !input.files.length) return;
+  const file = input.files[0];
+  input.value = "";
+
+  const prog = document.getElementById("photoUploadProgress");
+  const errEl = document.getElementById("photoModalErr");
+  prog.classList.remove("hidden");
+  errEl.classList.add("hidden");
+
+  const fd = new FormData();
+  fd.append("photo", file);
+  fd.append("name", file.name.replace(/\.[^.]+$/, ""));
+
+  try {
+    const r = await fetch("/photos/upload", {method: "POST", body: fd});
+    const d = await r.json();
+    if (!d.ok) {
+      errEl.textContent = d.error || "Erro ao fazer upload.";
+      errEl.classList.remove("hidden");
+      return;
+    }
+    await photoLoadGrid();
+    // Select the newly uploaded photo
+    const newEl = document.querySelector(`#photoGrid > div[data-photo-id="${d.photo.id}"]`);
+    if (newEl) photoSelectItem(newEl, d.photo.id);
+  } catch(e) {
+    errEl.textContent = "Erro de rede: " + e;
+    errEl.classList.remove("hidden");
+  } finally {
+    prog.classList.add("hidden");
+  }
+}
+
+async function startPhotoJob() {
+  if (!_photoSelectedId) { alert("Selecione uma foto antes de aplicar."); return; }
+
+  const btn = document.getElementById("photoStartBtn");
+  btn.disabled = true; btn.textContent = "Iniciando…";
+  document.getElementById("photoModalErr").classList.add("hidden");
+  document.getElementById("photoResultBox").innerHTML = "";
+  document.getElementById("photoResultBox").classList.add("hidden");
+
+  try {
+    const r = await fetch("/photos/bulk-apply-start", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({photo_id: _photoSelectedId, waba_ids: _photoWabaIds}),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      const errEl = document.getElementById("photoModalErr");
+      errEl.textContent = d.error || "Erro desconhecido";
+      errEl.classList.remove("hidden");
+      btn.disabled = false; btn.textContent = "Aplicar Foto";
+      return;
+    }
+    _photoJobId = d.job_id;
+    btn.classList.add("hidden");
+    document.getElementById("photoStopBtn").classList.remove("hidden");
+    document.getElementById("photoResultBox").classList.remove("hidden");
+    document.getElementById("photoModalStatus").textContent = "Processando…";
+    _photoPollInterval = setInterval(pollPhotoJob, 2000);
+  } catch(e) {
+    const errEl = document.getElementById("photoModalErr");
+    errEl.textContent = "Erro de rede: " + e;
+    errEl.classList.remove("hidden");
+    btn.disabled = false; btn.textContent = "Aplicar Foto";
+  }
+}
+
+async function pollPhotoJob() {
+  if (!_photoJobId) return;
+  try {
+    const r = await fetch(`/photos/job/${_photoJobId}`);
+    const d = await r.json();
+
+    const statusEl = document.getElementById("photoModalStatus");
+    const box = document.getElementById("photoResultBox");
+
+    const done  = d.done  || 0;
+    const total = d.total || 0;
+    const pct   = total ? Math.round(done / total * 100) : 0;
+    statusEl.textContent = `${done}/${total} (${pct}%) — ✅ ${d.success || 0}  ❌ ${d.failed || 0}`;
+
+    let html = "";
+    for (const row of (d.results || [])) {
+      const icon = row.ok ? "✅" : "❌";
+      html += `<div class="flex items-start gap-2 py-1 border-b border-zinc-800/60 last:border-0 text-xs">
+        <span class="w-5 shrink-0">${icon}</span>
+        <div class="flex-1 min-w-0">
+          <span class="text-zinc-200">${escHtml(row.waba_name || row.waba_id)}</span>
+          <span class="text-zinc-500 font-mono ml-1">${escHtml(row.name)}</span>
+          ${!row.ok ? `<div class="text-red-400 truncate">${escHtml(row.msg)}</div>` : ""}
+        </div>
+      </div>`;
+    }
+    box.innerHTML = html;
+
+    if (d.status === "done" || d.status === "stopped" || d.status === "error") {
+      clearInterval(_photoPollInterval);
+      document.getElementById("photoStopBtn").classList.add("hidden");
+      document.getElementById("photoDoneBtn").classList.remove("hidden");
+      statusEl.textContent += d.status === "done" ? " — Concluído" : " — Parado";
+    }
+  } catch {}
+}
+
+async function stopPhotoJob() {
+  if (!_photoJobId) return;
+  await fetch(`/photos/job/${_photoJobId}/stop`, {method: "POST"});
+  document.getElementById("photoStopBtn").disabled = true;
+  document.getElementById("photoStopBtn").textContent = "Parando…";
+}
 </script>
 
 {% endblock %}
