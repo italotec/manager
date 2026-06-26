@@ -29,6 +29,8 @@ from ..services.disparar_service import (
     request_stop,
     _read_rows,
     iter_rows,
+    ensure_csv_stats,
+    stats_job_running,
 )
 from ..services.disparo_multi import (
     start_batch,
@@ -105,7 +107,16 @@ def _load_sent_set(user_id: int) -> set:
 
 
 def _sent_count(user_id: int) -> int:
-    return len(_load_sent_set(user_id))
+    # Stream-count lines: never build the (up to ~1.5M-entry) set just to size it.
+    sp = sent_log_path(user_id)
+    if not os.path.exists(sp):
+        return 0
+    n = 0
+    with open(sp, "r", encoding="utf-8") as f:
+        for ln in f:
+            if ln.strip():
+                n += 1
+    return n
 
 
 # ── main page ─────────────────────────────────────────────────────────────────
@@ -116,7 +127,10 @@ def disparar_page():
     user_id = current_user.id
     csv_d = csvs_dir(user_id)
 
-    sent_set = _load_sent_set(user_id)
+    # Read precomputed per-file stats from cache (instant). Anything stale/missing
+    # is recomputed by a background relay — see ensure_csv_stats(). Row counts and
+    # sent% are NEVER scanned inside this request, which used to take 60-90s.
+    cache = ensure_csv_stats(user_id)
 
     csv_files = []
     for fn in sorted(os.listdir(csv_d)):
@@ -125,30 +139,24 @@ def disparar_page():
         path = os.path.join(csv_d, fn)
         try:
             size = os.path.getsize(path)
-            # Stream the file row-by-row: never hold the whole thing in RAM. Loading
-            # a 1M-row file into a list here cost 1-2 GB on every page view → OOM.
-            cols = []
-            row_count = 0
-            sent_in_csv = 0
-            for row in iter_rows(path):
-                if not cols:
-                    cols = list(row.keys())
-                row_count += 1
-                if any(str(v).strip() in sent_set for v in row.values()):
-                    sent_in_csv += 1
-        except Exception:
-            cols = []
+        except OSError:
             size = 0
-            row_count = 0
-            sent_in_csv = 0
-        sent_pct = round(sent_in_csv / row_count * 100) if row_count else 0
+        entry = cache.get(fn) or {}
+        has_stats = "row_count" in entry
+        row_count = entry.get("row_count")
+        sent_count = entry.get("sent_count")
+        sent_pct = (
+            round(sent_count / row_count * 100)
+            if has_stats and row_count else 0
+        )
         csv_files.append({
             "name": fn,
-            "columns": cols,
+            "columns": entry.get("columns", []),
             "size_kb": round(size / 1024, 1),
-            "row_count": max(0, row_count),
+            "row_count": row_count,
             "sent_pct": sent_pct,
-            "sent_count": sent_in_csv,
+            "sent_count": sent_count,
+            "pending": not has_stats,
         })
 
     wabas = _wabas_with_phones(user_id)
@@ -159,6 +167,27 @@ def disparar_page():
         wabas=wabas,
         sent_count=_sent_count(user_id),
     )
+
+
+@bp.route("/disparar/csv-stats")
+@login_required
+def csv_stats_poll():
+    """Polled by the page to fill in row_count / sent% as the background relay
+    computes them. Returns only files that already have stats."""
+    cache = ensure_csv_stats(current_user.id)
+    out = {}
+    for fn, e in cache.items():
+        if "row_count" not in e:
+            continue
+        rc = e.get("row_count") or 0
+        sc = e.get("sent_count") or 0
+        out[fn] = {
+            "row_count": rc,
+            "sent_count": sc,
+            "sent_pct": round(sc / rc * 100) if rc else 0,
+            "columns": e.get("columns", []),
+        }
+    return jsonify({"files": out, "pending": stats_job_running(current_user.id)})
 
 
 # ── CSV management ────────────────────────────────────────────────────────────

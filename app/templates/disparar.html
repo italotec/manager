@@ -109,16 +109,20 @@
                      class="w-4 h-4 accent-indigo-500">
             </td>
             <td class="py-3 font-mono text-xs">{{ csv.name }}</td>
-            <td class="py-3 text-zinc-400 text-xs">{{ csv.row_count }}</td>
-            <td class="py-3 text-xs">
-              {% if csv.sent_pct == 100 %}
-                <span class="text-emerald-400 font-semibold">{{ csv.sent_pct }}%</span>
-              {% elif csv.sent_pct > 0 %}
-                <span class="text-amber-400 font-semibold">{{ csv.sent_pct }}%</span>
+            <td class="py-3 text-zinc-400 text-xs" data-csv-name="{{ csv.name }}" data-stat="rows">{% if csv.pending %}<span class="text-zinc-600">…</span>{% else %}{{ csv.row_count }}{% endif %}</td>
+            <td class="py-3 text-xs" data-csv-name="{{ csv.name }}" data-stat="sent">
+              {% if csv.pending %}
+                <span class="text-zinc-600">…</span>
               {% else %}
-                <span class="text-zinc-500">0%</span>
+                {% if csv.sent_pct == 100 %}
+                  <span class="text-emerald-400 font-semibold">{{ csv.sent_pct }}%</span>
+                {% elif csv.sent_pct > 0 %}
+                  <span class="text-amber-400 font-semibold">{{ csv.sent_pct }}%</span>
+                {% else %}
+                  <span class="text-zinc-500">0%</span>
+                {% endif %}
+                <span class="text-zinc-600 ml-1">({{ csv.sent_count }}/{{ csv.row_count }})</span>
               {% endif %}
-              <span class="text-zinc-600 ml-1">({{ csv.sent_count }}/{{ csv.row_count }})</span>
             </td>
             <td class="py-3 text-zinc-400 text-xs">{{ csv.size_kb }} KB</td>
             <td class="py-3 text-zinc-500 text-xs max-w-xs truncate">
@@ -458,16 +462,20 @@
                        class="multi-csv-check w-4 h-4 accent-indigo-500">
               </td>
               <td class="py-3 font-mono text-xs">{{ csv.name }}</td>
-              <td class="py-3 text-zinc-400 text-xs">{{ csv.row_count }}</td>
-              <td class="py-3 text-xs">
-                {% if csv.sent_pct == 100 %}
-                  <span class="text-emerald-400 font-semibold">{{ csv.sent_pct }}%</span>
-                {% elif csv.sent_pct > 0 %}
-                  <span class="text-amber-400 font-semibold">{{ csv.sent_pct }}%</span>
+              <td class="py-3 text-zinc-400 text-xs" data-csv-name="{{ csv.name }}" data-stat="rows">{% if csv.pending %}<span class="text-zinc-600">…</span>{% else %}{{ csv.row_count }}{% endif %}</td>
+              <td class="py-3 text-xs" data-csv-name="{{ csv.name }}" data-stat="sent">
+                {% if csv.pending %}
+                  <span class="text-zinc-600">…</span>
                 {% else %}
-                  <span class="text-zinc-500">0%</span>
+                  {% if csv.sent_pct == 100 %}
+                    <span class="text-emerald-400 font-semibold">{{ csv.sent_pct }}%</span>
+                  {% elif csv.sent_pct > 0 %}
+                    <span class="text-amber-400 font-semibold">{{ csv.sent_pct }}%</span>
+                  {% else %}
+                    <span class="text-zinc-500">0%</span>
+                  {% endif %}
+                  <span class="text-zinc-600 ml-1">({{ csv.sent_count }}/{{ csv.row_count }})</span>
                 {% endif %}
-                <span class="text-zinc-600 ml-1">({{ csv.sent_count }}/{{ csv.row_count }})</span>
               </td>
               <td class="py-3 text-zinc-400 text-xs">{{ csv.size_kb }} KB</td>
               <td class="py-3 text-right">
@@ -683,7 +691,7 @@
                      class="w-4 h-4 accent-violet-500">
             </td>
             <td class="py-3 font-mono text-xs">{{ csv.name }}</td>
-            <td class="py-3 text-zinc-400 text-xs">{{ csv.row_count }}</td>
+            <td class="py-3 text-zinc-400 text-xs" data-csv-name="{{ csv.name }}" data-stat="rows">{% if csv.pending %}<span class="text-zinc-600">…</span>{% else %}{{ csv.row_count }}{% endif %}</td>
             <td class="py-3 text-zinc-400 text-xs">{{ csv.size_kb }} KB</td>
             <td class="py-3 text-zinc-500 text-xs max-w-xs truncate">{{ csv.columns | join(", ") }}</td>
           </tr>
@@ -871,6 +879,38 @@ let activeJobId     = null;
 let pollTimer       = null;
 let logOffset       = 0;
 let _templates      = [];  // store full template objects with language
+
+// ── CSV stats relay poller ─────────────────────────────────────────────────
+// Row counts / sent% are computed by a background relay on the server (see
+// ensure_csv_stats). Cells start as "…"; we poll until the relay is done.
+function _sentCellHtml(pct, sent, total) {
+  let cls = pct === 100 ? "text-emerald-400 font-semibold"
+          : pct > 0     ? "text-amber-400 font-semibold"
+          :               "text-zinc-500";
+  return `<span class="${cls}">${pct}%</span>`
+       + `<span class="text-zinc-600 ml-1">(${sent}/${total})</span>`;
+}
+function _applyCsvStats(files) {
+  for (const [name, s] of Object.entries(files)) {
+    document.querySelectorAll(`[data-csv-name="${CSS.escape(name)}"][data-stat="rows"]`)
+      .forEach(el => { el.textContent = s.row_count; });
+    document.querySelectorAll(`[data-csv-name="${CSS.escape(name)}"][data-stat="sent"]`)
+      .forEach(el => { el.innerHTML = _sentCellHtml(s.sent_pct, s.sent_count, s.row_count); });
+  }
+}
+async function _pollCsvStats() {
+  try {
+    const res = await fetch("/disparar/csv-stats");
+    if (res.ok) {
+      const d = await res.json();
+      _applyCsvStats(d.files || {});
+      if (d.pending) { setTimeout(_pollCsvStats, 2000); return; }
+    }
+  } catch (e) { /* keep page usable on transient errors */ }
+}
+document.addEventListener("DOMContentLoaded", () => {
+  if (document.querySelector('[data-stat="rows"] .text-zinc-600')) _pollCsvStats();
+});
 
 // ── no-header toggle ───────────────────────────────────────────────────────
 function onNoHeaderChange() {

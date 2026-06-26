@@ -213,6 +213,179 @@ def get_csv_preview(csv_path: str, n: int = 3, has_header: bool = True) -> list:
     return out
 
 
+# ── CSV stats cache (row_count / sent_count computed OFF the request path) ────
+#
+# Re-scanning every CSV row on every /disparar page load was an O(total rows)
+# blocking cost — with ~700k rows + a 1.5M-entry sent-log it took 60-90s and
+# stalled the page ("loads forever"). Instead we cache per-file stats keyed by
+# the file's (size, mtime) and the sent-log mtime, and recompute stale/missing
+# entries in a single deduped background thread. The page reads the cache and
+# renders instantly; the frontend polls /disparar/csv-stats to fill in numbers
+# as the relay computes them.
+
+_stats_jobs: set[int] = set()
+_stats_lock = threading.Lock()
+
+
+def csv_stats_cache_path(user_id: int) -> str:
+    return os.path.join(_user_base(user_id), "csv_stats.json")
+
+
+def _load_stats_cache(user_id: int) -> dict:
+    p = csv_stats_cache_path(user_id)
+    if not os.path.exists(p):
+        return {}
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            return json.load(f) or {}
+    except Exception:
+        return {}
+
+
+def _save_stats_cache(user_id: int, cache: dict) -> None:
+    p = csv_stats_cache_path(user_id)
+    tmp = p + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cache, f)
+        os.replace(tmp, p)
+    except Exception:
+        pass
+
+
+def _file_sig(path: str) -> tuple:
+    st = os.stat(path)
+    return int(st.st_size), int(st.st_mtime)
+
+
+def _sent_log_mtime(user_id: int) -> int:
+    sp = sent_log_path(user_id)
+    return int(os.path.getmtime(sp)) if os.path.exists(sp) else 0
+
+
+def _stats_fresh(entry: dict | None, size: int, mtime: int, sent_mtime: int) -> bool:
+    return bool(
+        entry
+        and entry.get("size") == size
+        and entry.get("mtime") == mtime
+        and entry.get("sent_log_mtime") == sent_mtime
+        and "row_count" in entry
+    )
+
+
+def _list_csv_names(user_id: int) -> list:
+    d = csvs_dir(user_id)
+    try:
+        return [fn for fn in os.listdir(d) if fn.lower().endswith((".csv", ".xlsx"))]
+    except FileNotFoundError:
+        return []
+
+
+def csv_stats_are_stale(user_id: int, cache: dict | None = None) -> bool:
+    """True if any file is missing/changed vs the cache, or a file was deleted."""
+    if cache is None:
+        cache = _load_stats_cache(user_id)
+    names = _list_csv_names(user_id)
+    if any(k not in names for k in cache):
+        return True
+    sent_mtime = _sent_log_mtime(user_id)
+    d = csvs_dir(user_id)
+    for fn in names:
+        try:
+            size, mtime = _file_sig(os.path.join(d, fn))
+        except OSError:
+            continue
+        if not _stats_fresh(cache.get(fn), size, mtime, sent_mtime):
+            return True
+    return False
+
+
+def recompute_csv_stats(user_id: int, force: bool = False) -> dict:
+    """Scan stale/missing CSVs and write their row_count/columns/sent_count to the
+    cache. Heavy (scans every row) — MUST run off the request path. Saves after
+    each file so a polling frontend sees progress incrementally."""
+    d = csvs_dir(user_id)
+    cache = _load_stats_cache(user_id)
+    sent_mtime = _sent_log_mtime(user_id)
+    names = _list_csv_names(user_id)
+
+    # Drop entries for deleted files.
+    for stale in [k for k in cache if k not in names]:
+        cache.pop(stale, None)
+
+    sent_set = None  # lazy: only load the (large) sent-log if something needs it
+    for fn in names:
+        path = os.path.join(d, fn)
+        try:
+            size, mtime = _file_sig(path)
+        except OSError:
+            continue
+        if not force and _stats_fresh(cache.get(fn), size, mtime, sent_mtime):
+            continue
+        if sent_set is None:
+            sp = sent_log_path(user_id)
+            sent_set = set()
+            if os.path.exists(sp):
+                with open(sp, "r", encoding="utf-8") as f:
+                    sent_set = {ln.strip() for ln in f if ln.strip()}
+        cols: list = []
+        row_count = 0
+        sent_count = 0
+        try:
+            for row in iter_rows(path):
+                if not cols:
+                    cols = list(row.keys())
+                row_count += 1
+                if any(str(v).strip() in sent_set for v in row.values()):
+                    sent_count += 1
+        except Exception:
+            pass
+        cache[fn] = {
+            "size": size,
+            "mtime": mtime,
+            "columns": cols,
+            "row_count": row_count,
+            "sent_count": sent_count,
+            "sent_log_mtime": sent_mtime,
+            "computed_at": int(time.time()),
+        }
+        _save_stats_cache(user_id, cache)
+
+    _save_stats_cache(user_id, cache)
+    return cache
+
+
+def _kick_stats_recompute(user_id: int) -> None:
+    """Start a single background recompute per user (deduped)."""
+    with _stats_lock:
+        if user_id in _stats_jobs:
+            return
+        _stats_jobs.add(user_id)
+
+    def _run():
+        try:
+            recompute_csv_stats(user_id)
+        finally:
+            with _stats_lock:
+                _stats_jobs.discard(user_id)
+
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def stats_job_running(user_id: int) -> bool:
+    with _stats_lock:
+        return user_id in _stats_jobs
+
+
+def ensure_csv_stats(user_id: int) -> dict:
+    """Return the current cache immediately. If anything is stale, kick a
+    background recompute. Never blocks the request."""
+    cache = _load_stats_cache(user_id)
+    if csv_stats_are_stale(user_id, cache):
+        _kick_stats_recompute(user_id)
+    return cache
+
+
 # ── Meta API call (runs inside worker threads) ────────────────────────────────
 
 def _send_template(phone: str, phone_number_id: str, token: str,
