@@ -558,13 +558,13 @@ def register_phones():
     return jsonify({"results": results})
 
 
-# ── Virtual phone number (admin-only, CDP/AdsPower) ───────────────────────────
+# ── Virtual phone number (admin or granted users, CDP/AdsPower) ───────────────
 
 @bp.route("/add-virtual-phone/start", methods=["POST"])
 @login_required
 def add_virtual_phone_start():
-    if not current_user.is_admin:
-        return jsonify({"ok": False, "error": "Acesso restrito a administradores"}), 403
+    if not current_user.virtual_phone_allowed:
+        return jsonify({"ok": False, "error": "Acesso não liberado para este recurso"}), 403
 
     from ..routes.agent_ws import is_agent_connected
     if not is_agent_connected(current_user.id):
@@ -584,7 +584,7 @@ def add_virtual_phone_start():
 @bp.route("/add-virtual-phone/job/<int:job_id>", methods=["GET"])
 @login_required
 def add_virtual_phone_job_status(job_id: int):
-    if not current_user.is_admin:
+    if not current_user.virtual_phone_allowed:
         return jsonify({"error": "forbidden"}), 403
 
     from ..services.virtual_phone_service import get_job
@@ -597,7 +597,7 @@ def add_virtual_phone_job_status(job_id: int):
 @bp.route("/add-virtual-phone/job/<int:job_id>/stop", methods=["POST"])
 @login_required
 def add_virtual_phone_job_stop(job_id: int):
-    if not current_user.is_admin:
+    if not current_user.virtual_phone_allowed:
         return jsonify({"error": "forbidden"}), 403
 
     from ..services.virtual_phone_service import request_stop

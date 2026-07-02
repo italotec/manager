@@ -136,10 +136,10 @@
         </svg>
       </button>
 
-      <!-- Add virtual phone number button (admin only) -->
-      {% if current_user.is_admin %}
+      <!-- Add virtual phone number button (admin or granted users) -->
+      {% if current_user.virtual_phone_allowed %}
       <button type="button"
-              title="Adicionar número virtual às WABAs selecionadas (admin)"
+              title="Adicionar número virtual às WABAs selecionadas"
               onclick="openVirtualPhoneModal()"
               class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-cyan-900/60 text-zinc-400 hover:text-cyan-300 transition-colors">
         <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
@@ -2084,8 +2084,8 @@ async function pollCardJob() {
   </div>
 </div>
 
-<!-- ── Virtual phone bulk-add modal (admin only) ───────────────────────────── -->
-{% if current_user.is_admin %}
+<!-- ── Virtual phone bulk-add modal (admin or granted users) ──────────────── -->
+{% if current_user.virtual_phone_allowed %}
 <div id="virtualPhoneModal" class="fixed inset-0 z-40 bg-black/60 flex items-center justify-center hidden">
   <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
     <div class="flex items-center justify-between mb-4">

@@ -124,6 +124,9 @@ def create_app():
         if "prosperidade_api_key" not in cols:
             db.session.execute(db.text("ALTER TABLE user ADD COLUMN prosperidade_api_key VARCHAR(255)"))
             db.session.commit()
+        if "can_virtual_phone" not in cols:
+            db.session.execute(db.text("ALTER TABLE user ADD COLUMN can_virtual_phone BOOLEAN NOT NULL DEFAULT 0"))
+            db.session.commit()
 
         djcols = [c["name"] for c in db.inspect(db.engine).get_columns("disparo_job")]
         if "waba_id" not in djcols:

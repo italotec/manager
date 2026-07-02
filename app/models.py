@@ -22,6 +22,7 @@ class User(db.Model, UserMixin):
 
     is_admin = db.Column(db.Boolean, default=False, nullable=False)
     is_banned = db.Column(db.Boolean, default=False, nullable=False)  # NEW
+    can_virtual_phone = db.Column(db.Boolean, default=False, nullable=False)
 
     api_key = db.Column(db.String(64), unique=True, nullable=True, index=True)
     agent_token = db.Column(db.String(64), unique=True, nullable=True, index=True)
@@ -38,6 +39,10 @@ class User(db.Model, UserMixin):
 
     def check_password(self, pw: str) -> bool:
         return check_password_hash(self.password_hash, pw)
+
+    @property
+    def virtual_phone_allowed(self) -> bool:
+        return bool(self.is_admin or self.can_virtual_phone)
 
 @login_manager.user_loader
 def load_user(user_id):

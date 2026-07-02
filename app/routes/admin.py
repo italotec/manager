@@ -115,56 +115,19 @@ def admin_user_detail(user_id: int):
         login_logs=login_logs,
     )
 
-@bp.route("/users/<int:user_id>/wabas-json", methods=["GET"])
+@bp.route("/users/<int:user_id>/toggle-virtual-phone", methods=["POST"])
 @login_required
-def admin_user_wabas_json(user_id: int):
-    from ..json_store import load_user_bms
-    from ..routes.agent_ws import is_agent_connected
-
+def admin_toggle_virtual_phone(user_id: int):
     u = db.session.get(User, user_id)
     if not u:
-        return jsonify({"ok": False, "error": "Usuário não encontrado."}), 404
+        flash("Usuário não encontrado.", "error")
+        return redirect(url_for("admin.admin_users"))
 
-    bms = load_user_bms(user_id)
-    wabas = []
-    for waba_id, entry in bms.items():
-        if not isinstance(entry, dict):
-            continue
-        snap = entry.get("snapshot", {}) or {}
-        wabas.append({
-            "waba_id": waba_id,
-            "name": snap.get("waba_name") or waba_id,
-            "has_phone": bool(str(entry.get("phone_number_id") or "").strip()),
-            "has_profile": bool((entry.get("adspower_profile_id") or "").strip()),
-        })
+    u.can_virtual_phone = not u.can_virtual_phone
+    db.session.commit()
 
-    return jsonify({
-        "ok": True,
-        "wabas": wabas,
-        "agent_connected": is_agent_connected(user_id),
-    })
-
-
-@bp.route("/users/<int:user_id>/add-virtual-phone/start", methods=["POST"])
-@login_required
-def admin_add_virtual_phone_start(user_id: int):
-    from ..routes.agent_ws import is_agent_connected
-    from ..services.virtual_phone_service import start_virtual_phone_job
-
-    u = db.session.get(User, user_id)
-    if not u:
-        return jsonify({"ok": False, "error": "Usuário não encontrado."}), 404
-
-    if not is_agent_connected(user_id):
-        return jsonify({"ok": False, "error": "Agente do usuário não conectado."}), 400
-
-    payload = request.get_json(silent=True) or {}
-    waba_ids = payload.get("waba_ids") or []
-    if not isinstance(waba_ids, list) or not waba_ids:
-        return jsonify({"ok": False, "error": "Selecione pelo menos 1 WABA"}), 400
-
-    job_id = start_virtual_phone_job(user_id, waba_ids)
-    return jsonify({"ok": True, "job_id": job_id})
+    flash("Permissão de Número Virtual (+1) atualizada.", "success")
+    return redirect(url_for("admin.admin_user_detail", user_id=user_id))
 
 
 @bp.route("/users/<int:user_id>/balance", methods=["POST"])
