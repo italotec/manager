@@ -74,6 +74,11 @@
                 </button>
               </form>
               {% endif %}
+
+              <button onclick="openVpModal({{ u.id }}, {{ u.username|tojson }})"
+                      class="px-3 py-2 rounded-lg bg-cyan-900/60 hover:bg-cyan-800 text-cyan-300">
+                Nº virtual +1
+              </button>
             </div>
           </td>
         </tr>
@@ -82,4 +87,201 @@
     </table>
   </div>
 </div>
+
+<!-- ── Virtual phone (+1) modal, per user ─────────────────────────────────── -->
+<div id="vpModal" class="fixed inset-0 z-40 bg-black/60 flex items-center justify-center hidden">
+  <div class="bg-zinc-900 border border-zinc-700 rounded-2xl p-6 w-full max-w-lg shadow-2xl">
+    <div class="flex items-center justify-between mb-4">
+      <h2 id="vpModalTitle" class="text-base font-bold">Adicionar Número Virtual (+1)</h2>
+      <button onclick="closeVpModal()" class="text-zinc-500 hover:text-zinc-300">✕</button>
+    </div>
+
+    <p id="vpModalStatus" class="text-sm text-zinc-400 mb-3"></p>
+
+    <div id="vpAgentWarn" class="hidden mb-3 px-3 py-2 rounded-xl bg-amber-950/50 border border-amber-800 text-amber-300 text-sm">
+      Agente deste usuário não está conectado. Peça para ele abrir o cliente local antes de continuar.
+    </div>
+
+    <div id="vpErr" class="hidden mb-3 px-3 py-2 rounded-xl bg-red-950/50 border border-red-800 text-red-300 text-sm"></div>
+
+    <div id="vpList" class="mb-3 max-h-60 overflow-y-auto bg-zinc-950/60 rounded-xl border border-zinc-800 px-3 py-2 space-y-1 text-sm"></div>
+
+    <div id="vpResultBox"
+         class="hidden mb-4 max-h-60 overflow-y-auto bg-zinc-950/60 rounded-xl border border-zinc-800 px-3 py-2 space-y-0.5">
+    </div>
+
+    <div class="flex justify-end gap-2">
+      <button onclick="closeVpModal()" class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">Fechar</button>
+      <button id="vpStopBtn" onclick="stopVpJob()"
+              class="hidden px-4 py-2 rounded-xl bg-red-900/60 hover:bg-red-800/60 text-sm text-red-300 border border-red-800/40">
+        Parar
+      </button>
+      <button id="vpDoneBtn" onclick="closeVpModal()"
+              class="hidden px-4 py-2 rounded-xl bg-zinc-700 hover:bg-zinc-600 text-sm">
+        OK
+      </button>
+      <button id="vpStartBtn" onclick="startVpJob()"
+              class="px-4 py-2 rounded-xl bg-cyan-700 hover:bg-cyan-600 text-sm font-semibold">
+        Adicionar Números
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Virtual phone (+1) bulk-add, per user (admin users list) ─────────────────
+let _vpUserId = null, _vpJobId = null, _vpPollInterval = null;
+
+async function openVpModal(userId, username) {
+  _vpUserId = userId;
+  document.getElementById("vpModalTitle").textContent = "Adicionar Número Virtual (+1) — " + username;
+  document.getElementById("vpModal").classList.remove("hidden");
+  document.getElementById("vpModalStatus").textContent = "Carregando WABAs...";
+  document.getElementById("vpAgentWarn").classList.add("hidden");
+  document.getElementById("vpErr").classList.add("hidden");
+  document.getElementById("vpList").innerHTML = "";
+  document.getElementById("vpResultBox").classList.add("hidden");
+  document.getElementById("vpResultBox").innerHTML = "";
+  document.getElementById("vpStopBtn").classList.add("hidden");
+  document.getElementById("vpDoneBtn").classList.add("hidden");
+  document.getElementById("vpStartBtn").classList.remove("hidden");
+  document.getElementById("vpStartBtn").disabled = true;
+  document.getElementById("vpStartBtn").textContent = "Adicionar Números";
+
+  try {
+    const r = await fetch(`/admin/users/${userId}/wabas-json`);
+    const d = await r.json();
+    if (!d.ok) {
+      document.getElementById("vpModalStatus").textContent = "";
+      const errEl = document.getElementById("vpErr");
+      errEl.textContent = d.error || "Erro ao carregar WABAs";
+      errEl.classList.remove("hidden");
+      return;
+    }
+
+    if (!d.agent_connected) {
+      document.getElementById("vpAgentWarn").classList.remove("hidden");
+    }
+
+    const list = document.getElementById("vpList");
+    if (!d.wabas.length) {
+      document.getElementById("vpModalStatus").textContent = "Este usuário não possui WABAs.";
+      return;
+    }
+
+    let html = "";
+    for (const w of d.wabas) {
+      const disabled = w.has_phone || !w.has_profile;
+      const reason = w.has_phone ? "já tem número" : (!w.has_profile ? "sem perfil AdsPower" : "");
+      html += `<label class="flex items-center gap-2 py-1 ${disabled ? "opacity-50" : ""}">
+        <input type="checkbox" class="vpWabaCheck" value="${w.waba_id}" ${disabled ? "disabled" : ""}>
+        <span>${w.name}</span>
+        ${reason ? `<span class="text-xs text-zinc-500">(${reason})</span>` : ""}
+      </label>`;
+    }
+    list.innerHTML = html;
+
+    const eligible = d.wabas.filter(w => !w.has_phone && w.has_profile).length;
+    document.getElementById("vpModalStatus").textContent = `${eligible} WABA(s) elegível(is) de ${d.wabas.length}.`;
+    document.getElementById("vpStartBtn").disabled = !d.agent_connected || eligible === 0;
+  } catch (e) {
+    document.getElementById("vpModalStatus").textContent = "";
+    const errEl = document.getElementById("vpErr");
+    errEl.textContent = "Erro de rede: " + e;
+    errEl.classList.remove("hidden");
+  }
+}
+
+function closeVpModal() {
+  document.getElementById("vpModal").classList.add("hidden");
+  if (_vpJobId) clearInterval(_vpPollInterval);
+  _vpJobId = null;
+}
+
+async function startVpJob() {
+  const checks = Array.from(document.querySelectorAll('.vpWabaCheck:checked'));
+  if (!checks.length) { alert("Selecione ao menos 1 WABA."); return; }
+  const wabaIds = checks.map(c => c.value);
+
+  const btn = document.getElementById("vpStartBtn");
+  btn.disabled = true;
+  btn.textContent = "Iniciando…";
+  document.getElementById("vpErr").classList.add("hidden");
+  document.getElementById("vpResultBox").innerHTML = "";
+  document.getElementById("vpResultBox").classList.add("hidden");
+
+  try {
+    const r = await fetch(`/admin/users/${_vpUserId}/add-virtual-phone/start`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ waba_ids: wabaIds }),
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      const errEl = document.getElementById("vpErr");
+      errEl.textContent = d.error || "Erro desconhecido";
+      errEl.classList.remove("hidden");
+      btn.disabled = false;
+      btn.textContent = "Adicionar Números";
+      return;
+    }
+    _vpJobId = d.job_id;
+    btn.classList.add("hidden");
+    document.getElementById("vpStopBtn").classList.remove("hidden");
+    document.getElementById("vpResultBox").classList.remove("hidden");
+    document.getElementById("vpModalStatus").textContent = "Processando…";
+    _vpPollInterval = setInterval(pollVpJob, 2000);
+  } catch (e) {
+    const errEl = document.getElementById("vpErr");
+    errEl.textContent = "Erro de rede: " + e;
+    errEl.classList.remove("hidden");
+    btn.disabled = false;
+    btn.textContent = "Adicionar Números";
+  }
+}
+
+async function stopVpJob() {
+  if (!_vpJobId) return;
+  await fetch(`/add-virtual-phone/job/${_vpJobId}/stop`, { method: "POST" });
+  document.getElementById("vpStopBtn").disabled = true;
+  document.getElementById("vpStopBtn").textContent = "Parando…";
+}
+
+async function pollVpJob() {
+  if (!_vpJobId) return;
+  try {
+    const r = await fetch(`/add-virtual-phone/job/${_vpJobId}`);
+    const d = await r.json();
+
+    const statusEl = document.getElementById("vpModalStatus");
+    const box = document.getElementById("vpResultBox");
+
+    const done = d.done || 0, total = d.total || 0;
+    const pct = total ? Math.round(done / total * 100) : 0;
+    statusEl.textContent = `${done}/${total} (${pct}%) — ✅ ${d.success || 0}  ❌ ${d.failed || 0}`;
+
+    let html = "";
+    for (const row of (d.results || [])) {
+      const icon = row.ok ? "✅" : "❌";
+      const phoneTag = row.phone ? `<span class="font-mono text-cyan-400">${row.phone}</span>` : "";
+      html += `<div class="flex items-start gap-2 py-1 border-b border-zinc-800/60 text-xs">
+        <span class="w-5 shrink-0">${icon}</span>
+        <div>
+          <span class="text-zinc-200">${row.waba_name || row.waba_id}</span>
+          ${phoneTag}
+          ${!row.ok ? `<div class="text-red-400">${row.msg}</div>` : ""}
+        </div>
+      </div>`;
+    }
+    box.innerHTML = html;
+
+    if (d.status === "done" || d.status === "stopped" || d.status === "error") {
+      clearInterval(_vpPollInterval);
+      document.getElementById("vpStopBtn").classList.add("hidden");
+      document.getElementById("vpDoneBtn").classList.remove("hidden");
+      statusEl.textContent += d.status === "done" ? " — Concluído" : " — Parado";
+    }
+  } catch {}
+}
+</script>
 {% endblock %}
