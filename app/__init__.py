@@ -192,4 +192,7 @@ def create_app():
     from .services.info_refresh import ensure_refresher
     ensure_refresher(app)
 
+    from .services.lite_sync import ensure_lite_sync
+    ensure_lite_sync(app)
+
     return app

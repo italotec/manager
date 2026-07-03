@@ -60,6 +60,9 @@ def admin_create_user():
     # Create per-user bms.json file
     ensure_user_bms_file(u.id)
 
+    from ..services import lite_sync
+    lite_sync.mark_dirty(u.id)
+
     flash("Usuário criado com sucesso.", "success")
     return redirect(url_for("admin.admin_users"))
 
@@ -77,6 +80,9 @@ def admin_toggle_ban(user_id: int):
 
     u.is_banned = not u.is_banned
     db.session.commit()
+
+    from ..services import lite_sync
+    lite_sync.mark_dirty(u.id)
 
     flash("Status atualizado.", "success")
     return redirect(url_for("admin.admin_users"))
@@ -388,6 +394,46 @@ def card_config_save():
     db.session.commit()
     flash("Configuração de Cartões salva.", "success")
     return redirect(url_for("admin.card_config"))
+
+
+@bp.route("/lite-sync-config", methods=["GET"])
+@login_required
+def lite_sync_config():
+    row = db.session.get(AppSetting, "lite_sync_interval_seconds")
+    from flask import current_app
+    default = current_app.config.get("LITE_SYNC_INTERVAL_SECONDS", 600)
+    value = row.value if row else str(default)
+    return render_template("admin_lite_sync_config.html", title="Admin • Sync Manager Lite", value=value)
+
+
+@bp.route("/lite-sync-config", methods=["POST"])
+@login_required
+def lite_sync_config_save():
+    raw = (request.form.get("interval_seconds") or "600").strip()
+    try:
+        val = str(max(60, int(raw)))
+    except (ValueError, TypeError):
+        val = "600"
+    row = db.session.get(AppSetting, "lite_sync_interval_seconds")
+    if row:
+        row.value = val
+    else:
+        db.session.add(AppSetting(key="lite_sync_interval_seconds", value=val))
+    db.session.commit()
+    flash("Intervalo de sincronização salvo.", "success")
+    return redirect(url_for("admin.lite_sync_config"))
+
+
+@bp.route("/lite-sync-run-now", methods=["POST"])
+@login_required
+def lite_sync_run_now():
+    from flask import current_app
+    from ..services import lite_sync
+    threading_app = current_app._get_current_object()
+    import threading as _threading
+    _threading.Thread(target=lite_sync.backfill_all, args=(threading_app,), daemon=True).start()
+    flash("Sincronização com Manager Lite disparada.", "success")
+    return redirect(url_for("admin.lite_sync_config"))
 
 
 @bp.route("/listas-config", methods=["GET"])

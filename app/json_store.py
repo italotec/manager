@@ -3,8 +3,26 @@ import json
 import time
 import threading
 import tempfile
-import fcntl
 from typing import Dict, Any
+
+if os.name == "nt":
+    import msvcrt
+
+    def _lock_file(f):
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+
+    def _unlock_file(f):
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+else:
+    import fcntl
+
+    def _lock_file(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+
+    def _unlock_file(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 # Serializes read-modify-write on bms.json across threads. Without it, concurrent
 # disparo jobs (multi-BM batch) clobber each other's snapshot updates and can
@@ -44,7 +62,9 @@ def save_user_bms(user_id: int, data: Dict[str, Any]) -> None:
     # fcntl.flock serializes concurrent writers across processes; the threading
     # RLock above serializes within a process. Both are needed.
     with open(lock_path, "w") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        lock_file.write("x")
+        lock_file.flush()
+        _lock_file(lock_file)
         try:
             # mkstemp gives each writer its own unique temp file so concurrent
             # writes never interleave into a shared .tmp file.
@@ -60,7 +80,19 @@ def save_user_bms(user_id: int, data: Dict[str, Any]) -> None:
                     pass
                 raise
         finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            _unlock_file(lock_file)
+
+    # This is the single choke point for every WABA/snapshot/status mutation
+    # (manual add, webhook status change, Meta sync-job refresh), so it's the
+    # right place to trigger a Manager Lite replication push. Import is lazy
+    # to avoid a circular import (lite_sync imports load_user_bms from here),
+    # and the whole thing is best-effort — a sync hiccup must never break a
+    # WABA write.
+    try:
+        from .services import lite_sync
+        lite_sync.mark_dirty(user_id)
+    except Exception:
+        pass
 
 def upsert_waba(user_id: int, waba_id: str, token: str, adspower_profile_id: str = "",
                 business_manager_id: str = "", payment_account_id: str = "") -> None:

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="flex items-start justify-between gap-4 mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold">Admin · Sync Manager Lite</h1>
+    <p class="text-sm text-zinc-400">Replicação de usuários e WABAs para o Manager Lite.</p>
+  </div>
+  <div class="flex gap-2">
+    <a href="{{ url_for('admin.admin_users') }}"
+       class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm transition-colors shrink-0">
+      Usuários
+    </a>
+  </div>
+</div>
+
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% for cat, msg in messages %}
+    <div class="mb-4 px-4 py-3 rounded-xl text-sm
+      {{ 'bg-green-900/40 border border-green-700 text-green-300' if cat == 'success' else 'bg-red-900/40 border border-red-700 text-red-300' }}">
+      {{ msg }}
+    </div>
+  {% endfor %}
+{% endwith %}
+
+<form method="POST" action="{{ url_for('admin.lite_sync_config_save') }}">
+  <div class="rounded-2xl border border-zinc-800 bg-zinc-900/20 p-6 mb-6">
+    <h2 class="text-base font-semibold mb-1">Intervalo de reconciliação (segundos)</h2>
+    <p class="text-xs text-zinc-500 mb-4">
+      A cada usuário/WABA alterado, a sincronização é disparada em tempo real (poucos segundos).
+      Este intervalo controla a reconciliação completa periódica, que reenvia tudo e corrige
+      qualquer divergência (ex: Manager Lite ficou offline). Mínimo 60s. Padrão: 600s (10 min).
+    </p>
+    <div class="w-40">
+      <input type="number" name="interval_seconds" value="{{ value }}"
+             min="60" step="1" placeholder="600"
+             class="w-full rounded-xl bg-zinc-950 border border-zinc-800 text-sm px-3 py-2 text-zinc-200 focus:outline-none focus:border-indigo-500">
+    </div>
+  </div>
+
+  <button type="submit"
+          class="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-sm font-medium transition-colors">
+    Salvar
+  </button>
+</form>
+
+<form method="POST" action="{{ url_for('admin.lite_sync_run_now') }}">
+  <button type="submit"
+          class="px-6 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm font-medium transition-colors">
+    Sincronizar agora
+  </button>
+</form>
+{% endblock %}

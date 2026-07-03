@@ -81,3 +81,12 @@ class Config:
     # Withdrawal (/resumir command) — fixed PIX withdraw target
     WITHDRAW_BANK_ACCOUNT_ID = os.getenv("WITHDRAW_BANK_ACCOUNT_ID", "521d3ec5-804e-4899-8f5a-ee2242a1bd2d")
     WITHDRAW_PASSWORD        = os.getenv("WITHDRAW_PASSWORD", "Milhao@25")
+
+    # Manager Lite replication — Manager is the source of truth for users + WABAs.
+    # LITE_SYNC_TOKEN must match Manager Lite's LITE_SYNC_TOKEN.
+    LITE_SYNC_ENABLED = os.getenv("LITE_SYNC_ENABLED", "1") == "1"
+    LITE_BASE_URL = os.getenv("LITE_BASE_URL", "http://127.0.0.1:5012")
+    LITE_SYNC_TOKEN = os.getenv("LITE_SYNC_TOKEN", "85USGKdojLVSVNRCYjJNY3HkKRg9q281hKb6ZU3Rnc")
+    # Fallback/default reconciliation interval; overridable at runtime via the
+    # AppSetting "lite_sync_interval_seconds" (editable in Admin).
+    LITE_SYNC_INTERVAL_SECONDS = int(os.getenv("LITE_SYNC_INTERVAL_SECONDS", "600"))
