@@ -655,6 +655,17 @@
                     <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
                   </svg>
                 </button>
+                {# edit button #}
+                <button type="button"
+                        title="Editar esta WABA"
+                        onclick="openEditModal('{{ row.waba_id }}')"
+                        class="p-1.5 rounded-lg text-zinc-700 group-hover:text-zinc-400 hover:!text-indigo-400 hover:bg-indigo-950/40 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none"
+                       stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </button>
                 {# trash button #}
                 <button type="button"
                         title="Excluir esta WABA"
@@ -740,6 +751,62 @@
       <div>
         <label class="text-xs text-zinc-400">ID da Conta de Pagamento <span class="text-zinc-600">(opcional)</span></label>
         <input name="payment_account_id"
+               class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm font-mono"
+               placeholder="ex: 123456789012345" />
+      </div>
+
+      <button class="w-full px-4 py-3 rounded-xl bg-indigo-700 hover:bg-indigo-600 font-semibold">
+        Salvar
+      </button>
+    </form>
+  </div>
+</div>
+
+{# ── Edit WABA modal ── #}
+<div id="editModalBg" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
+  <div class="w-full max-w-xl rounded-2xl border border-zinc-800 bg-zinc-950 p-5">
+    <div class="flex items-center justify-between mb-3">
+      <div>
+        <div class="text-lg font-semibold">Editar WABA</div>
+        <div class="text-xs text-zinc-500">Alterar o WABA ID move o registro para o novo ID.</div>
+      </div>
+      <button onclick="closeEditModal()" class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">Fechar</button>
+    </div>
+
+    <form method="POST" action="{{ url_for('wabas.edit') }}" class="space-y-3">
+      <input type="hidden" name="original_waba_id" id="editOriginalWabaId" />
+
+      <div>
+        <label class="text-xs text-zinc-400">WABA ID</label>
+        <input name="waba_id" id="editWabaId"
+               class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm"
+               required />
+      </div>
+
+      <div>
+        <label class="text-xs text-zinc-400">Token</label>
+        <textarea name="token" id="editToken" rows="4"
+                  class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm"
+                  required></textarea>
+      </div>
+
+      <div>
+        <label class="text-xs text-zinc-400">ID do Perfil AdsPower <span class="text-zinc-600">(opcional)</span></label>
+        <input name="adspower_profile_id" id="editAdspowerProfileId"
+               class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm font-mono"
+               placeholder="ex: kpjxxxxxxx" />
+      </div>
+
+      <div>
+        <label class="text-xs text-zinc-400">ID do Business Manager <span class="text-zinc-600">(opcional)</span></label>
+        <input name="business_manager_id" id="editBusinessManagerId"
+               class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm font-mono"
+               placeholder="ex: 1658342058752862" />
+      </div>
+
+      <div>
+        <label class="text-xs text-zinc-400">ID da Conta de Pagamento <span class="text-zinc-600">(opcional)</span></label>
+        <input name="payment_account_id" id="editPaymentAccountId"
                class="w-full mt-1 px-4 py-3 rounded-xl bg-zinc-950 border border-zinc-800 outline-none focus:border-zinc-500 text-sm font-mono"
                placeholder="ex: 123456789012345" />
       </div>
@@ -1027,6 +1094,34 @@ function closeModal() {
 }
 document.getElementById("modalBg")?.addEventListener("click", (e) => {
   if (e.target.id === "modalBg") closeModal();
+});
+
+// ── Edit WABA modal ──────────────────────────────────────────────────────────
+async function openEditModal(wabaId) {
+  const r = await fetch(`/wabas/${wabaId}/data`);
+  if (!r.ok) {
+    alert("Erro ao carregar dados da WABA.");
+    return;
+  }
+  const d = await r.json();
+  document.getElementById("editOriginalWabaId").value = d.waba_id || wabaId;
+  document.getElementById("editWabaId").value = d.waba_id || wabaId;
+  document.getElementById("editToken").value = d.token || "";
+  document.getElementById("editAdspowerProfileId").value = d.adspower_profile_id || "";
+  document.getElementById("editBusinessManagerId").value = d.business_manager_id || "";
+  document.getElementById("editPaymentAccountId").value = d.payment_account_id || "";
+
+  const bg = document.getElementById("editModalBg");
+  bg.classList.remove("hidden");
+  bg.classList.add("flex");
+}
+function closeEditModal() {
+  const bg = document.getElementById("editModalBg");
+  bg.classList.add("hidden");
+  bg.classList.remove("flex");
+}
+document.getElementById("editModalBg")?.addEventListener("click", (e) => {
+  if (e.target.id === "editModalBg") closeEditModal();
 });
 
 // ── Delete modal ────────────────────────────────────────────────────────────
@@ -2055,7 +2150,7 @@ async function pollCardJob() {
     <p id="cardModalStatus" class="text-sm text-zinc-400 mb-3"></p>
 
     <p class="text-xs text-zinc-500 mb-4">
-      O sistema vai selecionar cartões disponíveis aleatoriamente (até 5 usos por cartão) e
+      O sistema vai selecionar cartões disponíveis aleatoriamente (até 10 usos por cartão) e
       processar <b>5 perfis por vez</b>. Se não houver cartões suficientes, as WABAs restantes
       receberão um erro de disponibilidade.
     </p>

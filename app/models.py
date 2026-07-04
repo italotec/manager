@@ -248,7 +248,7 @@ class Card(db.Model):
 
     @property
     def remaining(self):
-        return max(0, 5 - self.usage_count)
+        return max(0, 10 - self.usage_count)
 
     @property
     def is_available(self):

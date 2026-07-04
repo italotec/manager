@@ -42,6 +42,7 @@ class Config:
     # META
     META_API_VERSION = os.getenv("META_API_VERSION", "v18.0")
     META_UPLOAD_API_VERSION = os.getenv("META_UPLOAD_API_VERSION", "v21.0")
+    META_REGISTER_PIN = os.getenv("META_REGISTER_PIN", "123456")
     META_APP_ID = os.getenv("META_APP_ID", "")
     WEBHOOK_VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN", "my-webhook-verify-token-change-me")
 

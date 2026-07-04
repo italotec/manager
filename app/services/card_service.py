@@ -2,7 +2,7 @@
 
 Job flow:
 1. Receive a list of waba_ids selected by the user.
-2. Assign a card to each WABA (random, respecting the 5-distinct-WABA cap).
+2. Assign a card to each WABA (random, respecting the 10-distinct-WABA cap).
 3. Dispatch add_card commands to the WebSocket agent, LINK_MAX_CONCURRENCY at a time (default 5).
 4. Handle results, update card usage/status in DB.
 """
@@ -46,7 +46,7 @@ def assign_cards(user_id: int, waba_ids: list[str]) -> list[tuple[str, Optional[
     """Return [(waba_id, Card|None)] for each requested waba.
 
     Cards are picked randomly from the pool of available cards. Each card's
-    budget (5 - usage_count) is tracked locally during assignment so the same
+    budget (10 - usage_count) is tracked locally during assignment so the same
     card can serve multiple WABAs in one batch without exceeding its cap.
     Cards that already have this waba_id in used_waba_ids are excluded for
     that specific waba.

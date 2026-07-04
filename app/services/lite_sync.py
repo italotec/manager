@@ -15,6 +15,7 @@ _started = False
 _WABA_FIELDS = (
     "waba_id", "token", "phone_number_id",
     "adspower_profile_id", "business_manager_id", "payment_account_id", "remarks",
+    "serial_number",
 )
 
 _MIN_INTERVAL_SECONDS = 60

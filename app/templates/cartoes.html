@@ -60,11 +60,11 @@
         <td class="py-3 px-3">
           <div class="flex items-center gap-2">
             <div class="flex gap-0.5">
-              {% for i in range(5) %}
+              {% for i in range(10) %}
                 <div class="w-3 h-3 rounded-sm {% if i < c.usage_count %}bg-yellow-500{% else %}bg-zinc-700{% endif %}"></div>
               {% endfor %}
             </div>
-            <span class="text-xs text-zinc-400">{{ c.usage_count }}/5</span>
+            <span class="text-xs text-zinc-400">{{ c.usage_count }}/10</span>
           </div>
         </td>
         <td class="py-3 px-3">

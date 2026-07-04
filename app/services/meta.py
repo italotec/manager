@@ -381,6 +381,37 @@ def register_number(api_version: str, token: str, phone_id: str, pin: str, proxy
     return r
 
 
+def register_pending_numbers(api_version: str, token: str, phones: list, pin: str):
+    """Attempt to register every phone whose status != CONNECTED.
+
+    On success (HTTP 200 + success:true) flips that phone's status to
+    'CONNECTED' in-place. Returns (phones, events) where events is a list of
+    {display, ok, msg} dicts for logging. Never raises.
+    """
+    events = []
+    for p in phones or []:
+        if (p.get("status") or "").upper() == "CONNECTED":
+            continue
+        phone_id = p.get("id") or ""
+        display = p.get("display_phone_number") or phone_id
+        if not phone_id:
+            events.append({"display": display, "ok": False, "msg": "sem phone_number_id"})
+            continue
+        try:
+            r = register_number(api_version, token, phone_id, pin, None)
+            j = r.json() if r.text else {}
+            if r.status_code == 200 and j.get("success"):
+                p["status"] = "CONNECTED"
+                events.append({"display": display, "ok": True, "msg": "registrado"})
+            else:
+                err = (j.get("error", {}) or {}) if isinstance(j, dict) else {}
+                events.append({"display": display, "ok": False,
+                               "msg": err.get("message") or f"HTTP {r.status_code}"})
+        except Exception as e:
+            events.append({"display": display, "ok": False, "msg": str(e)[:300]})
+    return phones, events
+
+
 # ── Profile picture helpers ────────────────────────────────────────────────
 
 # Cache app_id per token to avoid repeated /app calls inside one job run.

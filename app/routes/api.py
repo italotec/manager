@@ -52,6 +52,7 @@ def add_business_manager():
     adspower_profile_id = str(body.get("adspower_profile_id") or "").strip()
     business_manager_id = str(body.get("business_manager_id") or "").strip()
     payment_account_id = str(body.get("payment_account_id") or "").strip()
+    serial_number = str(body.get("serial_number") or "").strip()
 
     if not waba_id:
         return jsonify({"ok": False, "error": "waba_id is required."}), 400
@@ -62,7 +63,8 @@ def add_business_manager():
     upsert_waba(user.id, waba_id=waba_id, token=token,
                 adspower_profile_id=adspower_profile_id,
                 business_manager_id=business_manager_id,
-                payment_account_id=payment_account_id)
+                payment_account_id=payment_account_id,
+                serial_number=serial_number)
 
     webhook_ok, webhook_err = subscribe_waba_webhook(Config.META_API_VERSION, token, waba_id)
 
@@ -72,6 +74,7 @@ def add_business_manager():
         "adspower_profile_id": adspower_profile_id or None,
         "business_manager_id": business_manager_id or None,
         "payment_account_id": payment_account_id or None,
+        "serial_number": serial_number or None,
         "webhook_subscribed": webhook_ok,
         "webhook_error": webhook_err,
     }), 201

@@ -23,8 +23,10 @@ from ..services.meta import (
     pick_test_template,
     send_test_message,
     get_phone_messaging_limit,
+    register_pending_numbers,
 )
 from ..json_store import load_user_bms, save_user_bms
+from ..config import Config
 
 _live_jobs: dict[int, dict] = {}
 _jobs_lock = threading.Lock()
@@ -62,7 +64,7 @@ def _max_concurrency() -> int:
         return 15
 
 
-def _sync_one_waba(api_version: str, waba_id: str, token: str, prev_snap: dict) -> dict:
+def _sync_one_waba(api_version: str, waba_id: str, token: str, prev_snap: dict, pin: str) -> dict:
     """Pure worker: make all Meta calls for one WABA, return result dict (no file I/O)."""
     current_status = prev_snap.get("status_label", "")
     prev_name = prev_snap.get("waba_name") or "—"
@@ -101,6 +103,11 @@ def _sync_one_waba(api_version: str, waba_id: str, token: str, prev_snap: dict) 
                 "last_sync_at": int(time.time()),
             },
         }
+
+    # Auto-register any pending numbers (status != CONNECTED). Idempotent and
+    # self-healing: already-CONNECTED numbers are skipped; genuinely-not-yet
+    # registerable numbers simply stay pending and are retried next sync.
+    phones, _reg_events = register_pending_numbers(api_version, token, phones or [], pin)
 
     # Health check
     health_phones, _ = get_phone_numbers_health(api_version, token, waba_id)
@@ -153,7 +160,7 @@ def _sync_one_waba(api_version: str, waba_id: str, token: str, prev_snap: dict) 
     }
 
 
-def _run_job(app, job_id: int, user_id: int, bms: dict, api_version: str) -> None:
+def _run_job(app, job_id: int, user_id: int, bms: dict, api_version: str, pin: str) -> None:
     """Daemon orchestrator: process all WABAs in parallel, write file once at end."""
     state = _live_jobs[job_id]
     state["status"] = "running"
@@ -181,7 +188,7 @@ def _run_job(app, job_id: int, user_id: int, bms: dict, api_version: str) -> Non
 
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         future_to_key = {
-            pool.submit(_sync_one_waba, api_version, waba_id, token, prev_snap): key
+            pool.submit(_sync_one_waba, api_version, waba_id, token, prev_snap, pin): key
             for key, waba_id, token, prev_snap in work_items
         }
 
@@ -249,6 +256,7 @@ def _run_job(app, job_id: int, user_id: int, bms: dict, api_version: str) -> Non
 def start_sync_job(user_id: int, api_version: str) -> int:
     """Load bms, spawn background sync job, return job_id."""
     bms = load_user_bms(user_id)
+    pin = Config.META_REGISTER_PIN
 
     job_id = _next_job_id()
     state = {
@@ -270,7 +278,7 @@ def start_sync_job(user_id: int, api_version: str) -> int:
 
     t = threading.Thread(
         target=_run_job,
-        args=(app, job_id, user_id, bms, api_version),
+        args=(app, job_id, user_id, bms, api_version, pin),
         daemon=True,
     )
     t.start()

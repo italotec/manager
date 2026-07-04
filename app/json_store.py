@@ -95,7 +95,8 @@ def save_user_bms(user_id: int, data: Dict[str, Any]) -> None:
         pass
 
 def upsert_waba(user_id: int, waba_id: str, token: str, adspower_profile_id: str = "",
-                business_manager_id: str = "", payment_account_id: str = "") -> None:
+                business_manager_id: str = "", payment_account_id: str = "",
+                serial_number: str = "") -> None:
     with _WRITE_LOCK:
         data = load_user_bms(user_id)
         key = str(waba_id).strip()
@@ -108,6 +109,7 @@ def upsert_waba(user_id: int, waba_id: str, token: str, adspower_profile_id: str
         entry["adspower_profile_id"] = adspower_profile_id or entry.get("adspower_profile_id", "")
         entry["business_manager_id"] = business_manager_id or entry.get("business_manager_id", "")
         entry["payment_account_id"] = payment_account_id or entry.get("payment_account_id", "")
+        entry["serial_number"] = serial_number or entry.get("serial_number", "")
         entry.setdefault("phone_number_id", "")
         entry.setdefault("templates", [])
 
@@ -121,6 +123,35 @@ def upsert_waba(user_id: int, waba_id: str, token: str, adspower_profile_id: str
         entry["snapshot"] = snap
         data[key] = entry
         save_user_bms(user_id, data)
+
+def update_waba(user_id: int, old_waba_id: str, new_waba_id: str, token: str,
+                adspower_profile_id: str = "", business_manager_id: str = "",
+                payment_account_id: str = "") -> tuple:
+    """Edit an existing WABA in place, re-keying if the WABA ID changed.
+
+    Returns (ok, err). Preserves snapshot/remarks/templates."""
+    with _WRITE_LOCK:
+        data = load_user_bms(user_id)
+        old_key = str(old_waba_id).strip()
+        new_key = str(new_waba_id).strip()
+
+        if old_key not in data or not isinstance(data.get(old_key), dict):
+            return False, "WABA não encontrada."
+        if new_key != old_key and new_key in data:
+            return False, "Já existe uma WABA com esse ID."
+
+        entry = data[old_key]
+        entry["waba_id"] = new_key
+        entry["token"] = token
+        entry["adspower_profile_id"] = adspower_profile_id
+        entry["business_manager_id"] = business_manager_id
+        entry["payment_account_id"] = payment_account_id
+
+        if new_key != old_key:
+            del data[old_key]
+        data[new_key] = entry
+        save_user_bms(user_id, data)
+        return True, None
 
 def update_snapshot(user_id: int, waba_id: str, **fields) -> None:
     with _WRITE_LOCK:
