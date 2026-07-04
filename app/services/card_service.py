@@ -10,10 +10,13 @@ from __future__ import annotations
 
 import random
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 from flask import current_app
+
+from ..json_store import patch_snapshot
 
 _live_jobs: dict[int, dict] = {}
 _jobs_lock = threading.Lock()
@@ -169,6 +172,11 @@ def _run_job(app, job_id: int, user_id: int, assignments: list, bms: dict):
                     if card:
                         if row["ok"]:
                             card.mark_used(row["waba_id"])
+                            patch_snapshot(
+                                user_id, row["waba_id"],
+                                card_added_at=int(time.time()),
+                                card_last4=row["card_last4"],
+                            )
                         elif row.get("code") == 4992003:
                             card.status = "overused"
                             card.last_error = "Usado em muitas contas (FB 4992003)"

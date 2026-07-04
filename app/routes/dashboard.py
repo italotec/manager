@@ -92,6 +92,8 @@ def dashboard():
             "disparou": bool(snap.get("disparou_at")) and (time.time() - (snap.get("disparou_at") or 0)) < 86400,
             "ultimo_disparo": snap.get("ultimo_disparo") or "",
             "health_ok": bool(snap.get("health_test_ok_at")) and (time.time() - (snap.get("health_test_ok_at") or 0)) < 86400,
+            "card_added": bool(snap.get("card_added_at")),
+            "card_last4": snap.get("card_last4") or "",
             "remarks": data.get("remarks") or "",
             "adspower_profile_id": data.get("adspower_profile_id") or "",
             "messaging_limit_tier": snap.get("messaging_limit_tier"),
