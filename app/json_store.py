@@ -153,6 +153,65 @@ def update_waba(user_id: int, old_waba_id: str, new_waba_id: str, token: str,
         save_user_bms(user_id, data)
         return True, None
 
+# Config fields compared/replaced when merging an existing WABA on import.
+# Matching is by waba_id (the dict key); the live Meta `snapshot` is never touched.
+MERGE_FIELDS = ("token", "adspower_profile_id", "serial_number")
+
+
+def import_wabas(user_id: int, incoming: dict) -> dict:
+    """Merge WABAs from an uploaded bms.json-shaped dict into the user's store.
+
+    - WABA (by waba_id) not present     -> add the full entry.
+    - present and nothing new           -> skip (flagged back to the caller).
+    - present but a MERGE_FIELDS value differs (and the incoming value is
+      non-empty) -> replace only that value; blanks never overwrite.
+
+    Returns a report dict: {added:[wid], updated:[{waba_id, fields}], skipped:[wid], errors:[key]}.
+    """
+    report = {"added": [], "updated": [], "skipped": [], "errors": []}
+    if not isinstance(incoming, dict):
+        return report
+
+    with _WRITE_LOCK:
+        data = load_user_bms(user_id)
+        for raw_key, entry in incoming.items():
+            if not isinstance(entry, dict):
+                report["errors"].append(str(raw_key))
+                continue
+            wid = str(entry.get("waba_id") or raw_key or "").strip()
+            if not wid:
+                report["errors"].append(str(raw_key))
+                continue
+
+            if wid not in data or not isinstance(data.get(wid), dict):
+                # NEW → store the full incoming entry (defensive defaults).
+                new_entry = dict(entry)
+                new_entry["waba_id"] = wid
+                new_entry.setdefault("phone_number_id", "")
+                new_entry.setdefault("templates", [])
+                new_entry.setdefault("snapshot", {})
+                data[wid] = new_entry
+                report["added"].append(wid)
+            else:
+                # EXISTING → field-level merge of config values only.
+                cur = data[wid]
+                changed = []
+                for f in MERGE_FIELDS:
+                    new_val = str(entry.get(f) or "").strip()
+                    if new_val and new_val != str(cur.get(f) or "").strip():
+                        cur[f] = new_val
+                        changed.append(f)
+                if changed:
+                    report["updated"].append({"waba_id": wid, "fields": changed})
+                else:
+                    report["skipped"].append(wid)
+
+        if report["added"] or report["updated"]:
+            save_user_bms(user_id, data)
+
+    return report
+
+
 def update_snapshot(user_id: int, waba_id: str, **fields) -> None:
     with _WRITE_LOCK:
         data = load_user_bms(user_id)

@@ -95,6 +95,32 @@
         </svg>
       </button>
 
+      <!-- Export selected to .json file -->
+      <button type="button"
+              title="Exportar WABAs selecionadas para um arquivo .json"
+              onclick="exportSelectedFile()"
+              class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-sky-900/60 text-zinc-400 hover:text-sky-300 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+      </button>
+
+      <!-- Import WABAs from .json file -->
+      <button type="button"
+              title="Importar WABAs de um arquivo .json (mescla)"
+              onclick="openImportModal()"
+              class="px-3 py-2 rounded-xl bg-zinc-800 hover:bg-indigo-900/60 text-zinc-400 hover:text-indigo-300 transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+      </button>
+
       <!-- Delete selected button -->
       <button type="button"
               title="Excluir WABAs selecionadas"
@@ -1031,6 +1057,46 @@
   </div>
 </div>
 
+{# ── Import WABAs modal ── #}
+<div id="importModalBg" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
+  <div class="w-full max-w-lg rounded-2xl border border-zinc-800 bg-zinc-950 p-5 max-h-[85vh] overflow-y-auto">
+    <div class="flex items-center gap-3 mb-4">
+      <div class="w-9 h-9 rounded-xl bg-indigo-950/50 border border-indigo-800/50 flex items-center justify-center shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-indigo-400" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+      </div>
+      <div>
+        <div class="text-base font-semibold">Importar WABAs</div>
+        <div class="text-xs text-zinc-500">Mescla o arquivo com suas WABAs. Já existentes são ignoradas; só valores diferentes são atualizados.</div>
+      </div>
+    </div>
+
+    <div id="importPickArea" class="mb-4">
+      <input type="file" id="importFileInput" accept=".json,application/json"
+             class="block w-full text-sm text-zinc-300 file:mr-3 file:py-2 file:px-4 file:rounded-xl
+                    file:border-0 file:bg-zinc-800 file:text-zinc-200 hover:file:bg-zinc-700 file:cursor-pointer
+                    bg-zinc-900 border border-zinc-800 rounded-xl">
+    </div>
+
+    <div id="importResult" class="hidden mb-4 space-y-2 text-sm"></div>
+
+    <div class="flex items-center justify-end gap-3">
+      <button id="importCancelBtn" onclick="closeImportModal()"
+              class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm">
+        Cancelar
+      </button>
+      <button id="importSubmitBtn" onclick="submitImport()"
+              class="px-5 py-2 rounded-xl bg-indigo-700 hover:bg-indigo-600 text-sm font-semibold">
+        Importar
+      </button>
+    </div>
+  </div>
+</div>
+
 {# ── Error detail modal ── #}
 <div id="errorModalBg" class="fixed inset-0 bg-black/60 hidden items-center justify-center p-4 z-50">
   <div class="w-full max-w-2xl rounded-2xl border border-zinc-800 bg-zinc-950 p-5 max-h-[85vh] overflow-y-auto">
@@ -1244,6 +1310,158 @@ async function copySelected() {
     document.body.removeChild(ta);
     alert("Copiado para a área de transferência!");
   }
+}
+
+// ── Export to .json file ────────────────────────────────────────────────────
+async function exportSelectedFile() {
+  const checks = Array.from(document.querySelectorAll('input[name="waba_ids"]:checked'));
+  if (!checks.length) {
+    alert("Selecione pelo menos 1 WABA para exportar.");
+    return;
+  }
+  const wabaIds = checks.map(c => c.value);
+
+  const res = await fetch("{{ url_for('dashboard.export_wabas_download') }}", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ waba_ids: wabaIds })
+  });
+  if (!res.ok) {
+    alert("Erro ao gerar o arquivo de exportação.");
+    return;
+  }
+
+  const blob = await res.blob();
+  const disp = res.headers.get("Content-Disposition") || "";
+  const m = disp.match(/filename="?([^"]+)"?/);
+  const filename = m ? m[1] : "wabas_export.json";
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ── Import from .json file ──────────────────────────────────────────────────
+function openImportModal() {
+  document.getElementById("importFileInput").value = "";
+  document.getElementById("importPickArea").classList.remove("hidden");
+  const result = document.getElementById("importResult");
+  result.classList.add("hidden");
+  result.innerHTML = "";
+  document.getElementById("importSubmitBtn").classList.remove("hidden");
+  document.getElementById("importSubmitBtn").disabled = false;
+  document.getElementById("importCancelBtn").textContent = "Cancelar";
+  const bg = document.getElementById("importModalBg");
+  bg.classList.remove("hidden");
+  bg.classList.add("flex");
+}
+
+function closeImportModal() {
+  const bg = document.getElementById("importModalBg");
+  bg.classList.add("hidden");
+  bg.classList.remove("flex");
+}
+
+document.getElementById("importModalBg")?.addEventListener("click", (e) => {
+  if (e.target.id === "importModalBg") closeImportModal();
+});
+
+async function submitImport() {
+  const input = document.getElementById("importFileInput");
+  if (!input.files || !input.files.length) {
+    alert("Selecione um arquivo .json.");
+    return;
+  }
+
+  const btn = document.getElementById("importSubmitBtn");
+  btn.disabled = true;
+  btn.textContent = "Importando…";
+
+  const fd = new FormData();
+  fd.append("wabas_file", input.files[0]);
+
+  let data;
+  try {
+    const res = await fetch("{{ url_for('dashboard.import_wabas_route') }}", {
+      method: "POST",
+      body: fd,
+    });
+    data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      renderImportError(data.error || "Erro ao importar o arquivo.");
+      btn.disabled = false;
+      btn.textContent = "Importar";
+      return;
+    }
+  } catch (e) {
+    renderImportError("Falha de conexão ao importar.");
+    btn.disabled = false;
+    btn.textContent = "Importar";
+    return;
+  }
+
+  renderImportReport(data);
+}
+
+function renderImportError(msg) {
+  const result = document.getElementById("importResult");
+  result.classList.remove("hidden");
+  result.innerHTML =
+    `<div class="rounded-xl px-4 py-3 border border-red-800 bg-red-950/40 text-red-300">${escHtml(msg)}</div>`;
+}
+
+function renderImportReport(report) {
+  const added   = report.added   || [];
+  const updated = report.updated || [];
+  const skipped = report.skipped || [];
+  const errors  = report.errors  || [];
+
+  document.getElementById("importPickArea").classList.add("hidden");
+  document.getElementById("importSubmitBtn").classList.add("hidden");
+  document.getElementById("importCancelBtn").textContent = "Fechar e atualizar";
+  document.getElementById("importCancelBtn").onclick = () => window.location.reload();
+
+  const fieldPt = { token: "token", adspower_profile_id: "AdsPower ID", serial_number: "Nº de série" };
+  const rows = [];
+
+  rows.push(
+    `<div class="rounded-xl px-4 py-3 border border-emerald-800 bg-emerald-950/30 text-emerald-300">
+       <b>${added.length}</b> adicionada(s) · <b>${updated.length}</b> atualizada(s) · <b>${skipped.length}</b> ignorada(s)${errors.length ? ` · <b>${errors.length}</b> com erro` : ""}
+     </div>`
+  );
+
+  if (updated.length) {
+    const items = updated.map(u => {
+      const fields = (u.fields || []).map(f => fieldPt[f] || f).join(", ");
+      return `<div class="py-1 border-b border-zinc-800 last:border-0 text-xs text-zinc-300 font-mono break-words">
+                ${escHtml(u.waba_id)} <span class="text-amber-400">→ ${escHtml(fields)}</span>
+              </div>`;
+    }).join("");
+    rows.push(`<div><div class="text-xs font-semibold text-amber-400 uppercase tracking-wide mb-1">Atualizadas</div>${items}</div>`);
+  }
+
+  if (skipped.length) {
+    const items = skipped.map(w =>
+      `<div class="py-1 border-b border-zinc-800 last:border-0 text-xs text-zinc-500 font-mono break-words">${escHtml(w)}</div>`
+    ).join("");
+    rows.push(`<div><div class="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-1">Ignoradas (já existentes)</div>${items}</div>`);
+  }
+
+  if (errors.length) {
+    const items = errors.map(w =>
+      `<div class="py-1 border-b border-zinc-800 last:border-0 text-xs text-red-400 font-mono break-words">${escHtml(w)}</div>`
+    ).join("");
+    rows.push(`<div><div class="text-xs font-semibold text-red-400 uppercase tracking-wide mb-1">Erros</div>${items}</div>`);
+  }
+
+  const result = document.getElementById("importResult");
+  result.classList.remove("hidden");
+  result.innerHTML = rows.join("");
 }
 
 // ── Health test (single + bulk) ─────────────────────────────────────────────

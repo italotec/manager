@@ -21,6 +21,7 @@ from ..json_store import (
     load_user_bms,
     save_user_bms,
     save_waba_remarks,
+    import_wabas,
 )
 from ..services.meta import register_number
 from ..services.sync_service import (
@@ -268,6 +269,65 @@ def export_selected():
         }
 
     return jsonify(out)
+
+
+@bp.route("/export-wabas-download", methods=["POST"])
+@login_required
+def export_wabas_download():
+    """Download the selected WABAs as a .json file in the full bms.json shape."""
+    import json
+    from datetime import datetime
+    from flask import Response
+
+    ensure_user_bms_file(current_user.id)
+    bms = load_user_bms(current_user.id)
+
+    payload = request.get_json(silent=True) or {}
+    waba_ids = payload.get("waba_ids") or []
+    if not isinstance(waba_ids, list):
+        return jsonify({"error": "invalid_payload"}), 400
+
+    wanted = set(str(w) for w in waba_ids)
+    out = {}
+    for key, entry in bms.items():
+        if not isinstance(entry, dict):
+            continue
+        wid = str(entry.get("waba_id") or key).strip()
+        if wid in wanted or str(key) in wanted:
+            out[key] = entry
+
+    body = json.dumps(out, indent=4, ensure_ascii=False)
+    fn = f"wabas_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    return Response(
+        body,
+        mimetype="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{fn}"'},
+    )
+
+
+@bp.route("/import-wabas", methods=["POST"])
+@login_required
+def import_wabas_route():
+    """Merge WABAs from an uploaded bms.json-shaped file into the user's store."""
+    import json
+
+    f = request.files.get("wabas_file")
+    if not f or not f.filename:
+        return jsonify({"error": "Nenhum arquivo enviado."}), 400
+    if not f.filename.lower().endswith(".json"):
+        return jsonify({"error": "Envie um arquivo .json."}), 400
+
+    try:
+        incoming = json.load(f.stream)
+    except Exception:
+        return jsonify({"error": "Arquivo JSON inválido."}), 400
+
+    if not isinstance(incoming, dict):
+        return jsonify({"error": "O JSON deve ser um objeto de WABAs (como o bms.json)."}), 400
+
+    ensure_user_bms_file(current_user.id)
+    report = import_wabas(current_user.id, incoming)
+    return jsonify(report)
 
 
 @bp.route("/waba/<waba_id>/remarks", methods=["POST"])
