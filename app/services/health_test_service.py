@@ -7,6 +7,7 @@ bms.json (health_test_pending / health_test_ok_at) so it works across workers.
 """
 
 import random
+import re
 import string
 import threading
 import time
@@ -122,6 +123,15 @@ def mark_health_test(waba_id: str, wamid: str) -> None:
 
 # ── per-WABA test loop ────────────────────────────────────────────────────────
 
+def _pick_health_test_phone(phones: list) -> str:
+    """Prefer a +1 (US/Canada) number; fall back to the first available phone."""
+    for p in phones:
+        digits = re.sub(r"\D", "", str(p.get("display_phone_number") or ""))
+        if len(digits) == 11 and digits.startswith("1"):
+            return p.get("id", "") or ""
+    return phones[0].get("id", "") if phones else ""
+
+
 def _run_one_test(user_id: int, waba_id: str, test_phone: str, api_version: str) -> dict:
     """Run up to 5 send attempts (30s apart). Returns {state, msg}."""
     bms = load_user_bms(user_id)
@@ -131,7 +141,7 @@ def _run_one_test(user_id: int, waba_id: str, test_phone: str, api_version: str)
 
     # Resolve phone_number_id
     phones = snap.get("phone_numbers") or []
-    phone_number_id = phones[0].get("id", "") if phones else entry.get("phone_number_id", "")
+    phone_number_id = _pick_health_test_phone(phones) or entry.get("phone_number_id", "")
 
     if not token or not phone_number_id:
         return {"state": "failed", "msg": "WABA sem token ou phone_number_id. Sincronize o dashboard."}
