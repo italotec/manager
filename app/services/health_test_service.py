@@ -123,39 +123,36 @@ def mark_health_test(waba_id: str, wamid: str) -> None:
 
 # ── per-WABA test loop ────────────────────────────────────────────────────────
 
-def _pick_health_test_phone(phones: list) -> str:
-    """Prefer a +1 (US/Canada) number; fall back to the first available phone."""
+_DISPLAY_NAME_ERROR = "131037"  # Meta: number needs display name approval
+
+
+def _ordered_health_test_phone_ids(phones: list) -> list:
+    """Phone_number_ids ordered: +1 (US/Canada) first, then the rest."""
+    preferred, others = [], []
     for p in phones:
+        pid = p.get("id", "") or ""
+        if not pid:
+            continue
         digits = re.sub(r"\D", "", str(p.get("display_phone_number") or ""))
         if len(digits) == 11 and digits.startswith("1"):
-            return p.get("id", "") or ""
-    return phones[0].get("id", "") if phones else ""
+            preferred.append(pid)
+        else:
+            others.append(pid)
+    return preferred + others
 
 
-def _run_one_test(user_id: int, waba_id: str, test_phone: str, api_version: str) -> dict:
-    """Run up to 5 send attempts (30s apart). Returns {state, msg}."""
-    bms = load_user_bms(user_id)
-    entry = bms.get(str(waba_id).strip()) or {}
-    snap = entry.get("snapshot") or {}
-    token = entry.get("token", "")
-
-    # Resolve phone_number_id
-    phones = snap.get("phone_numbers") or []
-    phone_number_id = _pick_health_test_phone(phones) or entry.get("phone_number_id", "")
-
-    if not token or not phone_number_id:
-        return {"state": "failed", "msg": "WABA sem token ou phone_number_id. Sincronize o dashboard."}
-
-    # Fetch templates
-    templates, err = get_templates(api_version, token, waba_id)
-    if err or not templates:
-        msg = err or "Nenhum template encontrado para este WABA."
-        return {"state": "failed", "msg": msg}
-
-    tpl = pick_test_template(templates)
-    if not tpl:
-        return {"state": "failed", "msg": "Nenhum template APROVADO encontrado."}
-
+def _run_phone_attempts(
+    user_id: int,
+    waba_id: str,
+    snap: dict,
+    token: str,
+    phone_number_id: str,
+    test_phone: str,
+    tpl: dict,
+) -> dict:
+    """Run up to 5 send attempts (30s apart) for one phone.
+    Returns {state, msg}; sets retry_other_phone=True on a #131037 error so the
+    caller can fall back to another phone in the WABA."""
     max_attempts = 5
     poll_interval = 2   # seconds between polls for webhook
     poll_timeout = 28   # seconds to wait for webhook before next attempt
@@ -165,6 +162,14 @@ def _run_one_test(user_id: int, waba_id: str, test_phone: str, api_version: str)
         ok, wamid, diagnosis = _send_health_template(token, phone_number_id, test_phone, tpl)
 
         if not ok:
+            # Display-name approval error → signal caller to try another phone.
+            # Don't record health_test_last_error yet — a fallback may succeed.
+            if _DISPLAY_NAME_ERROR in diagnosis:
+                return {
+                    "state": "failed",
+                    "msg": f"Erro no envio (tentativa {attempt}): {diagnosis}",
+                    "retry_other_phone": True,
+                }
             # Apply existing #135000 → ERRO GENERIC mapping
             if "#135000" in diagnosis:
                 _flag_erro_generic(user_id, waba_id, snap, diagnosis)
@@ -198,6 +203,46 @@ def _run_one_test(user_id: int, waba_id: str, test_phone: str, api_version: str)
 
     patch_snapshot(user_id, waba_id, health_test_pending={})
     return {"state": "failed", "msg": f"Sem confirmação de entrega após {max_attempts} tentativas."}
+
+
+def _run_one_test(user_id: int, waba_id: str, test_phone: str, api_version: str) -> dict:
+    """Test each candidate phone (+1 first). On #131037, fall back to another phone."""
+    bms = load_user_bms(user_id)
+    entry = bms.get(str(waba_id).strip()) or {}
+    snap = entry.get("snapshot") or {}
+    token = entry.get("token", "")
+
+    # Resolve candidate phone_number_ids (+1 preferred, then others)
+    phones = snap.get("phone_numbers") or []
+    candidate_ids = _ordered_health_test_phone_ids(phones)
+    if not candidate_ids and entry.get("phone_number_id"):
+        candidate_ids = [entry.get("phone_number_id")]
+
+    if not token or not candidate_ids:
+        return {"state": "failed", "msg": "WABA sem token ou phone_number_id. Sincronize o dashboard."}
+
+    # Fetch templates
+    templates, err = get_templates(api_version, token, waba_id)
+    if err or not templates:
+        msg = err or "Nenhum template encontrado para este WABA."
+        return {"state": "failed", "msg": msg}
+
+    tpl = pick_test_template(templates)
+    if not tpl:
+        return {"state": "failed", "msg": "Nenhum template APROVADO encontrado."}
+
+    result = {"state": "failed", "msg": "Nenhum número disponível."}
+    for idx, phone_number_id in enumerate(candidate_ids):
+        result = _run_phone_attempts(user_id, waba_id, snap, token, phone_number_id, test_phone, tpl)
+        # #131037 → try the next phone in the WABA if one exists
+        if result.get("retry_other_phone") and idx < len(candidate_ids) - 1:
+            continue
+        break
+
+    if result.pop("retry_other_phone", False):
+        # Terminal #131037 with no other phone → record + alert like today
+        patch_snapshot(user_id, waba_id, health_test_last_error=result["msg"])
+    return result
 
 
 def _flag_erro_generic(user_id: int, waba_id: str, snap: dict, msg: str) -> None:
