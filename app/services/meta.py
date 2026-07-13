@@ -417,26 +417,60 @@ def register_pending_numbers(api_version: str, token: str, phones: list, pin: st
 # Cache app_id per token to avoid repeated /app calls inside one job run.
 _app_id_cache: dict[str, str] = {}
 
-def get_app_id(api_version: str, token: str, fallback: str = "") -> str:
-    """Return the Facebook App ID associated with this token.
+def get_app_id(api_version: str, token: str, fallback: str = "") -> tuple[str, str | None]:
+    """Return (app_id, err) for the Facebook App associated with this token.
 
-    Tries GET /{ver}/app first (works for system-user tokens issued from the
-    app). Falls back to the supplied `fallback` (i.e. META_APP_ID env var)
-    when the call fails or the token has no app node.
+    Strategy (first hit wins):
+      1. GET /debug_token (token inspects itself) → data.app_id. Also surfaces a
+         precise reason (expired/invalid token) when it fails.
+      2. GET /{ver}/app → id. Works for system-user tokens issued from the app.
+      3. The supplied `fallback` (i.e. META_APP_ID env var).
+
+    On success err is None. On failure app_id is "" and err carries a
+    human-readable cause (e.g. the "token has expired" message from Meta).
     """
     if token in _app_id_cache:
-        return _app_id_cache[token]
+        return _app_id_cache[token], None
+
+    app_id = ""
+    err: str | None = None
+
+    # ── Strategy 1: debug_token (also reports why a token is unusable) ──
     try:
-        url = f"https://graph.facebook.com/{api_version}/app"
+        url = (
+            f"https://graph.facebook.com/{api_version}/debug_token"
+            f"?input_token={token}"
+        )
         r = requests.get(url, headers=_auth_headers(token), timeout=15)
         j = r.json() if r.text else {}
-        app_id = str(j.get("id") or "").strip()
-    except Exception:
-        app_id = ""
+        app_id = str(((j.get("data") or {}).get("app_id")) or "").strip()
+        if not app_id:
+            meta_err = (j.get("error") or {})
+            if isinstance(meta_err, dict) and meta_err.get("message"):
+                err = meta_err["message"]
+    except Exception as e:
+        err = str(e)[:200]
+
+    # ── Strategy 2: GET /{ver}/app (system-user tokens) ──
+    if not app_id:
+        try:
+            url = f"https://graph.facebook.com/{api_version}/app"
+            r = requests.get(url, headers=_auth_headers(token), timeout=15)
+            j = r.json() if r.text else {}
+            app_id = str(j.get("id") or "").strip()
+            if not app_id and not err:
+                meta_err = (j.get("error") or {})
+                if isinstance(meta_err, dict) and meta_err.get("message"):
+                    err = meta_err["message"]
+        except Exception as e:
+            if not err:
+                err = str(e)[:200]
+
     result = app_id or fallback
     if result:
         _app_id_cache[token] = result
-    return result
+        return result, None
+    return "", err or "Não foi possível determinar o App ID do token."
 
 
 def upload_resumable(api_version: str, app_id: str, token: str,

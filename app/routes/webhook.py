@@ -2,6 +2,7 @@ import json
 import queue
 import threading
 import time
+import requests
 from flask import Blueprint, request, current_app, jsonify
 from .. import db
 from ..models import WebhookLog, ListaWebhook, AppSetting
@@ -184,6 +185,8 @@ def process_webhook_payload(payload):
     # Log raw payload if admin has enabled it
     _maybe_log(payload)
 
+    _forward_needed = False
+
     for entry in (payload.get("entry") or []):
         waba_id = str(entry.get("id") or "")
         if not waba_id:
@@ -192,6 +195,9 @@ def process_webhook_payload(payload):
         for change in (entry.get("changes") or []):
             field = change.get("field") or ""
             value = change.get("value") or {}
+
+            if field == "messages":
+                _forward_needed = True
 
             if field == "message_template_status_update":
                 apply_template_status_event(waba_id, value)
@@ -273,6 +279,25 @@ def process_webhook_payload(payload):
                         apply_message_status_event(waba_id, status_obj)
                     except Exception:
                         pass
+
+    # Lite has no direct Meta webhook subscription of its own — forward the
+    # raw payload so its chat feature stays in sync with inbound messages.
+    if _forward_needed:
+        _forward_to_lite(payload)
+
+
+def _forward_to_lite(payload: dict) -> None:
+    """Best-effort forward of an inbound chat webhook payload to Manager Lite."""
+    try:
+        base = (current_app.config.get("LITE_BASE_URL") or "").rstrip("/")
+        if not base:
+            return
+        requests.post(base + "/webhook", json=payload, timeout=5)
+    except Exception as e:
+        try:
+            print(f"[WEBHOOK] lite forward failed: {type(e).__name__}: {e}", flush=True)
+        except Exception:
+            pass
 
 
 @bp.route("/saidaquicurioso", methods=["GET"])

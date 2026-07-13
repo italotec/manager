@@ -56,8 +56,15 @@ def _run_job(app, job_id: int, file_bytes: bytes, tasks: list[dict]):
             phones    = task["phone_numbers"]
 
             # ── Step 1: get app_id and upload the photo once per WABA token ──
-            app_id = get_app_id(upload_ver, token, fallback=fallback_app_id)
+            app_id, appid_err = get_app_id(upload_ver, token, fallback=fallback_app_id)
             if not app_id:
+                low = (appid_err or "").lower()
+                if "expired" in low or "expirad" in low:
+                    msg = "Token da WABA expirado — reconecte a WABA para renovar o token."
+                elif appid_err:
+                    msg = f"Não foi possível obter o App ID desta WABA: {appid_err}"
+                else:
+                    msg = "Não foi possível obter o App ID para o token desta WABA."
                 # Record failure for all phones in this WABA
                 with _jobs_lock:
                     for ph in phones:
@@ -68,7 +75,7 @@ def _run_job(app, job_id: int, file_bytes: bytes, tasks: list[dict]):
                             "waba_name": waba_name,
                             "name":      ph.get("display_phone_number", ph["id"]),
                             "ok":        False,
-                            "msg":       "Não foi possível obter o App ID para o token desta WABA.",
+                            "msg":       msg,
                         })
                 continue
 
