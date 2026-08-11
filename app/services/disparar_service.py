@@ -18,6 +18,7 @@ import requests
 from requests.adapters import HTTPAdapter
 
 from .. import db
+from ..config import Config
 from ..models import DisparoJob
 from ..json_store import patch_snapshot, load_user_bms
 
@@ -392,7 +393,7 @@ def _send_template(phone: str, phone_number_id: str, token: str,
                    template_name: str, template_language: str,
                    parameters: list, namespace: str) -> tuple:
     """Returns (success: bool, message: str). Pure HTTP — no DB/file access."""
-    api_url = f"https://graph.facebook.com/v23.0/{phone_number_id}/messages"
+    api_url = f"https://graph.facebook.com/{Config.META_SEND_API_VERSION}/{phone_number_id}/messages"
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {token}",
@@ -433,7 +434,7 @@ def _send_template(phone: str, phone_number_id: str, token: str,
 
 async def _send_template_async(session, phone, phone_number_id, token,
                                template_name, template_language, parameters, namespace):
-    url = f"https://graph.facebook.com/v23.0/{phone_number_id}/messages"
+    url = f"https://graph.facebook.com/{Config.META_SEND_API_VERSION}/{phone_number_id}/messages"
     hdrs = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
     components = []
     if parameters:
