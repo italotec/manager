@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import requests
 
+from ..config import Config
 from ..json_store import load_user_bms, patch_snapshot, find_users_with_waba
 from .meta import get_templates, pick_test_template, _count_body_vars
 
@@ -81,7 +82,7 @@ def _send_health_template(
         },
     }
 
-    url = f"https://graph.facebook.com/v23.0/{phone_number_id}/messages"
+    url = f"https://graph.facebook.com/{Config.META_SEND_API_VERSION}/{phone_number_id}/messages"
     try:
         r = requests.post(
             url,

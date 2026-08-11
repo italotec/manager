@@ -1,5 +1,16 @@
 import os
 from datetime import timedelta
+from pathlib import Path
+
+# Load a local .env for development. Guarded: python-dotenv is optional, and a
+# missing package must never take the app down. override=False so the real
+# process environment (systemd EnvironmentFile=/etc/manager.env in production)
+# always wins over any .env file.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parent.parent / ".env", override=False)
+except ImportError:
+    pass
 
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-change-me")
@@ -42,6 +53,8 @@ class Config:
     # META
     META_API_VERSION = os.getenv("META_API_VERSION", "v18.0")
     META_UPLOAD_API_VERSION = os.getenv("META_UPLOAD_API_VERSION", "v21.0")
+    # Message-sending endpoints only (/{phone_number_id}/messages).
+    META_SEND_API_VERSION = os.getenv("META_SEND_API_VERSION", "v26.0")
     META_REGISTER_PIN = os.getenv("META_REGISTER_PIN", "123456")
     META_APP_ID = os.getenv("META_APP_ID", "")
     WEBHOOK_VERIFY_TOKEN = os.getenv("WEBHOOK_VERIFY_TOKEN", "my-webhook-verify-token-change-me")

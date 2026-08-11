@@ -1,6 +1,8 @@
 import time
 import requests
 
+from ..config import Config
+
 def _auth_headers(token: str) -> dict:
     return {"Authorization": f"Bearer {token}"}
 
@@ -226,7 +228,7 @@ def send_test_message(token: str, phone_number_id: str, template: dict) -> tuple
         },
     }
 
-    url = f"https://graph.facebook.com/v23.0/{phone_number_id}/messages"
+    url = f"https://graph.facebook.com/{Config.META_SEND_API_VERSION}/{phone_number_id}/messages"
     try:
         r = requests.post(
             url,

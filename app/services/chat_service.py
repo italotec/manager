@@ -6,10 +6,9 @@ from datetime import datetime
 from sqlalchemy import func, desc
 
 from .. import db
+from ..config import Config
 from ..models import ChatMessage, User
 from ..json_store import load_user_bms
-
-_API_VERSION = "v23.0"
 
 
 # ── WABA lookup (for webhook processing, no session available) ─────────────────
@@ -32,7 +31,7 @@ def find_waba_owner(waba_id: str):
 
 def send_text_message(token: str, phone_number_id: str, to_wa_id: str, body: str):
     """Send a plain text message. Returns (success, wamid_or_error_str)."""
-    url = f"https://graph.facebook.com/{_API_VERSION}/{phone_number_id}/messages"
+    url = f"https://graph.facebook.com/{Config.META_SEND_API_VERSION}/{phone_number_id}/messages"
     payload = {
         "messaging_product": "whatsapp",
         "to": to_wa_id,
@@ -58,7 +57,7 @@ def send_text_message(token: str, phone_number_id: str, to_wa_id: str, body: str
 def send_image_message(token: str, phone_number_id: str, to_wa_id: str,
                        image_url: str, caption: str = ""):
     """Send an image by public URL. Returns (success, wamid_or_error_str)."""
-    url = f"https://graph.facebook.com/{_API_VERSION}/{phone_number_id}/messages"
+    url = f"https://graph.facebook.com/{Config.META_SEND_API_VERSION}/{phone_number_id}/messages"
     image_obj: dict = {"link": image_url}
     if caption:
         image_obj["caption"] = caption
