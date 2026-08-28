@@ -93,6 +93,34 @@ def _xlsx_read_sst(zf) -> list[str]:
     return sst
 
 
+def _xlsx_read_sst_subset(zf, needed: set[int]) -> dict[int, str]:
+    """Resolve only `needed` shared-string indices, streaming and stopping early.
+
+    The listing page needs a handful of header/preview cells, but a 1M-row .xlsx
+    has a shared-strings table worth gigabytes once materialised as Python str.
+    Loading it whole on every page load is what exhausted memory, so keep only
+    the indices the caller will actually read.
+    """
+    import xml.etree.ElementTree as ET
+    NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
+    out: dict[int, str] = {}
+    if not needed or "xl/sharedStrings.xml" not in zf.namelist():
+        return out
+    last = max(needed)
+    idx = 0
+    with zf.open("xl/sharedStrings.xml") as f:
+        for _, elem in ET.iterparse(f, events=("end",)):
+            if elem.tag != f"{NS}si":
+                continue
+            if idx in needed:
+                out[idx] = "".join(t.text or "" for t in elem.findall(f".//{NS}t"))
+            elem.clear()
+            if idx >= last:
+                break
+            idx += 1
+    return out
+
+
 def _xlsx_best_sheet(zf) -> str | None:
     """Return the xl/worksheets/sheetN.xml path with the most rows (byte scan)."""
     sheet_paths = sorted(
@@ -188,24 +216,27 @@ def _read_file_info(
         import xml.etree.ElementTree as ET
         NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
-        def cell_value(c_elem) -> str:
+        def raw_cell(c_elem) -> tuple[str, str]:
+            """(type, text) with shared strings left as their index.
+
+            Resolution is deferred so we can load just the referenced entries of
+            the shared-strings table instead of all of it.
+            """
             t = c_elem.get("t", "")
-            v = c_elem.find(f"{NS}v")
-            if t == "s":
-                return sst[int(v.text)] if v is not None and v.text and int(v.text) < len(sst) else ""
             if t == "inlineStr":
                 is_e = c_elem.find(f"{NS}is")
-                return "".join(x.text or "" for x in is_e.findall(f".//{NS}t")) if is_e is not None else ""
-            return (v.text or "") if v is not None else ""
+                if is_e is None:
+                    return "", ""
+                return "", "".join(x.text or "" for x in is_e.findall(f".//{NS}t"))
+            v = c_elem.find(f"{NS}v")
+            return t, ((v.text or "") if v is not None else "")
 
         with zipfile.ZipFile(path, "r") as zf:
-            sst = _xlsx_read_sst(zf)
             sheet_path = _xlsx_best_sheet(zf)
             if sheet_path is None:
                 return [], 0, []
 
-            headers: list[str] = []
-            preview: list[dict] = []
+            raw_rows: list[list[tuple[str, str]]] = []
             row_idx = 0
             data_rows_seen = 0
 
@@ -214,24 +245,38 @@ def _read_file_info(
                     if elem.tag != f"{NS}row":
                         continue  # do NOT clear here — cells are children of row
                     row_idx += 1
-                    cells: dict[str, str] = {}
+                    cells: dict[str, tuple[str, str]] = {}
                     for c in elem:
                         if c.tag != f"{NS}c":
                             continue
                         col_ref = re.sub(r"\d+", "", c.get("r", ""))
                         if col_ref:
-                            cells[col_ref] = cell_value(c)
-                    values = [cells[c] for c in sorted(cells, key=_col_index)]
-                    if row_idx == 1:
-                        headers = values
-                    else:
+                            cells[col_ref] = raw_cell(c)
+                    raw_rows.append([cells[c] for c in sorted(cells, key=_col_index)])
+                    if row_idx > 1:
                         data_rows_seen += 1
-                        if data_rows_seen <= preview_rows:
-                            preview.append(dict(zip(headers, values[:len(headers)])))
                         if data_rows_seen >= preview_rows:
                             elem.clear()
                             break
                     elem.clear()
+
+            needed = {
+                int(txt) for row in raw_rows for t, txt in row
+                if t == "s" and txt.isdigit()
+            }
+            sst = _xlsx_read_sst_subset(zf, needed)
+
+            def resolved(row: list[tuple[str, str]]) -> list[str]:
+                return [
+                    sst.get(int(txt), "") if t == "s" and txt.isdigit() else txt
+                    for t, txt in row
+                ]
+
+            headers = resolved(raw_rows[0]) if raw_rows else []
+            preview = [
+                dict(zip(headers, resolved(r)[:len(headers)]))
+                for r in raw_rows[1:preview_rows + 1]
+            ]
 
             row_count = _xlsx_count_rows(zf, sheet_path)
 
@@ -256,6 +301,37 @@ def _read_file_info(
                 with open(path, "r", encoding="utf-8-sig", newline="") as f2:
                     row_count = sum(1 for _ in f2) - 1  # subtract header line
         return headers, row_count, preview
+
+
+_FILE_INFO_LOCK = threading.Lock()
+_FILE_INFO_CACHE: dict[str, tuple[float, int, list[str], int]] = {}
+_FILE_INFO_CACHE_MAX = 512
+
+
+def read_file_info_cached(path: str) -> tuple[list[str], int]:
+    """(columns, row_count) for the listing page, memoised on (mtime, size).
+
+    The page re-reads every upload on each load and Werkzeug gives each request
+    its own thread, so without this a burst of loads stacks one full parse of
+    every file per request. Uploads are immutable once written, so mtime+size
+    is enough to invalidate.
+    """
+    try:
+        st = os.stat(path)
+    except OSError:
+        return [], 0
+    with _FILE_INFO_LOCK:
+        hit = _FILE_INFO_CACHE.get(path)
+        if hit is not None and hit[0] == st.st_mtime and hit[1] == st.st_size:
+            return list(hit[2]), hit[3]
+
+    columns, row_count, _ = _read_file_info(path, stop_after_preview=True)
+
+    with _FILE_INFO_LOCK:
+        if len(_FILE_INFO_CACHE) >= _FILE_INFO_CACHE_MAX:
+            _FILE_INFO_CACHE.clear()
+        _FILE_INFO_CACHE[path] = (st.st_mtime, st.st_size, list(columns), row_count)
+    return columns, row_count
 
 
 def _write_file(rows: list[dict], path: str, ext: str) -> None:

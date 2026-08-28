@@ -16,6 +16,7 @@ from ..services.listas_service import (
     get_live_state,
     request_stop,
     _read_file_info,
+    read_file_info_cached,
 )
 
 bp = Blueprint("listas", __name__, url_prefix="/listas")
@@ -47,7 +48,7 @@ def listas_page():
             continue
         path = os.path.join(d, fn)
         try:
-            columns, row_count, _ = _read_file_info(path)
+            columns, row_count = read_file_info_cached(path)
         except Exception:
             row_count = 0
             columns = []
